@@ -1,20 +1,13 @@
 const app = require('./app');
 const config = require('./config/env');
 const logger = require('./config/logger');
-const { testConnection } = require('./config/mysql');
-const { initDb } = require('./config/sqlite');
+const { initDatabase } = require('./config/db');
 
 const PORT = config.port;
 
 const startServer = async () => {
-  // Initialize SQLite
-  await initDb();
-
-  // Test MySQL connection
-  const mysqlConnected = await testConnection();
-  if (!mysqlConnected) {
-    logger.warn('MySQL connection failed. Server will start but some features may not work.');
-  }
+  // Initialize database (MySQL primary + SQLite offline fallback)
+  await initDatabase();
 
   app.listen(PORT, () => {
     logger.info(`Server running on port ${PORT} in ${config.nodeEnv} mode`);

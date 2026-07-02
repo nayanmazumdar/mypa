@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getPool } = require('../config/mysql');
+const { getPool } = require('../config/db');
 const { authenticate, authorize } = require('../middlewares/auth.middleware');
 const ApiResponse = require('../utils/response');
 const { ROLES } = require('../utils/constants');

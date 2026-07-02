@@ -1,5 +1,4 @@
-const { getPool } = require('../config/mysql');
-const { getDb } = require('../config/sqlite');
+const { getPool, getDb } = require('../config/db');
 const logger = require('../config/logger');
 
 /**

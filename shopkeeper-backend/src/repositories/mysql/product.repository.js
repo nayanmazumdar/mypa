@@ -1,4 +1,4 @@
-const { getPool } = require('../../config/mysql');
+const { getPool } = require('../../config/db');
 
 class ProductRepository {
   async findAll(userId, { limit, offset, search, categoryId }) {

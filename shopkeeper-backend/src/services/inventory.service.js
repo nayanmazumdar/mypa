@@ -1,4 +1,4 @@
-const { getPool } = require('../config/mysql');
+const { getPool } = require('../config/db');
 const logger = require('../config/logger');
 
 class InventoryService {

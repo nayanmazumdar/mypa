@@ -1,11 +1,10 @@
-const { getPool, testConnection } = require('../config/mysql');
-const { getDb } = require('../config/sqlite');
+const { isMysqlAvailable, getPool, getDb } = require('../config/db');
 const { hashPassword, comparePassword } = require('../utils/hash');
 const { generateToken } = require('../utils/jwt');
 const { generateId } = require('../utils/helper');
 const logger = require('../config/logger');
 
-// Initialize SQLite users table (called lazily on first use)
+// Ensure SQLite users table exists for offline mode
 let sqliteTableInitialized = false;
 const ensureSqliteUsersTable = () => {
   if (sqliteTableInitialized) return;
@@ -30,23 +29,11 @@ const ensureSqliteUsersTable = () => {
 };
 
 class AuthService {
-  async _useMysql() {
-    try {
-      const pool = getPool();
-      const conn = await pool.getConnection();
-      conn.release();
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
   async register({ name, email, password, phone, shop_name, role }) {
-    const useMysql = await this._useMysql();
     const hashedPassword = await hashPassword(password);
     const uuid = generateId();
 
-    if (useMysql) {
+    if (isMysqlAvailable()) {
       const pool = getPool();
       const [existing] = await pool.execute('SELECT id FROM users WHERE email = ?', [email]);
       if (existing.length > 0) {
@@ -80,16 +67,15 @@ class AuthService {
 
       const user = { id: result.lastInsertRowid, uuid, name, email, role: role || 'shopkeeper' };
       const token = generateToken({ id: user.id, uuid: user.uuid, email: user.email, role: user.role });
-      logger.info(`User registered (SQLite): ${email}`);
+      logger.info(`User registered (SQLite/offline): ${email}`);
       return { user, token };
     }
   }
 
   async login({ email, password }) {
-    const useMysql = await this._useMysql();
-
     let user;
-    if (useMysql) {
+
+    if (isMysqlAvailable()) {
       const pool = getPool();
       const [rows] = await pool.execute(
         'SELECT id, uuid, name, email, password, role, shop_name, is_active FROM users WHERE email = ?',
@@ -110,7 +96,7 @@ class AuthService {
       throw error;
     }
 
-    if (user.is_active === 0) {
+    if (user.is_active === 0 || user.is_active === false) {
       const error = new Error('Account is deactivated');
       error.statusCode = 403;
       throw error;
@@ -133,9 +119,7 @@ class AuthService {
   }
 
   async getProfile(userId) {
-    const useMysql = await this._useMysql();
-
-    if (useMysql) {
+    if (isMysqlAvailable()) {
       const pool = getPool();
       const [rows] = await pool.execute(
         'SELECT id, uuid, name, email, phone, role, shop_name, address, is_active, created_at FROM users WHERE id = ?',
