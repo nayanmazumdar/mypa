@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Earnings – MyPA Admin</title>
+  <link rel="icon" type="image/png" href="/logo.png">
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    .hidden{display:none!important;}
+    .type-badge-user{background:#eff6ff;color:#2563eb;padding:.2rem .55rem;border-radius:20px;font-size:.72rem;font-weight:700;}
+    .type-badge-business{background:#fefce8;color:#ca8a04;padding:.2rem .55rem;border-radius:20px;font-size:.72rem;font-weight:700;}
+    .type-badge-customer{background:#f0fdf4;color:#16a34a;padding:.2rem .55rem;border-radius:20px;font-size:.72rem;font-weight:700;}
+  </style>
+</head>
+<body>
+  <%- include('partials/navbar') %>
+  <div class="container">
+
+    <div class="flex-between page-header">
+      <div>
+        <h1>💰 Earnings</h1>
+        <p>Subscription fee collections from users, businesses &amp; customers</p>
+      </div>
+      <div style="display:flex;gap:.75rem;">
+        <button onclick="document.getElementById('reportPanel').classList.toggle('hidden')" class="btn btn-secondary">📄 Print Report</button>
+        <a href="/admin" class="btn btn-secondary">← Admin Panel</a>
+      </div>
+    </div>
+
+    <!-- Report panel -->
+    <div id="reportPanel" class="hidden card" style="margin-bottom:1.25rem;background:#f0f4ff;border:1px solid #c7d6ff;">
+      <div class="card-body" style="padding:.875rem 1.25rem;">
+        <form action="/admin/earnings/report" method="GET" target="_blank"
+              style="display:flex;gap:.75rem;align-items:flex-end;flex-wrap:wrap;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" style="font-size:.8rem;">From Date</label>
+            <input type="date" class="form-control" name="from" value="<%= from %>" style="padding:.4rem .75rem;">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" style="font-size:.8rem;">To Date</label>
+            <input type="date" class="form-control" name="to" value="<%= to||new Date().toISOString().slice(0,10) %>" style="padding:.4rem .75rem;">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" style="font-size:.8rem;">Type</label>
+            <select class="form-control" name="type" style="padding:.4rem .75rem;">
+              <option value="">All</option>
+              <option value="user" <%=type==='user'?'selected':''%>>User</option>
+              <option value="business" <%=type==='business'?'selected':''%>>Business</option>
+              <option value="customer" <%=type==='customer'?'selected':''%>>Customer</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary" style="padding:.45rem 1.25rem;">🖨️ Generate & Print</button>
+          <button type="button" class="btn btn-secondary" onclick="document.getElementById('reportPanel').classList.add('hidden')" style="padding:.45rem 1rem;">Cancel</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Summary tiles -->
+    <div class="grid grid-4" style="margin-bottom:1.5rem;">
+      <div class="stat-card">
+        <div class="stat-icon green">💰</div>
+        <div class="stat-info"><p>Total Earnings</p><h3>₹<%= total.toLocaleString('en-IN') %></h3></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon indigo">👤</div>
+        <div class="stat-info"><p>From Users</p><h3>₹<%= totalUsers.toLocaleString('en-IN') %></h3></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon amber">🏪</div>
+        <div class="stat-info"><p>From Businesses</p><h3>₹<%= totalBusiness.toLocaleString('en-IN') %></h3></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon cyan">👥</div>
+        <div class="stat-info"><p>From Customers</p><h3>₹<%= totalCustomers.toLocaleString('en-IN') %></h3></div>
+      </div>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="card-body" style="padding:1rem 1.5rem;">
+        <form method="GET" action="/admin/earnings" style="display:flex;gap:.75rem;align-items:flex-end;flex-wrap:wrap;">
+          <div class="form-group" style="margin-bottom:0;flex:1;min-width:140px;">
+            <label class="form-label">From Date</label>
+            <input type="date" class="form-control" name="from" value="<%= from %>">
+          </div>
+          <div class="form-group" style="margin-bottom:0;flex:1;min-width:140px;">
+            <label class="form-label">To Date</label>
+            <input type="date" class="form-control" name="to" value="<%= to %>">
+          </div>
+          <div class="form-group" style="margin-bottom:0;flex:1;min-width:140px;">
+            <label class="form-label">Entity Type</label>
+            <select class="form-control" name="type">
+              <option value="">All Types</option>
+              <option value="user" <%=type==='user'?'selected':''%>>👤 User</option>
+              <option value="business" <%=type==='business'?'selected':''%>>🏪 Business</option>
+              <option value="customer" <%=type==='customer'?'selected':''%>>👥 Customer</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary">🔍 Filter</button>
+          <a href="/admin/earnings" class="btn btn-secondary">Clear</a>
+        </form>
+      </div>
+    </div>
+
+    <!-- Earnings table -->
+    <div class="card">
+      <div class="card-header">
+        <h2>📋 All Earnings</h2>
+        <span class="badge badge-navy"><%= earnings.length %> records</span>
+      </div>
+      <% if (earnings.length === 0) { %>
+        <div class="card-body text-center" style="padding:3rem;">
+          <div style="font-size:3rem;margin-bottom:.75rem;">💰</div>
+          <p class="text-muted">No earnings recorded yet. Activate a subscription with a fee to record earnings.</p>
+        </div>
+      <% } else { %>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>#</th><th>Date</th><th>Entity</th><th>Name</th><th>Plan / Note</th><th>Active Until</th><th style="text-align:right;">Amount (₹)</th></tr>
+          </thead>
+          <tbody>
+            <% var running = 0; %>
+            <% earnings.forEach(function(e, i) { running += e.amount; %>
+            <tr>
+              <td class="text-muted text-sm"><%= i+1 %></td>
+              <td style="white-space:nowrap;"><%= new Date(e.payment_date).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) %></td>
+              <td><span class="type-badge-<%= e.entity_type %>"><%= e.entity_type %></span></td>
+              <td class="fw-bold"><%= e.entity_name||'—' %></td>
+              <td class="text-sm text-muted"><%= e.plan_note||'—' %></td>
+              <td class="text-sm"><%= e.active_until||'—' %></td>
+              <td style="text-align:right;font-weight:700;color:var(--success);">₹<%= e.amount.toLocaleString('en-IN') %></td>
+            </tr>
+            <% }) %>
+          </tbody>
+          <tfoot>
+            <tr style="background:var(--gray-50);">
+              <td colspan="6" style="font-weight:800;padding:.85rem 1rem;">Total</td>
+              <td style="text-align:right;font-weight:800;font-size:1.05rem;color:var(--success);padding:.85rem 1rem;">₹<%= total.toLocaleString('en-IN') %></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <% } %>
+    </div>
+
+  </div>
+</body>
+</html>

@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= customer.name %> – MyPA</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    .type-toggle { display:flex; gap:.5rem; }
+    .type-btn {
+      flex:1; padding:.55rem .5rem; border:2px solid var(--gray-200);
+      border-radius:8px; background:#fff; cursor:pointer;
+      font-size:.85rem; font-weight:600; transition:all .2s; text-align:center;
+    }
+    .type-btn.sale_credit.active  { background:#fff3f3; border-color:var(--danger);  color:var(--danger);  }
+    .type-btn.payment_cash.active { background:#f0fdf4; border-color:var(--success); color:var(--success); }
+    .type-btn:not(.active) { color:var(--gray-400); }
+
+    .ledger-table { width:100%; border-collapse:collapse; font-size:.875rem; }
+    .ledger-table th { background:var(--gray-50); padding:.6rem .75rem; text-align:left; font-weight:600; border-bottom:2px solid var(--gray-200); }
+    .ledger-table td { padding:.6rem .75rem; border-bottom:1px solid var(--gray-100); vertical-align:middle; }
+    .ledger-table tr:last-child td { border-bottom:none; }
+
+    .tag { display:inline-block; padding:.2rem .55rem; border-radius:20px; font-size:.72rem; font-weight:700; white-space:nowrap; }
+    .tag-sale-credit  { background:#fff3f3; color:var(--danger); }
+    .tag-payment-cash { background:#f0fdf4; color:var(--success); }
+
+    .del-btn { background:none; border:none; cursor:pointer; color:var(--gray-300); font-size:1rem; padding:.2rem .4rem; border-radius:4px; }
+    .del-btn:hover { color:var(--danger); }
+
+    .summary-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:.75rem; margin-bottom:1.25rem; }
+    .summary-tile { background:var(--gray-50); border-radius:10px; padding:.75rem .875rem; text-align:center; }
+    .summary-tile .val { font-size:1.15rem; font-weight:700; margin-top:.2rem; }
+  </style>
+</head>
+<body>
+  <%- include('partials/navbar') %>
+  <div class="container">
+
+    <div class="flex-between page-header">
+      <div>
+        <h1>🧾 <%= customer.name %></h1>
+        <p>Customer Profile & Ledger</p>
+      </div>
+      <div style="display:flex;gap:.75rem;">
+        <button onclick="document.getElementById('reportPanel').classList.toggle('hidden')"
+                class="btn btn-secondary">📄 Print Report</button>
+        <a href="/customers/<%= customer.customer_id %>/qr" class="btn btn-secondary">🪪 Digital Card</a>
+        <a href="/customers/<%= customer.customer_id %>/edit" class="btn btn-outline">✏️ Edit</a>
+        <a href="/customers" class="btn btn-secondary">← Back</a>
+      </div>
+    </div>
+
+    <!-- Report date range panel -->
+    <div id="reportPanel" class="hidden card" style="margin-bottom:1.25rem;background:#f0f4ff;border:1px solid #c7d6ff;">
+      <div class="card-body" style="padding:.875rem 1.25rem;">
+        <form action="/customers/<%= customer.customer_id %>/report" method="GET"
+              target="_blank" style="display:flex;gap:.75rem;align-items:flex-end;flex-wrap:wrap;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" style="font-size:.8rem;">From Date</label>
+            <input type="date" class="form-control" name="from" style="padding:.4rem .75rem;">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" style="font-size:.8rem;">To Date</label>
+            <input type="date" class="form-control" name="to"
+                   value="<%= new Date().toISOString().slice(0,10) %>" style="padding:.4rem .75rem;">
+          </div>
+          <button type="submit" class="btn btn-primary" style="padding:.45rem 1.25rem;">
+            🖨️ Generate & Print
+          </button>
+          <button type="button" class="btn btn-secondary" style="padding:.45rem 1rem;"
+                  onclick="document.getElementById('reportPanel').classList.add('hidden')">Cancel</button>
+        </form>
+      </div>
+    </div>
+    <style>.hidden{display:none!important;}</style>
+
+    <%
+      var totalCredit   = 0;
+      var totalReceived = 0;
+      transactions.forEach(function(t) {
+        if (t.type === 'sale_credit' || t.type === 'sale') totalCredit += t.amount;
+        else if (t.type === 'payment_cash' || t.type === 'payment') totalReceived += t.amount;
+      });
+      var outstanding = totalCredit - totalReceived;
+    %>
+
+    <div class="grid grid-2">
+
+      <!-- LEFT COLUMN -->
+      <div>
+
+        <!-- Customer card -->
+        <div class="customer-card" style="margin-bottom:1.5rem;">
+          <div class="brand" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;">
+            <span>MyPA</span>
+            <svg id="customerBarcode" style="flex-shrink:0;"></svg>
+          </div>
+          <div style="display:flex;gap:1rem;align-items:center;margin-bottom:1rem;">
+            <% if (customer.photo) { %>
+              <img src="<%= customer.photo %>" width="60" height="60"
+                   style="border-radius:50%;border:2px solid rgba(255,255,255,.4);object-fit:cover;">
+            <% } else { %>
+              <div style="width:60px;height:60px;border-radius:50%;background:rgba(255,255,255,.2);
+                          display:flex;align-items:center;justify-content:center;font-size:1.5rem;
+                          border:2px solid rgba(255,255,255,.4);">
+                <%= customer.name.charAt(0).toUpperCase() %>
+              </div>
+            <% } %>
+            <div>
+              <div class="customer-name"><%= customer.name %></div>
+              <div class="customer-info">📞 <%= customer.mobile %></div>
+            </div>
+          </div>
+          <div class="customer-info">
+            <% if (customer.address)          { %>📍 <%= customer.address %><br><% } %>
+            <% if (customer.occupation)       { %>💼 <%= customer.occupation %><br><% } %>
+            <% if (customer.reference_person) { %>👤 Ref: <%= customer.reference_person %><br><% } %>
+          </div>
+          <% if (business) { %>
+          <div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid rgba(255,255,255,.2);">
+            <div style="font-size:.7rem;opacity:.7;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.3rem;">Shop / Business</div>
+            <div style="font-weight:700;font-size:.95rem;"><%= business.business_name %></div>
+            <% if (business.owner_name) { %><div style="font-size:.8rem;opacity:.85;">👤 <%= business.owner_name %></div><% } %>
+            <% if (business.address)    { %><div style="font-size:.78rem;opacity:.75;">📍 <%= business.address %></div><% } %>
+            <% if (business.gst_number) { %><div style="font-size:.78rem;opacity:.75;">GST: <%= business.gst_number %></div><% } %>
+          </div>
+          <% } %>
+          <div class="due">
+            <div>
+              <div class="due-label">Overall Credit Balance</div>
+              <div class="due-amount">₹<%= outstanding.toLocaleString('en-IN') %></div>
+            </div>
+            <div style="text-align:right;">
+              <div class="due-label">Credit Limit</div>
+              <div style="font-size:1rem;font-weight:600;">₹<%= (customer.credit_limit||0).toLocaleString('en-IN') %></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Transaction entry form -->
+        <div class="card" style="margin-bottom:1.5rem;">
+          <div class="card-header"><h2>➕ Add Transaction</h2></div>
+          <div class="card-body">
+            <form action="/customers/<%= customer.customer_id %>/transaction" method="POST" enctype="multipart/form-data">
+              <input type="hidden" name="type" id="txnTypeInput" value="sale_credit">
+
+              <div class="form-group">
+                <label class="form-label">Transaction Type</label>
+                <div class="type-toggle">
+                  <button type="button" class="type-btn sale_credit active" id="btn_sale_credit"
+                          onclick="setType('sale_credit')">🛒 Sale on Credit</button>
+                  <button type="button" class="type-btn payment_cash" id="btn_payment_cash"
+                          onclick="setType('payment_cash')">💰 Received Cash</button>
+                </div>
+              </div>
+
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-top:.75rem;">
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label">Amount (₹)</label>
+                  <input type="number" class="form-control" name="amount"
+                         min="0.01" step="0.01" required placeholder="0.00">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label">Date</label>
+                  <input type="date" class="form-control" name="date"
+                         value="<%= new Date().toISOString().slice(0,10) %>" required>
+                </div>
+              </div>
+
+              <div class="form-group" style="margin-top:.75rem;margin-bottom:0;">
+                <label class="form-label">Note <span class="text-muted">(optional)</span></label>
+                <input type="text" class="form-control" name="note"
+                       placeholder="e.g. Rice 5kg, Flour 2kg / Cash payment received">
+              </div>
+
+              <!-- Bill photo -->
+              <div class="form-group" style="margin-top:.75rem;margin-bottom:0;">
+                <label class="form-label">Bill / Receipt Photo <span class="text-muted">(optional)</span></label>
+                <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+                  <input type="file" class="form-control" name="bill_photo" id="billPhotoInput"
+                         accept="image/*" style="flex:1;" onchange="previewBill(this)">
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="openCamera()"
+                          style="white-space:nowrap;">📷 Camera</button>
+                </div>
+                <img id="billPreview" src="" alt="Bill preview"
+                     style="display:none;margin-top:.5rem;max-width:100%;max-height:160px;border-radius:8px;border:1px solid var(--gray-200);">
+                <!-- Hidden canvas for camera capture -->
+                <video id="cameraVideo" autoplay playsinline
+                       style="display:none;width:100%;max-height:220px;border-radius:8px;margin-top:.5rem;"></video>
+                <div id="cameraControls" style="display:none;gap:.5rem;margin-top:.5rem;">
+                  <button type="button" class="btn btn-primary btn-sm" onclick="capturePhoto()">📸 Capture</button>
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="closeCamera()">✕ Cancel</button>
+                </div>
+                <canvas id="cameraCanvas" style="display:none;"></canvas>
+                <input type="hidden" name="bill_photo_data" id="billPhotoData">
+              </div>
+
+              <button type="submit" class="btn btn-primary"
+                      style="margin-top:1rem;width:100%;" id="submitBtn">
+                🛒 Add Sale on Credit
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Family members -->
+        <% if (family && family.length > 0) { %>
+        <div class="card">
+          <div class="card-header"><h2>👨‍👩‍👧‍👦 Family Members</h2></div>
+          <div class="card-body">
+            <% family.forEach(function(m) { %>
+              <div class="flex-between" style="padding:.5rem 0;border-bottom:1px solid var(--gray-100);">
+                <span><%= m.name %></span>
+                <span class="text-muted text-sm">📞 <%= m.mobile %></span>
+              </div>
+            <% }) %>
+          </div>
+        </div>
+        <% } %>
+
+      </div>
+
+      <!-- RIGHT COLUMN -->
+      <div>
+
+        <!-- Summary tiles -->
+        <div class="summary-grid">
+          <div class="summary-tile">
+            <div class="text-muted text-sm">Total Credit Given</div>
+            <div class="val" style="color:var(--danger);">₹<%= totalCredit.toLocaleString('en-IN') %></div>
+          </div>
+          <div class="summary-tile">
+            <div class="text-muted text-sm">Total Cash Received</div>
+            <div class="val" style="color:var(--success);">₹<%= totalReceived.toLocaleString('en-IN') %></div>
+          </div>
+          <div class="summary-tile">
+            <div class="text-muted text-sm">Outstanding</div>
+            <div class="val" style="color:<%= outstanding > 0 ? 'var(--danger)' : 'var(--success)' %>;">
+              ₹<%= outstanding.toLocaleString('en-IN') %>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ledger table -->
+        <div class="card" style="margin-bottom:1.5rem;">
+          <div class="card-header"><h2>📒 Transaction Ledger</h2></div>
+          <div class="card-body" style="padding:0;overflow-x:auto;">
+            <% if (transactions.length === 0) { %>
+              <p class="text-muted text-sm text-center" style="padding:2rem;">
+                No transactions yet. Add the first entry on the left.
+              </p>
+            <% } else { %>
+              <%
+                var sorted = transactions.slice().sort(function(a,b){
+                  if (a.date !== b.date) return a.date.localeCompare(b.date);
+                  return a.created_at.localeCompare(b.created_at);
+                });
+                var runBal = 0;
+                var withBal = sorted.map(function(t) {
+                  if (t.type === 'sale_credit' || t.type === 'sale') runBal += t.amount;
+                  else if (t.type === 'payment_cash' || t.type === 'payment') runBal -= t.amount;
+                  return { txn_id: t.txn_id, date: t.date, type: t.type, amount: t.amount, note: t.note, bill_photo: t.bill_photo||null, running: runBal };
+                });
+                var display = withBal.slice().reverse();
+              %>
+              <table class="ledger-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Amount</th>
+                    <th>Note</th>
+                    <th>Bill</th>
+                    <th style="text-align:right;">Balance</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% display.forEach(function(t) { %>
+                  <tr>
+                    <td style="white-space:nowrap;">
+                      <%= new Date(t.date).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) %>
+                    </td>
+                    <td>
+                      <% if (t.type === 'sale_credit' || t.type === 'sale') { %>
+                        <span class="tag tag-sale-credit">🛒 Sale/Credit</span>
+                      <% } else { %>
+                        <span class="tag tag-payment-cash">💰 Rcvd Cash</span>
+                      <% } %>
+                    </td>
+                    <td style="font-weight:600;color:<%= (t.type==='sale_credit'||t.type==='sale') ? 'var(--danger)' : 'var(--success)' %>;">
+                      <%= (t.type==='payment_cash'||t.type==='payment') ? '-' : '+' %>₹<%= t.amount.toLocaleString('en-IN') %>
+                    </td>
+                    <td class="text-muted" style="font-size:.82rem;"><%= t.note || '—' %></td>
+                    <td>
+                      <% if (t.bill_photo) { %>
+                        <a href="<%= t.bill_photo %>" target="_blank"
+                           style="display:inline-flex;align-items:center;gap:.3rem;color:var(--primary);font-size:.8rem;font-weight:600;text-decoration:none;padding:.2rem .5rem;background:#eff6ff;border-radius:6px;border:1px solid #bfdbfe;">
+                          🧾 View Bill
+                        </a>
+                      <% } else { %>
+                        <span class="text-muted" style="font-size:.75rem;">—</span>
+                      <% } %>
+                    </td>
+                    <td style="text-align:right;font-weight:700;color:<%= t.running > 0 ? 'var(--danger)' : 'var(--success)' %>;">
+                      ₹<%= t.running.toLocaleString('en-IN') %>
+                    </td>
+                    <td>
+                      <form action="/customers/<%= customer.customer_id %>/transaction/<%= t.txn_id %>/delete"
+                            method="POST"
+                            onsubmit="return confirm('Delete this transaction? Balance will be recalculated.');">
+                        <button type="submit" class="del-btn" title="Delete">🗑</button>
+                      </form>
+                    </td>
+                  </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            <% } %>
+          </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="card">
+          <div class="card-header"><h2>📝 Notes & Relationship</h2></div>
+          <div class="card-body">
+            <form action="/customers/<%= customer.customer_id %>/notes" method="POST"
+                  style="margin-bottom:1.25rem;">
+              <div class="form-group">
+                <label class="form-label">Add Note</label>
+                <textarea class="form-control" name="text" rows="2" required
+                          placeholder="e.g., Pays regularly, VIP customer..."></textarea>
+              </div>
+              <button type="submit" class="btn btn-primary btn-sm">+ Add Note</button>
+            </form>
+            <div style="border-top:1px solid var(--gray-100);padding-top:1rem;">
+              <% if (notes.length === 0) { %>
+                <p class="text-muted text-sm text-center" style="padding:1rem;">No notes yet.</p>
+              <% } else { %>
+                <% notes.forEach(function(n) { %>
+                  <div class="note-card">
+                    <div class="note-text"><%= n.text %></div>
+                    <div class="note-meta">🕐 <%= new Date(n.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) %></div>
+                  </div>
+                <% }) %>
+              <% } %>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+  <script>
+    // Render barcode
+    try {
+      JsBarcode('#customerBarcode', '<%= customer.customer_id %>', {
+        format: 'CODE128', width: 1.2, height: 30, displayValue: false,
+        background: 'transparent', lineColor: 'rgba(255,255,255,0.9)', margin: 0
+      });
+    } catch(e) { document.getElementById('customerBarcode').style.display='none'; }
+
+    // ── Bill photo preview ──
+    function previewBill(input) {
+      if (input.files && input.files[0]) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          var img = document.getElementById('billPreview');
+          img.src = e.target.result;
+          img.style.display = 'block';
+        };
+        reader.readAsDataURL(input.files[0]);
+      }
+    }
+
+    // ── Camera capture ──
+    var cameraStream = null;
+
+    function openCamera() {
+      var video  = document.getElementById('cameraVideo');
+      var ctrls  = document.getElementById('cameraControls');
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        .then(function(stream) {
+          cameraStream = stream;
+          video.srcObject = stream;
+          video.style.display = 'block';
+          ctrls.style.display = 'flex';
+          document.getElementById('billPhotoInput').style.display = 'none';
+        })
+        .catch(function() { alert('Camera not accessible. Please use the file picker.'); });
+    }
+
+    function capturePhoto() {
+      var video  = document.getElementById('cameraVideo');
+      var canvas = document.getElementById('cameraCanvas');
+      canvas.width  = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+      // Show preview
+      var img = document.getElementById('billPreview');
+      img.src = dataUrl;
+      img.style.display = 'block';
+
+      // Store in hidden input for form submission
+      document.getElementById('billPhotoData').value = dataUrl;
+
+      closeCamera();
+    }
+
+    function closeCamera() {
+      if (cameraStream) { cameraStream.getTracks().forEach(function(t){ t.stop(); }); cameraStream = null; }
+      document.getElementById('cameraVideo').style.display = 'none';
+      document.getElementById('cameraControls').style.display = 'none';
+      document.getElementById('billPhotoInput').style.display = '';
+    }
+
+    // ── Transaction type toggle ──
+    var typeConfig = {
+      sale_credit:  { label: '🛒 Add Sale on Credit',   bg: 'var(--danger)',  border: 'var(--danger)'  },
+      payment_cash: { label: '💰 Record Cash Received', bg: 'var(--success)', border: 'var(--success)' }
+    };
+
+    function setType(type) {
+      document.getElementById('txnTypeInput').value = type;
+      ['sale_credit','payment_cash'].forEach(function(t) {
+        document.getElementById('btn_' + t).classList.remove('active');
+      });
+      document.getElementById('btn_' + type).classList.add('active');
+      var cfg = typeConfig[type];
+      var btn = document.getElementById('submitBtn');
+      btn.textContent       = cfg.label;
+      btn.style.background  = cfg.bg;
+      btn.style.borderColor = cfg.border;
+    }
+  </script>
+</body>
+</html>

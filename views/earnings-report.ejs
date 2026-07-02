@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Earnings Report – MyPA</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#111;background:#fff;}
+    .screen-only{background:#f1f5f9;padding:.875rem 2rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;border-bottom:2px solid #e2e8f0;position:sticky;top:0;z-index:10;}
+    .screen-only h2{font-size:1rem;color:#1e3a8a;flex:1;}
+    .btn-print{background:#1e3a8a;color:#fff;border:none;padding:.5rem 1.4rem;border-radius:7px;font-size:.875rem;font-weight:700;cursor:pointer;}
+    .btn-back{background:#fff;color:#1e3a8a;border:1.5px solid #1e3a8a;padding:.5rem 1.2rem;border-radius:7px;font-size:.875rem;font-weight:600;text-decoration:none;display:inline-block;}
+    .report{max-width:860px;margin:1.5rem auto;padding:2rem;background:#fff;}
+    .report-header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:1rem;border-bottom:3px solid #1e3a8a;margin-bottom:1.25rem;}
+    .org-name{font-size:1.35rem;font-weight:800;color:#1e3a8a;}
+    .org-meta{font-size:.8rem;color:#475569;margin-top:.3rem;line-height:1.7;}
+    .report-title{text-align:right;}
+    .report-title h1{font-size:1.05rem;font-weight:800;color:#1e3a8a;text-transform:uppercase;letter-spacing:.05em;}
+    .report-title p{font-size:.78rem;color:#64748b;margin-top:.25rem;}
+    .date-banner{background:#1e3a8a;color:#fff;border-radius:7px;padding:.6rem 1.1rem;margin-bottom:1.25rem;display:flex;justify-content:space-between;align-items:center;font-size:.82rem;}
+    .date-banner strong{font-size:.95rem;}
+    .summary-row{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:.75rem;margin-bottom:1.25rem;}
+    .tile{border:1px solid #e2e8f0;border-radius:8px;padding:.75rem 1rem;text-align:center;}
+    .tile .t-lbl{font-size:.68rem;font-weight:700;text-transform:uppercase;color:#94a3b8;letter-spacing:.04em;}
+    .tile .t-val{font-size:1.1rem;font-weight:800;margin-top:.25rem;color:#1e3a8a;}
+    .section-title{font-size:.82rem;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.5rem;padding-bottom:.4rem;border-bottom:2px solid #e2e8f0;}
+    table{width:100%;border-collapse:collapse;font-size:.82rem;}
+    thead tr{background:#1e3a8a;color:#fff;}
+    thead th{padding:.55rem .75rem;text-align:left;font-weight:700;}
+    thead th.r{text-align:right;}
+    tbody tr:nth-child(even){background:#f8fafc;}
+    tbody td{padding:.5rem .75rem;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+    tfoot tr{background:#dbeafe;}
+    tfoot td{padding:.65rem .75rem;font-weight:800;}
+    tfoot td.r{text-align:right;font-size:.95rem;color:#1e3a8a;}
+    .tb-user{display:inline-block;padding:.15rem .5rem;background:#eff6ff;color:#2563eb;border-radius:12px;font-size:.7rem;font-weight:700;}
+    .tb-business{display:inline-block;padding:.15rem .5rem;background:#fefce8;color:#ca8a04;border-radius:12px;font-size:.7rem;font-weight:700;}
+    .tb-customer{display:inline-block;padding:.15rem .5rem;background:#f0fdf4;color:#16a34a;border-radius:12px;font-size:.7rem;font-weight:700;}
+    .no-data{text-align:center;padding:3rem;color:#94a3b8;}
+    .sig-block{display:grid;grid-template-columns:1fr 1fr;gap:3rem;margin-top:3rem;}
+    .sig-line{border-top:1px solid #94a3b8;padding-top:.4rem;font-size:.72rem;color:#64748b;text-align:center;}
+    .report-footer{margin-top:1.5rem;padding-top:.75rem;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;font-size:.7rem;color:#94a3b8;}
+    @media print{.screen-only{display:none!important;}body{font-size:12px;}.report{margin:0;padding:1cm;max-width:100%;}@page{size:A4;margin:1.5cm;}}
+  </style>
+</head>
+<body>
+  <div class="screen-only">
+    <h2>💰 Earnings Report</h2>
+    <a href="/admin/earnings" class="btn-back">← Back</a>
+    <button class="btn-print" onclick="window.print()">🖨️ Print / Save as PDF</button>
+  </div>
+
+  <div class="report">
+    <!-- Header -->
+    <div class="report-header">
+      <div>
+        <div class="org-name">MyPA</div>
+        <div class="org-meta">Subscription Earnings Report<br><%= user.name %> · <%= user.email %></div>
+      </div>
+      <div class="report-title">
+        <h1>Earnings Statement</h1>
+        <p>Generated: <%= new Date().toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'}) %></p>
+        <% if(type){%><p style="margin-top:.2rem;">Type: <strong style="text-transform:capitalize;"><%= type %></strong></p><%}%>
+      </div>
+    </div>
+
+    <!-- Date banner -->
+    <div class="date-banner">
+      <span>📅 Period</span>
+      <strong>
+        <%= from?new Date(from).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):'All time' %>
+        &nbsp;→&nbsp;
+        <%= to?new Date(to).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):'Today' %>
+      </strong>
+      <span><%= earnings.length %> record<%= earnings.length!==1?'s':'' %></span>
+    </div>
+
+    <!-- Summary -->
+    <div class="summary-row">
+      <div class="tile"><div class="t-lbl">Total Earnings</div><div class="t-val" style="color:#16a34a;">₹<%= total.toLocaleString('en-IN') %></div></div>
+      <div class="tile"><div class="t-lbl">From Users</div><div class="t-val">₹<%= totalUsers.toLocaleString('en-IN') %></div></div>
+      <div class="tile"><div class="t-lbl">From Businesses</div><div class="t-val">₹<%= totalBusiness.toLocaleString('en-IN') %></div></div>
+      <div class="tile"><div class="t-lbl">From Customers</div><div class="t-val">₹<%= totalCustomers.toLocaleString('en-IN') %></div></div>
+    </div>
+
+    <!-- Table -->
+    <div class="section-title">Transaction Details</div>
+    <% if(earnings.length===0){ %>
+      <div class="no-data">No earnings found for the selected period.</div>
+    <% }else{ %>
+    <table>
+      <thead>
+        <tr><th>#</th><th>Date</th><th>Type</th><th>Name</th><th>Plan / Note</th><th>Active Until</th><th class="r">Amount (₹)</th></tr>
+      </thead>
+      <tbody>
+        <% earnings.forEach(function(e,i){ %>
+        <tr>
+          <td style="color:#94a3b8;"><%= i+1 %></td>
+          <td style="white-space:nowrap;"><%= new Date(e.payment_date).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) %></td>
+          <td><span class="tb-<%= e.entity_type %>"><%= e.entity_type %></span></td>
+          <td class="fw-bold" style="font-weight:700;"><%= e.entity_name||'—' %></td>
+          <td style="color:#475569;"><%= e.plan_note||'—' %></td>
+          <td style="font-size:.8rem;"><%= e.active_until||'—' %></td>
+          <td style="text-align:right;font-weight:700;color:#16a34a;">₹<%= e.amount.toLocaleString('en-IN') %></td>
+        </tr>
+        <%})%>
+      </tbody>
+      <tfoot>
+        <tr><td colspan="6">Total</td><td class="r">₹<%= total.toLocaleString('en-IN') %></td></tr>
+      </tfoot>
+    </table>
+    <%}%>
+
+    <div class="sig-block">
+      <div class="sig-line">Prepared by</div>
+      <div class="sig-line">Authorised Signatory</div>
+    </div>
+    <div class="report-footer">
+      <span>MyPA · Subscription Earnings Statement</span>
+      <span>Printed on: <%= new Date().toLocaleString('en-IN') %></span>
+    </div>
+  </div>
+</body>
+</html>

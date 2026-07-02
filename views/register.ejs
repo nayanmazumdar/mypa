@@ -1,0 +1,107 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register – MyPA</title>
+  <link rel="icon" type="image/png" href="/logo.png">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <div class="auth-logo">
+        <a href="/"><img src="/logo.png" alt="MyPA" style="width:80px;height:80px;border-radius:50%;object-fit:cover;margin-bottom:.75rem;cursor:pointer;transition:transform .2s;" onmouseover="this.style.transform='scale(1.08)'" onmouseout="this.style.transform='scale(1)'"></a>
+        <h1>MyPA</h1>
+        <p>Create your account · Simply Assist</p>
+      </div>
+
+      <% if (error) { %>
+        <div class="alert alert-danger">⚠️ <%= error %></div>
+      <% } %>
+
+      <form action="/register" method="POST" id="regForm">
+        <!-- Account Type -->
+        <div class="form-group">
+          <label class="form-label">Account Type <span class="required">*</span></label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;" id="roleCards">
+            <label class="role-card" for="r-individual" style="cursor:pointer;">
+              <input type="radio" name="role" id="r-individual" value="individual" required style="display:none">
+              <div class="role-card-inner" onclick="selectRole('individual')">
+                <div style="font-size:2rem;text-align:center;margin-bottom:.5rem;">👤</div>
+                <div style="font-weight:700;text-align:center;font-size:.95rem;">Individual</div>
+                <div style="color:#6b7280;font-size:.78rem;text-align:center;">Personal account</div>
+              </div>
+            </label>
+            <label class="role-card" for="r-shopkeeper" style="cursor:pointer;">
+              <input type="radio" name="role" id="r-shopkeeper" value="shopkeeper" style="display:none">
+              <div class="role-card-inner" onclick="selectRole('shopkeeper')">
+                <div style="font-size:2rem;text-align:center;margin-bottom:.5rem;">🏪</div>
+                <div style="font-weight:700;text-align:center;font-size:.95rem;">Business</div>
+                <div style="color:#6b7280;font-size:.78rem;text-align:center;">Business account</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="name">Full Name <span class="required">*</span></label>
+          <input type="text" class="form-control" id="name" name="name" required placeholder="Your full name">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="mobile">Mobile Number <span class="required">*</span></label>
+          <input type="tel" class="form-control" id="mobile" name="mobile" required placeholder="10-digit mobile" pattern="[0-9]{10}">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="email">Email Address <span class="required">*</span></label>
+          <input type="email" class="form-control" id="email" name="email" required placeholder="you@email.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="password">Password <span class="required">*</span></label>
+          <input type="password" class="form-control" id="password" name="password" required minlength="6" placeholder="Min 6 characters">
+        </div>
+
+        <!-- Shopkeeper fields -->
+        <div id="shopFields" style="display:none;">
+          <div class="form-group">
+            <label class="form-label" for="business_name">Business Name</label>
+            <input type="text" class="form-control" id="business_name" name="business_name" placeholder="Your shop name">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="business_type">Business Type</label>
+            <select class="form-control" id="business_type" name="business_type">
+              <option value="">Select category</option>
+              <% ['Grocery Store','Pharmacy','Stationery Shop','Hardware Store','Bakery','Tea Stall','Restaurant','Electronics Shop','Clothing Store','Mobile Shop','Other'].forEach(c => { %>
+                <option value="<%=c%>"><%=c%></option>
+              <% }) %>
+            </select>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block" style="margin-top:.5rem;">Create Account →</button>
+      </form>
+
+      <p style="text-align:center;margin-top:1.25rem;font-size:.9rem;color:#6b7280;">
+        Already have an account? <a href="/login" style="color:var(--primary);font-weight:600;">Sign in</a>
+      </p>
+    </div>
+  </div>
+
+  <style>
+    .role-card-inner {
+      border: 2px solid var(--gray-200); border-radius: 10px;
+      padding: 1rem .75rem; transition: all .2s;
+    }
+    .role-card-inner:hover { border-color: var(--primary); background: var(--primary-light); }
+    .role-card-inner.selected { border-color: var(--primary); background: var(--primary-light); }
+  </style>
+  <script>
+    function selectRole(role) {
+      document.getElementById('r-' + role).checked = true;
+      document.querySelectorAll('.role-card-inner').forEach(el => el.classList.remove('selected'));
+      event.currentTarget.classList.add('selected');
+      document.getElementById('shopFields').style.display = role === 'shopkeeper' ? 'block' : 'none';
+    }
+  </script>
+</body>
+</html>

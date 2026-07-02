@@ -1,0 +1,309 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Expenditures – MyPA</title>
+  <link rel="icon" type="image/png" href="/logo.png">
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <%- include('partials/navbar') %>
+  <div class="container">
+
+    <div class="page-header flex-between">
+      <div>
+        <h1>💸 Personal Expenditures</h1>
+        <p>Track and manage your personal spending</p>
+      </div>
+      <button onclick="document.getElementById('expReportPanel').classList.toggle('hidden')"
+              class="btn btn-secondary">📄 Print Report</button>
+    </div>
+
+    <style>.hidden{display:none!important;}</style>
+
+    <!-- Report date range panel -->
+    <div id="expReportPanel" class="hidden card" style="margin-bottom:1.25rem;background:#f0f4ff;border:1px solid #c7d6ff;">
+      <div class="card-body" style="padding:.875rem 1.25rem;">
+        <form action="/expenditures/report" method="GET" target="_blank"
+              style="display:flex;gap:.75rem;align-items:flex-end;flex-wrap:wrap;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" style="font-size:.8rem;">From Date</label>
+            <input type="date" class="form-control" name="from" style="padding:.4rem .75rem;">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" style="font-size:.8rem;">To Date</label>
+            <input type="date" class="form-control" name="to"
+                   value="<%= new Date().toISOString().slice(0,10) %>" style="padding:.4rem .75rem;">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" style="font-size:.8rem;">Category (optional)</label>
+            <select class="form-control" name="category" style="padding:.4rem .75rem;">
+              <option value="">All Categories</option>
+              <% categories.forEach(function(c) { %>
+                <option value="<%= c %>"><%= c %></option>
+              <% }) %>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary" style="padding:.45rem 1.25rem;">🖨️ Generate & Print</button>
+          <button type="button" class="btn btn-secondary" style="padding:.45rem 1rem;"
+                  onclick="document.getElementById('expReportPanel').classList.add('hidden')">Cancel</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Summary stats -->
+    <div class="grid grid-4" style="margin-bottom:1.5rem;">
+      <div class="stat-card">
+        <div class="stat-icon amber">💰</div>
+        <div class="stat-info">
+          <p>Total Spent</p>
+          <h3>₹<%= total.toLocaleString('en-IN') %></h3>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon indigo">📋</div>
+        <div class="stat-info">
+          <p>Entries</p>
+          <h3><%= expenditures.length %></h3>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon cyan">📊</div>
+        <div class="stat-info">
+          <p>Categories Used</p>
+          <h3><%= summary.length %></h3>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon green">📅</div>
+        <div class="stat-info">
+          <p>This Month</p>
+          <h3>₹<%=
+            expenditures
+              .filter(e => e.date && e.date.startsWith(new Date().toISOString().slice(0,7)))
+              .reduce((s,e) => s+e.amount, 0)
+              .toLocaleString('en-IN')
+          %></h3>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-2" style="margin-bottom:1.5rem;">
+
+      <!-- Add expenditure form -->
+      <div class="card">
+        <div class="card-header"><h2>➕ Add Expenditure</h2></div>
+        <div class="card-body">
+          <form action="/expenditures/add" method="POST">
+            <div class="grid grid-2">
+              <div class="form-group">
+                <label class="form-label">Amount (₹) <span class="required">*</span></label>
+                <input type="number" class="form-control" name="amount" required min="1" step="0.01" placeholder="0.00" autofocus>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Date <span class="required">*</span></label>
+                <input type="date" class="form-control" name="date" required value="<%= new Date().toISOString().slice(0,10) %>">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Category <span class="required">*</span></label>
+              <select class="form-control" name="category" required>
+                <option value="">Select category</option>
+                <% categories.forEach(c => { %>
+                  <option value="<%= c %>"><%= c %></option>
+                <% }) %>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Description</label>
+              <input type="text" class="form-control" name="description" placeholder="e.g., Lunch at restaurant, Electricity bill...">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Payment Mode</label>
+              <select class="form-control" name="payment_mode">
+                <option value="cash">💵 Cash</option>
+                <option value="upi">📱 UPI</option>
+                <option value="card">💳 Card</option>
+                <option value="netbanking">🏦 Net Banking</option>
+                <option value="cheque">📄 Cheque</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">+ Add Entry</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Chart -->
+      <div class="card">
+        <div class="card-header"><h2>📊 Spending by Category</h2></div>
+        <div class="card-body">
+          <% if (summary.length > 0) { %>
+            <canvas id="categoryChart" height="220"></canvas>
+          <% } else { %>
+            <div style="text-align:center;padding:3rem;">
+              <div style="font-size:3rem;margin-bottom:.75rem;">📊</div>
+              <p class="text-muted">Add expenditures to see chart</p>
+            </div>
+          <% } %>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category summary cards -->
+    <% if (summary.length > 0) { %>
+    <div class="card" style="margin-bottom:1.5rem;">
+      <div class="card-header"><h2>📂 Category Summary</h2></div>
+      <div class="card-body">
+        <div class="grid grid-4">
+        <%
+var catIcons = {
+  'Food & Dining': '🍽️',
+  'Groceries': '🛒',
+  'Transport': '🚗',
+  'Utilities': '💡',
+  'Rent': '🏠',
+  'Healthcare': '💊',
+  'Education': '📚',
+  'Shopping': '🛍️',
+  'Entertainment': '🎬',
+  'Fuel': '⛽',
+  'Mobile/Internet': '📱',
+  'EMI/Loan': '🏦',
+  'Insurance': '🛡️',
+  'Investment': '📈',
+  'Personal Care': '💆',
+  'Travel': '✈️',
+  'Gifts': '🎁',
+  'Other': '📦'
+};
+
+var payIcons = {
+  cash: '💵',
+  upi: '📱',
+  card: '💳',
+  netbanking: '🏦',
+  cheque: '📄'
+};
+%>
+          <% summary.forEach(s => { %>
+          <div style="background:var(--navy-light);border-radius:10px;padding:1rem;border-left:3px solid var(--gold);">
+            <div style="font-size:1.5rem;margin-bottom:.4rem;"><%= catIcons[s.category] || '📦' %></div>
+            <div style="font-size:.78rem;color:var(--gray-500);font-weight:700;text-transform:uppercase;letter-spacing:.05em;"><%= s.category %></div>
+            <div style="font-size:1.15rem;font-weight:800;color:var(--navy);margin-top:.25rem;">₹<%= s.total.toLocaleString('en-IN') %></div>
+            <div style="font-size:.75rem;color:var(--gray-400);"><%= s.count %> entr<%= s.count===1?'y':'ies' %></div>
+          </div>
+          <% }) %>
+        </div>
+      </div>
+    </div>
+    <% } %>
+
+    <!-- Filter bar -->
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="card-body" style="padding:1rem 1.5rem;">
+        <form method="GET" action="/expenditures" style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:flex-end;">
+          <div class="form-group" style="margin-bottom:0;flex:1;min-width:150px;">
+            <label class="form-label">Filter by Month</label>
+            <input type="month" class="form-control" name="month" value="<%= month %>">
+          </div>
+          <div class="form-group" style="margin-bottom:0;flex:1;min-width:180px;">
+            <label class="form-label">Filter by Category</label>
+            <select class="form-control" name="category">
+              <option value="">All Categories</option>
+              <% categories.forEach(c => { %>
+                <option value="<%= c %>" <%= category===c?'selected':'' %>><%= c %></option>
+              <% }) %>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary">🔍 Filter</button>
+          <a href="/expenditures" class="btn btn-secondary">Clear</a>
+        </form>
+      </div>
+    </div>
+
+    <!-- Expenditure entries table -->
+    <div class="card">
+      <div class="card-header">
+        <h2>📋 All Entries</h2>
+        <span class="badge badge-navy"><%= expenditures.length %> records</span>
+      </div>
+      <% if (expenditures.length === 0) { %>
+        <div class="card-body text-center" style="padding:3rem;">
+          <div style="font-size:3rem;margin-bottom:.75rem;">💸</div>
+          <p class="text-muted">No expenditure entries yet. Add your first one above!</p>
+        </div>
+      <% } else { %>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Date</th><th>Category</th><th>Description</th><th>Payment</th><th>Amount</th><th>Action</th></tr>
+          </thead>
+          <tbody>
+            <% const payIcons={cash:'💵',upi:'📱',card:'💳',netbanking:'🏦',cheque:'📄'}; %>
+            <% expenditures.forEach(e => { %>
+            <tr>
+              <td class="text-sm"><%= new Date(e.date).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) %></td>
+              <td>
+                <span style="display:inline-flex;align-items:center;gap:.35rem;">
+                  <%= catIcons[e.category] || '📦' %>
+                  <span class="badge badge-gold"><%= e.category %></span>
+                </span>
+              </td>
+              <td class="text-sm"><%= e.description || '—' %></td>
+              <td class="text-sm"><%= payIcons[e.payment_mode] || '💵' %> <%= e.payment_mode || 'cash' %></td>
+              <td style="font-weight:800;color:var(--danger);">₹<%= e.amount.toLocaleString('en-IN') %></td>
+              <td>
+                <a href="/expenditures/delete/<%= e.expenditure_id %>" class="btn btn-sm btn-danger"
+                   onclick="return confirm('Delete this entry?')">🗑️</a>
+              </td>
+            </tr>
+            <% }) %>
+          </tbody>
+          <tfoot>
+            <tr style="background:var(--navy-light);">
+              <td colspan="4" style="font-weight:800;color:var(--navy);padding:.85rem 1rem;">Total</td>
+              <td style="font-weight:800;color:var(--navy);font-size:1.05rem;">₹<%= total.toLocaleString('en-IN') %></td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <% } %>
+    </div>
+
+  </div>
+
+  <% if (summary.length > 0) { %>
+  <script>
+    const ctx = document.getElementById('categoryChart').getContext('2d');
+    const labels = [<% summary.forEach((s,i) => { %>'<%= s.category %>'<%= i<summary.length-1?',':'' %><% }) %>];
+    const data   = [<% summary.forEach((s,i) => { %><%= s.total %><%= i<summary.length-1?',':'' %><% }) %>];
+    const colors = [
+      '#1a2d6b','#c8901a','#243580','#a0720e','#2e4a9e','#e6a820',
+      '#3b5cc0','#d4a017','#1e3a8a','#b8860b','#4a6fd4','#f5b731',
+      '#0f1c42','#8b6914','#5a7fde','#c8901a','#6b8fe8','#fdf3e3'
+    ];
+    new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels,
+        datasets: [{ data, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 12 } },
+          tooltip: {
+            callbacks: {
+              label: ctx => ` ₹${ctx.parsed.toLocaleString('en-IN')}`
+            }
+          }
+        }
+      }
+    });
+  </script>
+  <% } %>
+</body>
+</html>

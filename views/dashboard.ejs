@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard – MyPA</title>
+  <link rel="icon" type="image/png" href="/logo.png">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <%- include('partials/navbar') %>
+
+  <div class="container">
+    <!-- Greeting -->
+    <div class="page-header">
+      <h1>👋 Hello, <%= user.name.split(' ')[0] %>!</h1>
+      <p>Welcome to your MyPA dashboard — <span class="badge badge-purple"><%= user.role === 'shopkeeper' ? '🏪 Shopkeeper' : '👤 Individual' %></span></p>
+    </div>
+
+    <!-- Profile completeness -->
+    <div class="card mb-2" style="margin-bottom:1.5rem;">
+      <div class="card-body">
+        <div class="progress-wrap">
+          <div class="progress-label">
+            <span>Profile Completeness</span>
+            <span style="color:var(--primary);font-size:1rem;"><%= completeness.score %>%</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" style="width:<%= completeness.score %>%"></div>
+          </div>
+        </div>
+        <% if (completeness.missing.length > 0) { %>
+          <p class="text-sm text-muted" style="margin-top:.75rem;">
+            Missing:
+            <% completeness.missing.slice(0,5).forEach(f => { %>
+              <span class="tag"><%= f.replace(/_/g,' ') %></span>
+            <% }) %>
+            <a href="/profile" style="color:var(--primary);font-size:.82rem;margin-left:.5rem;">Complete Profile →</a>
+          </p>
+        <% } %>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <% if (user.role === 'individual') { %>
+    <div class="grid grid-4" style="margin-bottom:1.5rem;">
+      <div class="stat-card">
+        <div class="stat-icon indigo">📋</div>
+        <div class="stat-info">
+          <p>Member Since</p>
+          <h3 style="font-size:1rem;"><%= new Date(user.created_at).toLocaleDateString('en-IN',{month:'short',year:'numeric'}) %></h3>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon green">✅</div>
+        <div class="stat-info"><p>Profile Score</p><h3><%= completeness.score %>%</h3></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon amber">💸</div>
+        <div class="stat-info"><p>Total Spent</p><h3>₹<%= (typeof totalExpenses !== 'undefined' ? totalExpenses : 0).toLocaleString('en-IN') %></h3></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon cyan">📊</div>
+        <div class="stat-info"><p>This Month</p><h3>₹<%= (typeof monthExpenses !== 'undefined' ? monthExpenses : 0).toLocaleString('en-IN') %></h3></div>
+      </div>
+    </div>
+    <% } else { %>
+    <div class="grid grid-4" style="margin-bottom:1.5rem;">
+      <div class="stat-card">
+        <div class="stat-icon indigo">👥</div>
+        <div class="stat-info"><p>Total Customers</p><h3><%= customers.length %></h3></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon amber">₹</div>
+        <div class="stat-info"><p>Total Outstanding</p><h3>₹<%= totalDue.toLocaleString('en-IN') %></h3></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon green">✅</div>
+        <div class="stat-info"><p>Active Customers</p><h3><%= customers.filter(c=>c.status==='active').length %></h3></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon cyan">📊</div>
+        <div class="stat-info"><p>Profile Score</p><h3><%= completeness.score %>%</h3></div>
+      </div>
+    </div>
+    <% } %>
+
+    <div class="grid grid-2">
+      <!-- Profile card -->
+      <div class="card">
+        <div class="card-header">
+          <h2>👤 Your Profile</h2>
+          <a href="/profile" class="btn btn-sm btn-outline">Edit</a>
+        </div>
+        <div class="card-body">
+          <div class="flex gap-2" style="align-items:center;margin-bottom:1rem;">
+            <% if (user.profile_photo) { %>
+              <img src="<%= user.profile_photo %>" class="avatar" width="64" height="64" alt="Photo">
+            <% } else { %>
+              <div class="avatar-placeholder" style="width:64px;height:64px;font-size:1.5rem;"><%= user.name.charAt(0).toUpperCase() %></div>
+            <% } %>
+            <div>
+              <div class="fw-bold"><%= user.name %></div>
+              <div class="text-muted text-sm"><%= user.email %></div>
+              <div class="text-muted text-sm">📞 <%= user.mobile %></div>
+            </div>
+          </div>
+          <% if (user.city || user.state) { %>
+            <p class="text-sm text-muted">📍 <%= [user.city, user.state].filter(Boolean).join(', ') %></p>
+          <% } %>
+          <% if (user.occupation) { %>
+            <p class="text-sm text-muted" style="margin-top:.25rem;">💼 <%= user.occupation %></p>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- Business card (shopkeeper) / Quick links (individual) -->
+      <% if (user.role === 'shopkeeper' && business) { %>
+      <div class="card">
+        <div class="card-header">
+          <h2>🏪 Business Profile</h2>
+          <a href="/profile" class="btn btn-sm btn-outline">Edit</a>
+        </div>
+        <div class="card-body">
+          <div class="flex gap-2" style="align-items:center;margin-bottom:1rem;">
+            <% if (business.business_logo) { %>
+              <img src="<%= business.business_logo %>" class="avatar" width="56" height="56" alt="Logo">
+            <% } else { %>
+              <div class="avatar-placeholder" style="width:56px;height:56px;font-size:1.3rem;border-radius:10px;">🏪</div>
+            <% } %>
+            <div>
+              <div class="fw-bold"><%= business.business_name %></div>
+              <div class="text-muted text-sm"><%= business.business_type %></div>
+            </div>
+          </div>
+          <% if (business.address) { %><p class="text-sm text-muted">📍 <%= business.address %></p><% } %>
+          <% if (business.gst_number) { %><p class="text-sm text-muted" style="margin-top:.25rem;">GST: <%= business.gst_number %></p><% } %>
+          <div style="margin-top:1rem;display:flex;gap:.5rem;flex-wrap:wrap;">
+            <a href="/customers" class="btn btn-sm btn-secondary">👥 Customers</a>
+            <a href="/qr/shop" class="btn btn-sm btn-secondary">📱 QR Code</a>
+          </div>
+        </div>
+      </div>
+      <% } else { %>
+      <div class="card">
+        <div class="card-header"><h2>⚡ Quick Actions</h2></div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:.75rem;">
+          <a href="/profile" class="btn btn-secondary">👤 Update Profile</a>
+          <a href="/expenditures" class="btn btn-secondary">💸 Add Expenditure</a>
+          <a href="/documents" class="btn btn-secondary">📄 Manage Documents</a>
+        </div>
+      </div>
+      <% } %>
+    </div>
+
+    <!-- Recent expenditures (individual) -->
+    <% if (user.role === 'individual' && typeof recentExpenses !== 'undefined' && recentExpenses.length > 0) { %>
+    <div class="card" style="margin-top:1.5rem;">
+      <div class="card-header">
+        <h2>💸 Recent Expenditures</h2>
+        <a href="/expenditures" class="btn btn-sm btn-outline">View All</a>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Mode</th><th>Amount</th></tr></thead>
+          <tbody>
+            <% const icons={'Food & Dining':'🍽️','Groceries':'🛒','Transport':'🚗','Utilities':'💡','Rent':'🏠','Healthcare':'💊','Education':'📚','Shopping':'🛍️','Entertainment':'🎬','Fuel':'⛽','Mobile/Internet':'📱','EMI/Loan':'🏦','Insurance':'🛡️','Investment':'📈','Personal Care':'💆','Travel':'✈️','Gifts':'🎁','Other':'📦'}; %>
+            <% recentExpenses.forEach(e => { %>
+            <tr>
+              <td class="text-sm"><%= new Date(e.date).toLocaleDateString('en-IN',{day:'numeric',month:'short'}) %></td>
+              <td><%= icons[e.category]||'📦' %> <span class="badge badge-gold"><%= e.category %></span></td>
+              <td class="text-sm"><%= e.description || '—' %></td>
+              <td class="text-sm text-muted"><%= e.payment_mode %></td>
+              <td style="font-weight:700;color:var(--danger);">₹<%= e.amount.toLocaleString('en-IN') %></td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <% } %>
+
+    <!-- Recent customers (shopkeeper) -->
+    <% if (user.role === 'shopkeeper' && customers.length > 0) { %>
+    <div class="card" style="margin-top:1.5rem;">
+      <div class="card-header">
+        <h2>👥 Recent Customers</h2>
+        <a href="/customers" class="btn btn-sm btn-outline">View All</a>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Customer</th><th>Mobile</th><th>Balance</th><th>Status</th><th>Action</th></tr>
+          </thead>
+          <tbody>
+            <% customers.slice(0,5).forEach(c => { %>
+            <tr>
+              <td>
+                <div class="flex gap-1" style="align-items:center;">
+                  <% if (c.photo) { %>
+                    <img src="<%= c.photo %>" width="32" height="32" class="avatar" style="width:32px;height:32px;">
+                  <% } else { %>
+                    <div class="avatar-placeholder" style="width:32px;height:32px;font-size:.9rem;"><%= c.name.charAt(0) %></div>
+                  <% } %>
+                  <span class="fw-bold"><%= c.name %></span>
+                </div>
+              </td>
+              <td><%= c.mobile %></td>
+              <td style="color:<%= c.current_balance > 0 ? 'var(--danger)' : 'var(--success)' %>;font-weight:600;">₹<%= (c.current_balance||0).toLocaleString('en-IN') %></td>
+              <td><span class="badge <%= c.status === 'active' ? 'badge-success' : 'badge-warning' %>"><%= c.status %></span></td>
+              <td><a href="/customers/<%= c.customer_id %>" class="btn btn-sm btn-outline">View</a></td>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <% } %>
+  </div>
+</body>
+</html>

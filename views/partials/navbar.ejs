@@ -1,0 +1,38 @@
+﻿<nav class="navbar">
+  <div class="navbar-inner">
+    <a href="/" class="navbar-brand">
+      <img src="/logo.png" alt="MyPA Logo" style="height:42px;width:42px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,.3);">
+      <span style="font-size:1.3rem;font-weight:800;letter-spacing:.02em;">MyPA</span>
+    </a>
+    <button class="hamburger" onclick="toggleNav()" aria-label="Menu">☰</button>
+    <div class="navbar-nav" id="mainNav">
+      <% if (typeof user !== 'undefined' && user) { %>
+        <% if (user.role === 'admin') { %>
+          <a href="/admin" class="nav-link">🛠️ Admin Panel</a>
+          <a href="/admin/earnings" class="nav-link">💰 Earnings</a>
+          <a href="/logout" class="nav-link" style="color:#fca5a5">🚪 Logout</a>
+        <% } else { %>
+          <a href="/dashboard" class="nav-link">🏠 Dashboard</a>
+          <a href="/profile" class="nav-link">👤 Profile</a>
+          <% if (user.role === 'individual') { %>
+            <a href="/expenditures" class="nav-link">💸 Expenditures</a>
+          <% } %>
+          <% if (user.role === 'shopkeeper') { %>
+            <a href="/customers" class="nav-link">👥 Customers</a>
+            <a href="/qr/shop" class="nav-link">📱 QR Code</a>
+          <% } %>
+          <a href="/documents" class="nav-link">📄 Documents</a>
+          <a href="/logout" class="nav-link" style="color:#fca5a5">🚪 Logout</a>
+        <% } %>
+      <% } else { %>
+        <a href="/login" class="nav-link">Login</a>
+        <a href="/register" class="nav-link btn btn-sm" style="background:rgba(255,255,255,.2);color:#fff">Get Started</a>
+      <% } %>
+    </div>
+  </div>
+</nav>
+<script>
+function toggleNav() {
+  document.getElementById('mainNav').classList.toggle('open');
+}
+</script>
