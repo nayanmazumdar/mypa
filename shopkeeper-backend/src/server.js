@@ -6,7 +6,6 @@ const { initDatabase } = require('./config/db');
 const PORT = config.port;
 
 const startServer = async () => {
-  // Initialize database (MySQL primary + SQLite offline fallback)
   await initDatabase();
 
   app.listen(PORT, () => {
