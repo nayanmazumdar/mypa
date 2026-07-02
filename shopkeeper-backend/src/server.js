@@ -2,10 +2,14 @@ const app = require('./app');
 const config = require('./config/env');
 const logger = require('./config/logger');
 const { testConnection } = require('./config/mysql');
+const { initDb } = require('./config/sqlite');
 
 const PORT = config.port;
 
 const startServer = async () => {
+  // Initialize SQLite
+  await initDb();
+
   // Test MySQL connection
   const mysqlConnected = await testConnection();
   if (!mysqlConnected) {

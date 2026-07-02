@@ -5,8 +5,10 @@ const { generateToken } = require('../utils/jwt');
 const { generateId } = require('../utils/helper');
 const logger = require('../config/logger');
 
-// Initialize SQLite users table
-const initSqliteUsersTable = () => {
+// Initialize SQLite users table (called lazily on first use)
+let sqliteTableInitialized = false;
+const ensureSqliteUsersTable = () => {
+  if (sqliteTableInitialized) return;
   const db = getDb();
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -24,14 +26,8 @@ const initSqliteUsersTable = () => {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  sqliteTableInitialized = true;
 };
-
-// Try to init SQLite table on load
-try {
-  initSqliteUsersTable();
-} catch (err) {
-  logger.error('Failed to initialize SQLite users table:', err.message);
-}
 
 class AuthService {
   async _useMysql() {
@@ -69,6 +65,7 @@ class AuthService {
       logger.info(`User registered (MySQL): ${email}`);
       return { user, token };
     } else {
+      ensureSqliteUsersTable();
       const db = getDb();
       const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
       if (existing) {
@@ -100,6 +97,7 @@ class AuthService {
       );
       user = rows[0];
     } else {
+      ensureSqliteUsersTable();
       const db = getDb();
       user = db.prepare(
         'SELECT id, uuid, name, email, password, role, shop_name, is_active FROM users WHERE email = ?'
@@ -145,6 +143,7 @@ class AuthService {
       );
       return rows[0] || null;
     } else {
+      ensureSqliteUsersTable();
       const db = getDb();
       return db.prepare(
         'SELECT id, uuid, name, email, phone, role, shop_name, address, is_active, created_at FROM users WHERE id = ?'
