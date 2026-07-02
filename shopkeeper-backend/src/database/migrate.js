@@ -16,6 +16,7 @@ const config = {
   port: parseInt(process.env.MYSQL_PORT, 10) || 3306,
   user: process.env.MYSQL_USER || 'root',
   password: process.env.MYSQL_PASSWORD || '',
+  multipleStatements: true,
 };
 
 const DB_NAME = process.env.MYSQL_DATABASE || 'shopkeeper_db';
@@ -28,29 +29,22 @@ async function migrate() {
     console.log('✓ Connected to MySQL server');
 
     // Create database
-    await connection.execute(`CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+    await connection.query(`CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
     console.log(`✓ Database "${DB_NAME}" created/verified`);
 
     // Switch to database
     await connection.changeUser({ database: DB_NAME });
 
-    // Read and execute migration SQL
+    // Read and execute migration SQL (multipleStatements enabled)
     const migrationPath = path.join(__dirname, 'migrations', '001_init.sql');
     const sql = fs.readFileSync(migrationPath, 'utf8');
 
-    // Split by semicolons and execute each statement
-    const statements = sql
-      .split(';')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0 && !s.startsWith('--'));
-
-    for (const statement of statements) {
-      await connection.execute(statement);
-    }
-
+    await connection.query(sql);
     console.log('✓ All tables created successfully');
+
+    // Show created tables
     console.log('\nTables:');
-    const [tables] = await connection.execute('SHOW TABLES');
+    const [tables] = await connection.query('SHOW TABLES');
     tables.forEach((row) => {
       const tableName = Object.values(row)[0];
       console.log(`  - ${tableName}`);
