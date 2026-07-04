@@ -83,6 +83,36 @@ class AuthController {
       return ApiResponse.error(res, error.message, error.statusCode || 500);
     }
   }
+
+  async updateProfile(req, res) {
+    try {
+      await authService.updateProfile(req.user.id, req.body);
+      return ApiResponse.success(res, null, 'Profile updated');
+    } catch (error) {
+      logger.error('Update profile error:', error.message);
+      return ApiResponse.error(res, error.message, error.statusCode || 500);
+    }
+  }
+
+  async updateShop(req, res) {
+    try {
+      await authService.updateShop(req.user.shop_id, req.body);
+      return ApiResponse.success(res, null, 'Shop updated');
+    } catch (error) {
+      logger.error('Update shop error:', error.message);
+      return ApiResponse.error(res, error.message, error.statusCode || 500);
+    }
+  }
+
+  async changePassword(req, res) {
+    try {
+      await authService.changePassword(req.user.id, req.body);
+      return ApiResponse.success(res, null, 'Password changed successfully');
+    } catch (error) {
+      logger.error('Change password error:', error.message);
+      return ApiResponse.error(res, error.message, error.statusCode || 500);
+    }
+  }
 }
 
 module.exports = new AuthController();

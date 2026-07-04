@@ -185,6 +185,34 @@ class AuthService {
     );
     return rows;
   }
+
+  async updateProfile(userId, { name, phone }) {
+    const pool = getPool();
+    await pool.query('UPDATE users SET name = ?, phone = ? WHERE id = ?', [name, phone || null, userId]);
+  }
+
+  async updateShop(shopId, { name, address, phone, email, gst_number }) {
+    const pool = getPool();
+    if (!shopId) { const e = new Error('No shop selected'); e.statusCode = 400; throw e; }
+    await pool.query(
+      'UPDATE shops SET name = ?, address = ?, phone = ?, email = ?, gst_number = ? WHERE id = ?',
+      [name, address || null, phone || null, email || null, gst_number || null, shopId]
+    );
+  }
+
+  async changePassword(userId, { current_password, new_password }) {
+    const pool = getPool();
+    const [[user]] = await pool.query('SELECT password FROM users WHERE id = ?', [userId]);
+    if (!user) { const e = new Error('User not found'); e.statusCode = 404; throw e; }
+    if (!(await comparePassword(current_password, user.password))) {
+      const e = new Error('Current password is incorrect'); e.statusCode = 401; throw e;
+    }
+    if (!new_password || new_password.length < 8) {
+      const e = new Error('New password must be at least 8 characters'); e.statusCode = 400; throw e;
+    }
+    const hashed = await hashPassword(new_password);
+    await pool.query('UPDATE users SET password = ? WHERE id = ?', [hashed, userId]);
+  }
 }
 
 module.exports = new AuthService();

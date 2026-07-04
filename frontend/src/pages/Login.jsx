@@ -70,7 +70,7 @@ export default function Login() {
         has_passcode: result.payload.user.has_passcode,
       }));
       toast.success('Welcome back!');
-      navigateAfterLogin(result.payload.user);
+      navigateAfterLogin();
     } else {
       setPasscode(['', '', '', '']);
       passcodeRefs[0].current?.focus();
@@ -88,7 +88,7 @@ export default function Login() {
         has_passcode: result.payload.user.has_passcode,
       }));
       toast.success('Welcome back!');
-      navigateAfterLogin(result.payload.user);
+      navigateAfterLogin();
     } else {
       toast.error(result.payload || 'Login failed');
     }
@@ -107,15 +107,9 @@ export default function Login() {
     if (error) dispatch(clearError());
   };
 
-  const navigateAfterLogin = (user) => {
-    if (user?.shops?.length === 1) {
-      // Auto-select the only shop
-      navigate('/select-shop');
-    } else if (user?.shops?.length > 1) {
-      navigate('/select-shop');
-    } else {
-      navigate('/create-shop');
-    }
+  const navigateAfterLogin = () => {
+    // Always go to shop selector — it handles empty state + add shop
+    navigate('/select-shop');
   };
 
   // Passcode entry UI (remembered account with passcode)

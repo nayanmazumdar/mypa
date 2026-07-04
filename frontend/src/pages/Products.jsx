@@ -6,6 +6,7 @@ import { fetchProducts, createProduct, updateProduct, deleteProduct } from '../s
 import Modal from '../components/common/Modal';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { PageError, EmptyState } from '../components/common/ErrorDisplay';
+import api from '../api/axios';
 
 const INITIAL_FORM = {
   name: '', description: '', brand: '', sku: '', barcode: '', hsn_code: '',
@@ -31,9 +32,7 @@ export default function Products() {
 
   useEffect(() => {
     // Load categories for dropdown
-    import('../api/axios').then(({ default: api }) => {
-      api.get('/categories').then(res => setCategories(res.data || [])).catch(() => {});
-    });
+    api.get('/categories').then(res => setCategories(res.data || [])).catch(() => {});
   }, []);
 
   if (error && items.length === 0 && !loading) {

@@ -28,8 +28,8 @@ export default function Register() {
 
     const result = await dispatch(registerUser(form));
     if (registerUser.fulfilled.match(result)) {
-      toast.success('Account created! Now set up your shop.');
-      navigate('/setup-shop');
+      toast.success('Account created! Select or create your shop.');
+      navigate('/select-shop');
     } else {
       toast.error(result.payload || 'Registration failed');
     }

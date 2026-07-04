@@ -11,9 +11,12 @@ router.post('/login', validate(loginValidator), authController.login);
 
 // Authenticated (no shop required)
 router.get('/profile', authenticate, authController.getProfile);
+router.put('/profile', authenticate, authController.updateProfile);
+router.put('/shop', authenticate, authController.updateShop);
 router.post('/select-shop', authenticate, authController.selectShop);
 router.post('/create-shop', authenticate, authController.setupShop);
 router.post('/set-passcode', authenticate, authController.setPasscode);
+router.post('/change-password', authenticate, authController.changePassword);
 
 // Shop-scoped (admin only)
 router.get('/staff', authenticate, authorize('admin'), authController.getStaff);
