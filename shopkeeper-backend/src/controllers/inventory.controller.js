@@ -7,7 +7,7 @@ class InventoryController {
   async getAll(req, res) {
     try {
       const { limit, offset } = parsePagination(req.query);
-      const result = await inventoryService.getAllStock(req.user.id, { limit, offset });
+      const result = await inventoryService.getAllStock(req.user.shop_id, { limit, offset });
       const pagination = buildPaginationMeta(result.total, parseInt(req.query.page) || 1, limit);
       return ApiResponse.paginated(res, result.items, pagination);
     } catch (error) {
@@ -18,7 +18,7 @@ class InventoryController {
 
   async getLowStock(req, res) {
     try {
-      const items = await inventoryService.getLowStock(req.user.id);
+      const items = await inventoryService.getLowStock(req.user.shop_id);
       return ApiResponse.success(res, items);
     } catch (error) {
       logger.error('Get low stock error:', error.message);
@@ -29,7 +29,7 @@ class InventoryController {
   async addStock(req, res) {
     try {
       const { product_id, quantity, type, notes } = req.body;
-      await inventoryService.addStock(req.user.id, product_id, quantity, type, 'manual', null, notes);
+      await inventoryService.addStock(req.user.shop_id, product_id, quantity, type, 'manual', null, notes);
       return ApiResponse.success(res, null, 'Stock updated successfully');
     } catch (error) {
       logger.error('Add stock error:', error.message);

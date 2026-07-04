@@ -47,7 +47,7 @@ class SalesService {
 
     const saleData = {
       uuid,
-      user_id: userId,
+      shop_id: userId,
       customer_id: data.customer_id || null,
       invoice_number: invoiceNumber,
       total_amount: totalAmount,

@@ -17,9 +17,9 @@ const ApiResponse = require('../utils/response');
 router.get('/', authenticate, async (req, res, next) => {
   try {
     const pool = getPool();
-    const [rows] = await pool.execute(
-      'SELECT * FROM categories WHERE user_id = ? ORDER BY name ASC',
-      [req.user.id]
+    const [rows] = await pool.query(
+      'SELECT * FROM categories WHERE shop_id = ? ORDER BY name ASC',
+      [req.user.shop_id]
     );
     return ApiResponse.success(res, rows);
   } catch (error) {
@@ -51,9 +51,9 @@ router.post('/', authenticate, async (req, res, next) => {
   try {
     const pool = getPool();
     const { name, description } = req.body;
-    const [result] = await pool.execute(
-      'INSERT INTO categories (user_id, name, description) VALUES (?, ?, ?)',
-      [req.user.id, name, description || null]
+    const [result] = await pool.query(
+      'INSERT INTO categories (shop_id, name, description) VALUES (?, ?, ?)',
+      [req.user.shop_id, name, description || null]
     );
     return ApiResponse.created(res, { id: result.insertId, name, description });
   } catch (error) {
@@ -75,9 +75,9 @@ router.put('/:id', authenticate, async (req, res, next) => {
   try {
     const pool = getPool();
     const { name, description } = req.body;
-    await pool.execute(
-      'UPDATE categories SET name = ?, description = ? WHERE id = ? AND user_id = ?',
-      [name, description || null, req.params.id, req.user.id]
+    await pool.query(
+      'UPDATE categories SET name = ?, description = ? WHERE id = ? AND shop_id = ?',
+      [name, description || null, req.params.id, req.user.shop_id]
     );
     return ApiResponse.success(res, null, 'Category updated');
   } catch (error) {
@@ -98,9 +98,9 @@ router.put('/:id', authenticate, async (req, res, next) => {
 router.delete('/:id', authenticate, async (req, res, next) => {
   try {
     const pool = getPool();
-    await pool.execute(
-      'DELETE FROM categories WHERE id = ? AND user_id = ?',
-      [req.params.id, req.user.id]
+    await pool.query(
+      'DELETE FROM categories WHERE id = ? AND shop_id = ?',
+      [req.params.id, req.user.shop_id]
     );
     return ApiResponse.success(res, null, 'Category deleted');
   } catch (error) {

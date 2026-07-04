@@ -22,9 +22,9 @@ router.get('/', authenticate, async (req, res, next) => {
     const { page, limit, offset } = parsePagination(req.query);
     const search = req.query.search;
 
-    let query = 'SELECT * FROM customers WHERE user_id = ?';
-    let countQuery = 'SELECT COUNT(*) as total FROM customers WHERE user_id = ?';
-    const params = [req.user.id];
+    let query = 'SELECT * FROM customers WHERE shop_id = ?';
+    let countQuery = 'SELECT COUNT(*) as total FROM customers WHERE shop_id = ?';
+    const params = [req.user.shop_id];
 
     if (search) {
       query += ' AND (name LIKE ? OR phone LIKE ? OR email LIKE ?)';
@@ -37,8 +37,8 @@ router.get('/', authenticate, async (req, res, next) => {
     query += ' ORDER BY name ASC LIMIT ? OFFSET ?';
     params.push(limit, offset);
 
-    const [rows] = await pool.execute(query, params);
-    const [countResult] = await pool.execute(countQuery, countParams);
+    const [rows] = await pool.query(query, params);
+    const [countResult] = await pool.query(countQuery, countParams);
     const pagination = buildPaginationMeta(countResult[0].total, page, limit);
     return ApiResponse.paginated(res, rows, pagination);
   } catch (error) {
@@ -59,9 +59,9 @@ router.get('/', authenticate, async (req, res, next) => {
 router.get('/:id', authenticate, async (req, res, next) => {
   try {
     const pool = getPool();
-    const [rows] = await pool.execute(
-      'SELECT * FROM customers WHERE id = ? AND user_id = ?',
-      [req.params.id, req.user.id]
+    const [rows] = await pool.query(
+      'SELECT * FROM customers WHERE id = ? AND shop_id = ?',
+      [req.params.id, req.user.shop_id]
     );
     if (rows.length === 0) return ApiResponse.notFound(res, 'Customer not found');
     return ApiResponse.success(res, rows[0]);
@@ -85,9 +85,9 @@ router.post('/', authenticate, async (req, res, next) => {
     const pool = getPool();
     const { name, email, phone, address, notes } = req.body;
     const uuid = generateId();
-    const [result] = await pool.execute(
-      'INSERT INTO customers (uuid, user_id, name, email, phone, address, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [uuid, req.user.id, name, email || null, phone || null, address || null, notes || null]
+    const [result] = await pool.query(
+      'INSERT INTO customers (uuid, shop_id, name, email, phone, address, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [uuid, req.user.shop_id, name, email || null, phone || null, address || null, notes || null]
     );
     return ApiResponse.created(res, { id: result.insertId, uuid, name });
   } catch (error) {
@@ -109,9 +109,9 @@ router.put('/:id', authenticate, async (req, res, next) => {
   try {
     const pool = getPool();
     const { name, email, phone, address, notes } = req.body;
-    await pool.execute(
-      'UPDATE customers SET name = ?, email = ?, phone = ?, address = ?, notes = ? WHERE id = ? AND user_id = ?',
-      [name, email || null, phone || null, address || null, notes || null, req.params.id, req.user.id]
+    await pool.query(
+      'UPDATE customers SET name = ?, email = ?, phone = ?, address = ?, notes = ? WHERE id = ? AND shop_id = ?',
+      [name, email || null, phone || null, address || null, notes || null, req.params.id, req.user.shop_id]
     );
     return ApiResponse.success(res, null, 'Customer updated');
   } catch (error) {
@@ -132,7 +132,7 @@ router.put('/:id', authenticate, async (req, res, next) => {
 router.delete('/:id', authenticate, async (req, res, next) => {
   try {
     const pool = getPool();
-    await pool.execute('DELETE FROM customers WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    await pool.query('DELETE FROM customers WHERE id = ? AND shop_id = ?', [req.params.id, req.user.shop_id]);
     return ApiResponse.success(res, null, 'Customer deleted');
   } catch (error) {
     next(error);

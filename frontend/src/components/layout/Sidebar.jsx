@@ -9,16 +9,22 @@ import {
   HiOutlineBuildingStorefront,
   HiOutlineCog6Tooth,
   HiOutlineXMark,
+  HiOutlineScale,
+  HiOutlineBanknotes,
+  HiOutlineGift,
 } from 'react-icons/hi2';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HiOutlineHome },
+  { name: 'POS / Billing', href: '/pos', icon: HiOutlineScale },
   { name: 'Products', href: '/products', icon: HiOutlineCube },
+  { name: 'Offers', href: '/offers', icon: HiOutlineGift },
   { name: 'Sales', href: '/sales', icon: HiOutlineShoppingCart },
   { name: 'Purchases', href: '/purchases', icon: HiOutlineTruck },
   { name: 'Inventory', href: '/inventory', icon: HiOutlineArchiveBox },
   { name: 'Customers', href: '/customers', icon: HiOutlineUsers },
   { name: 'Suppliers', href: '/suppliers', icon: HiOutlineBuildingStorefront },
+  { name: 'Accounts', href: '/accounts', icon: HiOutlineBanknotes },
   { name: 'Settings', href: '/settings', icon: HiOutlineCog6Tooth },
 ];
 
@@ -43,9 +49,7 @@ export default function Sidebar({ open, onClose }) {
         {/* Logo */}
         <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">SK</span>
-            </div>
+            <img src="/logo.png" alt="Logo" className="w-8 h-8 rounded-lg" />
             <span className="text-lg font-semibold text-gray-900">Shopkeeper</span>
           </div>
           <button

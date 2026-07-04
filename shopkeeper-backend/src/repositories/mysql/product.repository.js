@@ -3,7 +3,7 @@ const { getPool } = require('../../config/db');
 class ProductRepository {
   async findAll(userId, { limit, offset, search, categoryId }) {
     const pool = getPool();
-    let query = 'SELECT * FROM products WHERE user_id = ?';
+    let query = 'SELECT * FROM products WHERE shop_id = ?';
     const params = [userId];
 
     if (search) {
@@ -19,13 +19,13 @@ class ProductRepository {
     query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
 
-    const [rows] = await pool.execute(query, params);
+    const [rows] = await pool.query(query, params);
     return rows;
   }
 
   async count(userId, { search, categoryId }) {
     const pool = getPool();
-    let query = 'SELECT COUNT(*) as total FROM products WHERE user_id = ?';
+    let query = 'SELECT COUNT(*) as total FROM products WHERE shop_id = ?';
     const params = [userId];
 
     if (search) {
@@ -38,14 +38,14 @@ class ProductRepository {
       params.push(categoryId);
     }
 
-    const [rows] = await pool.execute(query, params);
+    const [rows] = await pool.query(query, params);
     return rows[0].total;
   }
 
   async findById(id, userId) {
     const pool = getPool();
-    const [rows] = await pool.execute(
-      'SELECT * FROM products WHERE id = ? AND user_id = ?',
+    const [rows] = await pool.query(
+      'SELECT * FROM products WHERE id = ? AND shop_id = ?',
       [id, userId]
     );
     return rows[0] || null;
@@ -53,8 +53,8 @@ class ProductRepository {
 
   async findByUuid(uuid, userId) {
     const pool = getPool();
-    const [rows] = await pool.execute(
-      'SELECT * FROM products WHERE uuid = ? AND user_id = ?',
+    const [rows] = await pool.query(
+      'SELECT * FROM products WHERE uuid = ? AND shop_id = ?',
       [uuid, userId]
     );
     return rows[0] || null;
@@ -66,7 +66,7 @@ class ProductRepository {
     const placeholders = fields.map(() => '?').join(', ');
     const values = Object.values(data);
 
-    const [result] = await pool.execute(
+    const [result] = await pool.query(
       `INSERT INTO products (${fields.join(', ')}) VALUES (${placeholders})`,
       values
     );
@@ -78,8 +78,8 @@ class ProductRepository {
     const fields = Object.keys(data).map((key) => `${key} = ?`).join(', ');
     const values = [...Object.values(data), id, userId];
 
-    await pool.execute(
-      `UPDATE products SET ${fields} WHERE id = ? AND user_id = ?`,
+    await pool.query(
+      `UPDATE products SET ${fields} WHERE id = ? AND shop_id = ?`,
       values
     );
     return this.findById(id, userId);
@@ -87,8 +87,8 @@ class ProductRepository {
 
   async delete(id, userId) {
     const pool = getPool();
-    const [result] = await pool.execute(
-      'DELETE FROM products WHERE id = ? AND user_id = ?',
+    const [result] = await pool.query(
+      'DELETE FROM products WHERE id = ? AND shop_id = ?',
       [id, userId]
     );
     return result.affectedRows > 0;

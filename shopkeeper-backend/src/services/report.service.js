@@ -4,13 +4,13 @@ const logger = require('../config/logger');
 class ReportService {
   async getDailySales(userId, date) {
     const pool = getPool();
-    const [rows] = await pool.execute(
+    const [rows] = await pool.query(
       `SELECT 
         COUNT(*) as total_sales,
         COALESCE(SUM(net_amount), 0) as total_revenue,
         COALESCE(SUM(discount), 0) as total_discount
        FROM sales
-       WHERE user_id = ? AND sale_date = ? AND status = 'completed'`,
+       WHERE shop_id = ? AND sale_date = ? AND status = 'completed'`,
       [userId, date]
     );
     return rows[0];
@@ -18,13 +18,13 @@ class ReportService {
 
   async getMonthlySales(userId, year, month) {
     const pool = getPool();
-    const [rows] = await pool.execute(
+    const [rows] = await pool.query(
       `SELECT 
         DATE(sale_date) as date,
         COUNT(*) as total_sales,
         COALESCE(SUM(net_amount), 0) as total_revenue
        FROM sales
-       WHERE user_id = ? AND YEAR(sale_date) = ? AND MONTH(sale_date) = ? AND status = 'completed'
+       WHERE shop_id = ? AND YEAR(sale_date) = ? AND MONTH(sale_date) = ? AND status = 'completed'
        GROUP BY DATE(sale_date)
        ORDER BY date`,
       [userId, year, month]
@@ -34,7 +34,7 @@ class ReportService {
 
   async getTopProducts(userId, startDate, endDate, limit = 10) {
     const pool = getPool();
-    const [rows] = await pool.execute(
+    const [rows] = await pool.query(
       `SELECT 
         p.id, p.name, p.sku,
         SUM(si.quantity) as total_quantity,
@@ -42,7 +42,7 @@ class ReportService {
        FROM sale_items si
        JOIN sales s ON si.sale_id = s.id
        JOIN products p ON si.product_id = p.id
-       WHERE s.user_id = ? AND s.sale_date BETWEEN ? AND ? AND s.status = 'completed'
+       WHERE s.shop_id = ? AND s.sale_date BETWEEN ? AND ? AND s.status = 'completed'
        GROUP BY p.id, p.name, p.sku
        ORDER BY total_revenue DESC
        LIMIT ?`,
@@ -53,7 +53,7 @@ class ReportService {
 
   async getProfitReport(userId, startDate, endDate) {
     const pool = getPool();
-    const [rows] = await pool.execute(
+    const [rows] = await pool.query(
       `SELECT 
         COALESCE(SUM(s.net_amount), 0) as total_sales,
         COALESCE(SUM(si.quantity * p.purchase_price), 0) as total_cost,
@@ -61,7 +61,7 @@ class ReportService {
        FROM sales s
        JOIN sale_items si ON s.id = si.sale_id
        JOIN products p ON si.product_id = p.id
-       WHERE s.user_id = ? AND s.sale_date BETWEEN ? AND ? AND s.status = 'completed'`,
+       WHERE s.shop_id = ? AND s.sale_date BETWEEN ? AND ? AND s.status = 'completed'`,
       [userId, startDate, endDate]
     );
     return rows[0];
@@ -71,24 +71,24 @@ class ReportService {
     const pool = getPool();
     const today = new Date().toISOString().split('T')[0];
 
-    const [[todaySales]] = await pool.execute(
+    const [[todaySales]] = await pool.query(
       `SELECT COUNT(*) as count, COALESCE(SUM(net_amount), 0) as revenue
-       FROM sales WHERE user_id = ? AND sale_date = ? AND status = 'completed'`,
+       FROM sales WHERE shop_id = ? AND sale_date = ? AND status = 'completed'`,
       [userId, today]
     );
 
-    const [[totalProducts]] = await pool.execute(
-      'SELECT COUNT(*) as count FROM products WHERE user_id = ? AND is_active = 1',
+    const [[totalProducts]] = await pool.query(
+      'SELECT COUNT(*) as count FROM products WHERE shop_id = ? AND is_active = 1',
       [userId]
     );
 
-    const [[totalCustomers]] = await pool.execute(
-      'SELECT COUNT(*) as count FROM customers WHERE user_id = ? AND is_active = 1',
+    const [[totalCustomers]] = await pool.query(
+      'SELECT COUNT(*) as count FROM customers WHERE shop_id = ? AND is_active = 1',
       [userId]
     );
 
-    const [[lowStock]] = await pool.execute(
-      'SELECT COUNT(*) as count FROM inventory WHERE user_id = ? AND quantity <= min_stock_level',
+    const [[lowStock]] = await pool.query(
+      'SELECT COUNT(*) as count FROM inventory WHERE shop_id = ? AND quantity <= min_stock_level',
       [userId]
     );
 

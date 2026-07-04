@@ -38,8 +38,48 @@ async function migrate() {
     // Read and execute migration SQL (multipleStatements enabled)
     const migrationPath = path.join(__dirname, 'migrations', '001_init.sql');
     const sql = fs.readFileSync(migrationPath, 'utf8');
-
     await connection.query(sql);
+
+    const migration2Path = path.join(__dirname, 'migrations', '002_pos_module.sql');
+    if (fs.existsSync(migration2Path)) {
+      const sql2 = fs.readFileSync(migration2Path, 'utf8');
+      await connection.query(sql2);
+    }
+
+    // Migration 3: Multi-tenant
+    const migration3Path = path.join(__dirname, 'migrations', '003_multi_tenant.sql');
+    if (fs.existsSync(migration3Path)) {
+      try {
+        const sql3 = fs.readFileSync(migration3Path, 'utf8');
+        await connection.query(sql3);
+      } catch (e) {
+        // Ignore "column already exists" errors for re-running
+        if (!e.message.includes('Duplicate column')) throw e;
+      }
+    }
+
+    // Migration 4: Advanced product fields
+    const migration4Path = path.join(__dirname, 'migrations', '004_product_fields.sql');
+    if (fs.existsSync(migration4Path)) {
+      try {
+        const sql4 = fs.readFileSync(migration4Path, 'utf8');
+        await connection.query(sql4);
+      } catch (e) {
+        if (!e.message.includes('Duplicate column')) throw e;
+      }
+    }
+
+    // Migration 5: Offers
+    const migration5Path = path.join(__dirname, 'migrations', '005_offers.sql');
+    if (fs.existsSync(migration5Path)) {
+      try {
+        const sql5 = fs.readFileSync(migration5Path, 'utf8');
+        await connection.query(sql5);
+      } catch (e) {
+        if (!e.message.includes('already exists')) throw e;
+      }
+    }
+
     console.log('✓ All tables created successfully');
 
     // Show created tables

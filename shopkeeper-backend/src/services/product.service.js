@@ -27,21 +27,30 @@ class ProductService {
     return product;
   }
 
-  async create(userId, data) {
+  async create(userId, data, createdBy) {
     const uuid = generateId();
     const productData = {
       uuid,
-      user_id: userId,
+      user_id: createdBy || null,
+      shop_id: userId,
       name: data.name,
       sku: data.sku || null,
       barcode: data.barcode || null,
       category_id: data.category_id || null,
       description: data.description || null,
+      brand: data.brand || null,
+      hsn_code: data.hsn_code || null,
       purchase_price: data.purchase_price,
       selling_price: data.selling_price,
+      mrp: data.mrp || data.selling_price || 0,
       unit: data.unit || 'piece',
+      weight: data.weight || null,
+      min_stock_level: data.min_stock_level || 0,
+      max_stock_level: data.max_stock_level || 0,
+      expiry_date: data.expiry_date || null,
       tax_rate: data.tax_rate || 0,
       image_url: data.image_url || null,
+      is_featured: data.is_featured || false,
     };
 
     const product = await productRepo.create(productData);
@@ -58,7 +67,9 @@ class ProductService {
     }
 
     const updateData = {};
-    const allowedFields = ['name', 'sku', 'barcode', 'category_id', 'description', 'purchase_price', 'selling_price', 'unit', 'tax_rate', 'image_url', 'is_active'];
+    const allowedFields = ['name', 'sku', 'barcode', 'category_id', 'description', 'brand', 'hsn_code',
+      'purchase_price', 'selling_price', 'mrp', 'unit', 'weight', 'min_stock_level', 'max_stock_level',
+      'expiry_date', 'tax_rate', 'image_url', 'is_active', 'is_featured'];
     for (const field of allowedFields) {
       if (data[field] !== undefined) {
         updateData[field] = data[field];

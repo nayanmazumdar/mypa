@@ -23,15 +23,63 @@ class AuthController {
     }
   }
 
+  async selectShop(req, res) {
+    try {
+      const result = await authService.selectShop(req.user.id, req.body.shop_id);
+      return ApiResponse.success(res, result, 'Shop selected');
+    } catch (error) {
+      logger.error('Select shop error:', error.message);
+      return ApiResponse.error(res, error.message, error.statusCode || 500);
+    }
+  }
+
+  async setupShop(req, res) {
+    try {
+      const result = await authService.createShop(req.user.id, req.body);
+      return ApiResponse.created(res, result, 'Shop created successfully');
+    } catch (error) {
+      logger.error('Setup shop error:', error.message);
+      return ApiResponse.error(res, error.message, error.statusCode || 500);
+    }
+  }
+
+  async setPasscode(req, res) {
+    try {
+      await authService.setPasscode(req.user.id, req.body);
+      return ApiResponse.success(res, null, 'Passcode set successfully');
+    } catch (error) {
+      logger.error('Set passcode error:', error.message);
+      return ApiResponse.error(res, error.message, error.statusCode || 500);
+    }
+  }
+
   async getProfile(req, res) {
     try {
       const user = await authService.getProfile(req.user.id);
-      if (!user) {
-        return ApiResponse.notFound(res, 'User not found');
-      }
+      if (!user) return ApiResponse.notFound(res, 'User not found');
       return ApiResponse.success(res, user);
     } catch (error) {
       logger.error('Get profile error:', error.message);
+      return ApiResponse.error(res, error.message, error.statusCode || 500);
+    }
+  }
+
+  async getStaff(req, res) {
+    try {
+      const staff = await authService.getShopStaff(req.user.shop_id);
+      return ApiResponse.success(res, staff);
+    } catch (error) {
+      logger.error('Get staff error:', error.message);
+      return ApiResponse.error(res, error.message, error.statusCode || 500);
+    }
+  }
+
+  async addStaff(req, res) {
+    try {
+      const result = await authService.addStaff({ ...req.body, shop_id: req.user.shop_id });
+      return ApiResponse.created(res, result, 'Staff member added');
+    } catch (error) {
+      logger.error('Add staff error:', error.message);
       return ApiResponse.error(res, error.message, error.statusCode || 500);
     }
   }

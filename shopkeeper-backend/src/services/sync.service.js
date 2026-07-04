@@ -13,7 +13,7 @@ class SyncService {
     const db = getDb();
 
     try {
-      const [products] = await pool.execute(
+      const [products] = await pool.query(
         'SELECT * FROM products WHERE user_id = ?',
         [userId]
       );
@@ -51,7 +51,7 @@ class SyncService {
     const db = getDb();
 
     try {
-      const [customers] = await pool.execute(
+      const [customers] = await pool.query(
         'SELECT * FROM customers WHERE user_id = ?',
         [userId]
       );
@@ -98,7 +98,7 @@ class SyncService {
         const placeholders = fields.map(() => '?').join(', ');
         const values = fields.map((f) => sale[f]);
 
-        await pool.execute(
+        await pool.query(
           `INSERT IGNORE INTO sales (${fields.join(', ')}) VALUES (${placeholders})`,
           values
         );

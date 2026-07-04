@@ -4,8 +4,8 @@ const logger = require('../config/logger');
 class InventoryService {
   async getStock(userId, productId) {
     const pool = getPool();
-    const [rows] = await pool.execute(
-      'SELECT * FROM inventory WHERE user_id = ? AND product_id = ?',
+    const [rows] = await pool.query(
+      'SELECT * FROM inventory WHERE shop_id = ? AND product_id = ?',
       [userId, productId]
     );
     return rows[0] || null;
@@ -13,16 +13,16 @@ class InventoryService {
 
   async getAllStock(userId, { limit, offset }) {
     const pool = getPool();
-    const [rows] = await pool.execute(
+    const [rows] = await pool.query(
       `SELECT i.*, p.name as product_name, p.sku
        FROM inventory i
        JOIN products p ON i.product_id = p.id
-       WHERE i.user_id = ?
+       WHERE i.shop_id = ?
        ORDER BY p.name ASC LIMIT ? OFFSET ?`,
       [userId, limit, offset]
     );
-    const [countResult] = await pool.execute(
-      'SELECT COUNT(*) as total FROM inventory WHERE user_id = ?',
+    const [countResult] = await pool.query(
+      'SELECT COUNT(*) as total FROM inventory WHERE shop_id = ?',
       [userId]
     );
     return { items: rows, total: countResult[0].total };
@@ -30,11 +30,11 @@ class InventoryService {
 
   async getLowStock(userId) {
     const pool = getPool();
-    const [rows] = await pool.execute(
+    const [rows] = await pool.query(
       `SELECT i.*, p.name as product_name, p.sku
        FROM inventory i
        JOIN products p ON i.product_id = p.id
-       WHERE i.user_id = ? AND i.quantity <= i.min_stock_level`,
+       WHERE i.shop_id = ? AND i.quantity <= i.min_stock_level`,
       [userId]
     );
     return rows;
@@ -47,8 +47,8 @@ class InventoryService {
       await connection.beginTransaction();
 
       // Update or insert inventory
-      const [existing] = await connection.execute(
-        'SELECT * FROM inventory WHERE user_id = ? AND product_id = ?',
+      const [existing] = await connection.query(
+        'SELECT * FROM inventory WHERE shop_id = ? AND product_id = ?',
         [userId, productId]
       );
 
@@ -56,20 +56,20 @@ class InventoryService {
         const newQty = type === 'in'
           ? existing[0].quantity + quantity
           : existing[0].quantity - quantity;
-        await connection.execute(
+        await connection.query(
           'UPDATE inventory SET quantity = ? WHERE id = ?',
           [newQty, existing[0].id]
         );
       } else {
-        await connection.execute(
-          'INSERT INTO inventory (product_id, user_id, quantity) VALUES (?, ?, ?)',
+        await connection.query(
+          'INSERT INTO inventory (product_id, shop_id, quantity) VALUES (?, ?, ?)',
           [productId, userId, type === 'in' ? quantity : -quantity]
         );
       }
 
       // Log stock movement
-      await connection.execute(
-        'INSERT INTO stock_movements (product_id, user_id, type, quantity, reference_type, reference_id, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      await connection.query(
+        'INSERT INTO stock_movements (product_id, shop_id, type, quantity, reference_type, reference_id, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [productId, userId, type, quantity, referenceType || null, referenceId || null, notes || null]
       );
 

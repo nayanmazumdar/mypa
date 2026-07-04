@@ -5,7 +5,7 @@ const logger = require('../config/logger');
 class ProductController {
   async getAll(req, res) {
     try {
-      const result = await productService.getAll(req.user.id, req.query);
+      const result = await productService.getAll(req.user.shop_id, req.query);
       return ApiResponse.paginated(res, result.products, result.pagination);
     } catch (error) {
       logger.error('Get products error:', error.message);
@@ -15,7 +15,7 @@ class ProductController {
 
   async getById(req, res) {
     try {
-      const product = await productService.getById(req.params.id, req.user.id);
+      const product = await productService.getById(req.params.id, req.user.shop_id);
       return ApiResponse.success(res, product);
     } catch (error) {
       logger.error('Get product error:', error.message);
@@ -25,7 +25,7 @@ class ProductController {
 
   async create(req, res) {
     try {
-      const product = await productService.create(req.user.id, req.body);
+      const product = await productService.create(req.user.shop_id, req.body, req.user.id);
       return ApiResponse.created(res, product, 'Product created successfully');
     } catch (error) {
       logger.error('Create product error:', error.message);
@@ -35,7 +35,7 @@ class ProductController {
 
   async update(req, res) {
     try {
-      const product = await productService.update(req.params.id, req.user.id, req.body);
+      const product = await productService.update(req.params.id, req.user.shop_id, req.body);
       return ApiResponse.success(res, product, 'Product updated successfully');
     } catch (error) {
       logger.error('Update product error:', error.message);
@@ -45,7 +45,7 @@ class ProductController {
 
   async delete(req, res) {
     try {
-      await productService.delete(req.params.id, req.user.id);
+      await productService.delete(req.params.id, req.user.shop_id);
       return ApiResponse.success(res, null, 'Product deleted successfully');
     } catch (error) {
       logger.error('Delete product error:', error.message);

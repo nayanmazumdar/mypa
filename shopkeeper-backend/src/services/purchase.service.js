@@ -47,7 +47,7 @@ class PurchaseService {
 
     const purchaseData = {
       uuid,
-      user_id: userId,
+      shop_id: userId,
       supplier_id: data.supplier_id || null,
       invoice_number: invoiceNumber,
       total_amount: totalAmount,

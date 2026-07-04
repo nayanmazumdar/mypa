@@ -3,7 +3,7 @@ const { getPool } = require('../../config/db');
 class SalesRepository {
   async findAll(userId, { limit, offset, status, startDate, endDate }) {
     const pool = getPool();
-    let query = 'SELECT s.*, c.name as customer_name FROM sales s LEFT JOIN customers c ON s.customer_id = c.id WHERE s.user_id = ?';
+    let query = 'SELECT s.*, c.name as customer_name FROM sales s LEFT JOIN customers c ON s.customer_id = c.id WHERE s.shop_id = ?';
     const params = [userId];
 
     if (status) {
@@ -22,13 +22,13 @@ class SalesRepository {
     query += ' ORDER BY s.created_at DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
 
-    const [rows] = await pool.execute(query, params);
+    const [rows] = await pool.query(query, params);
     return rows;
   }
 
   async count(userId, { status, startDate, endDate }) {
     const pool = getPool();
-    let query = 'SELECT COUNT(*) as total FROM sales WHERE user_id = ?';
+    let query = 'SELECT COUNT(*) as total FROM sales WHERE shop_id = ?';
     const params = [userId];
 
     if (status) {
@@ -44,14 +44,14 @@ class SalesRepository {
       params.push(endDate);
     }
 
-    const [rows] = await pool.execute(query, params);
+    const [rows] = await pool.query(query, params);
     return rows[0].total;
   }
 
   async findById(id, userId) {
     const pool = getPool();
-    const [rows] = await pool.execute(
-      'SELECT s.*, c.name as customer_name FROM sales s LEFT JOIN customers c ON s.customer_id = c.id WHERE s.id = ? AND s.user_id = ?',
+    const [rows] = await pool.query(
+      'SELECT s.*, c.name as customer_name FROM sales s LEFT JOIN customers c ON s.customer_id = c.id WHERE s.id = ? AND s.shop_id = ?',
       [id, userId]
     );
     return rows[0] || null;
@@ -59,7 +59,7 @@ class SalesRepository {
 
   async findItemsBySaleId(saleId) {
     const pool = getPool();
-    const [rows] = await pool.execute(
+    const [rows] = await pool.query(
       'SELECT si.*, p.name as product_name FROM sale_items si JOIN products p ON si.product_id = p.id WHERE si.sale_id = ?',
       [saleId]
     );
@@ -76,14 +76,14 @@ class SalesRepository {
       const placeholders = fields.map(() => '?').join(', ');
       const values = Object.values(saleData);
 
-      const [saleResult] = await connection.execute(
+      const [saleResult] = await connection.query(
         `INSERT INTO sales (${fields.join(', ')}) VALUES (${placeholders})`,
         values
       );
       const saleId = saleResult.insertId;
 
       for (const item of items) {
-        await connection.execute(
+        await connection.query(
           'INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, discount, total) VALUES (?, ?, ?, ?, ?, ?)',
           [saleId, item.product_id, item.quantity, item.unit_price, item.discount || 0, item.total]
         );
@@ -101,8 +101,8 @@ class SalesRepository {
 
   async updateStatus(id, userId, status) {
     const pool = getPool();
-    await pool.execute(
-      'UPDATE sales SET status = ? WHERE id = ? AND user_id = ?',
+    await pool.query(
+      'UPDATE sales SET status = ? WHERE id = ? AND shop_id = ?',
       [status, id, userId]
     );
     return this.findById(id, userId);

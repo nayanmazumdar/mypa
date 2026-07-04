@@ -5,7 +5,7 @@ const logger = require('../config/logger');
 class SalesController {
   async getAll(req, res) {
     try {
-      const result = await salesService.getAll(req.user.id, req.query);
+      const result = await salesService.getAll(req.user.shop_id, req.query);
       return ApiResponse.paginated(res, result.sales, result.pagination);
     } catch (error) {
       logger.error('Get sales error:', error.message);
@@ -15,7 +15,7 @@ class SalesController {
 
   async getById(req, res) {
     try {
-      const sale = await salesService.getById(req.params.id, req.user.id);
+      const sale = await salesService.getById(req.params.id, req.user.shop_id);
       return ApiResponse.success(res, sale);
     } catch (error) {
       logger.error('Get sale error:', error.message);
@@ -25,7 +25,7 @@ class SalesController {
 
   async create(req, res) {
     try {
-      const sale = await salesService.create(req.user.id, req.body);
+      const sale = await salesService.create(req.user.shop_id, req.body);
       return ApiResponse.created(res, sale, 'Sale created successfully');
     } catch (error) {
       logger.error('Create sale error:', error.message);
@@ -35,7 +35,7 @@ class SalesController {
 
   async updateStatus(req, res) {
     try {
-      const sale = await salesService.updateStatus(req.params.id, req.user.id, req.body.status);
+      const sale = await salesService.updateStatus(req.params.id, req.user.shop_id, req.body.status);
       return ApiResponse.success(res, sale, 'Sale status updated');
     } catch (error) {
       logger.error('Update sale status error:', error.message);

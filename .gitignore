@@ -1,1 +1,7 @@
 node_modules/
+frontend/dist/
+shopkeeper-backend/logs/
+shopkeeper-backend/uploads/
+shopkeeper-backend/src/database/sqlite/*.db
+*.log
+.DS_Store

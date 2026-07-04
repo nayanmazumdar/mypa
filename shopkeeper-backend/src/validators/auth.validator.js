@@ -1,18 +1,40 @@
 const { body } = require('express-validator');
 
 const registerValidator = [
-  body('name').trim().notEmpty().withMessage('Name is required'),
-  body('email').isEmail().withMessage('Valid email is required'),
+  body('name')
+    .trim()
+    .notEmpty().withMessage('Name is required')
+    .isLength({ min: 2, max: 100 }).withMessage('Name must be 2-100 characters'),
+  body('email')
+    .trim()
+    .isEmail().withMessage('Valid email is required')
+    .normalizeEmail(),
   body('password')
-    .isLength({ min: 6 })
-    .withMessage('Password must be at least 6 characters'),
-  body('phone').optional().isMobilePhone().withMessage('Invalid phone number'),
-  body('shop_name').optional().trim(),
+    .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
+    .matches(/[A-Z]/).withMessage('Password must contain an uppercase letter')
+    .matches(/[a-z]/).withMessage('Password must contain a lowercase letter')
+    .matches(/\d/).withMessage('Password must contain a number'),
+  body('phone')
+    .optional()
+    .trim()
+    .matches(/^[0-9]{10,15}$/).withMessage('Phone must be 10-15 digits'),
+  body('shop_name')
+    .optional()
+    .trim()
+    .isLength({ max: 200 }).withMessage('Shop name must be under 200 characters'),
 ];
 
 const loginValidator = [
-  body('email').isEmail().withMessage('Valid email is required'),
-  body('password').notEmpty().withMessage('Password is required'),
+  body('email')
+    .trim()
+    .isEmail().withMessage('Valid email is required')
+    .normalizeEmail(),
+  body('password')
+    .optional()
+    .notEmpty().withMessage('Password cannot be empty'),
+  body('passcode')
+    .optional()
+    .matches(/^\d{4}$/).withMessage('Passcode must be 4 digits'),
 ];
 
 module.exports = { registerValidator, loginValidator };
