@@ -1,115 +1,99 @@
 const express = require('express');
 const router = express.Router();
-const customerController = require('../controllers/customer.controller');
-const { authenticateJWT, authorizeRoles } = require('../middlewares/auth.middleware');
-const { ROLES } = require('../utils/constants');
-
-// All customer routes require authentication + business role
-router.use(authenticateJWT);
-router.use(authorizeRoles(ROLES.BUSINESS_OWNER, ROLES.STAFF));
+const { getPool } = require('../config/db');
+const { authenticate } = require('../middlewares/auth.middleware');
+const ApiResponse = require('../utils/response');
+const { generateId } = require('../utils/helper');
+const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 
 /**
  * @swagger
  * /api/customers:
  *   get:
  *     tags: [Customers]
- *     summary: List customers with search and pagination
+ *     summary: Get all customers
  *     security: [{ bearerAuth: [] }]
- *     parameters:
- *       - in: query
- *         name: q
- *         schema: { type: string }
- *         description: Search by name or mobile
- *       - in: query
- *         name: page
- *         schema: { type: integer }
- *       - in: query
- *         name: limit
- *         schema: { type: integer }
- *       - in: query
- *         name: is_active
- *         schema: { type: string, enum: [true, false] }
  *     responses:
- *       200: { description: Paginated list of customers }
+ *       200: { description: List of customers }
  */
-router.get('/', customerController.getAll);
+router.get('/', authenticate, async (req, res, next) => {
+  try {
+    const pool = getPool();
+    const { page, limit, offset } = parsePagination(req.query);
+    const search = req.query.search;
 
-/**
- * @swagger
- * /api/customers/search:
- *   get:
- *     tags: [Customers]
- *     summary: Search customers by name or mobile
- *     security: [{ bearerAuth: [] }]
- *     parameters:
- *       - in: query
- *         name: q
- *         required: true
- *         schema: { type: string }
- *     responses:
- *       200: { description: Matching customers (max 50) }
- */
-// NOTE: /search and /outstanding must be declared BEFORE /:id to avoid route conflicts
-router.get('/search', customerController.search);
+    let query = 'SELECT * FROM customers WHERE shop_id = ?';
+    let countQuery = 'SELECT COUNT(*) as total FROM customers WHERE shop_id = ?';
+    const params = [req.user.shop_id];
 
-/**
- * @swagger
- * /api/customers/outstanding:
- *   get:
- *     tags: [Customers]
- *     summary: List all customers with outstanding balances
- *     security: [{ bearerAuth: [] }]
- *     responses:
- *       200: { description: Customers sorted by outstanding balance descending }
- */
-router.get('/outstanding', customerController.getOutstanding);
+    if (search) {
+      query += ' AND (name LIKE ? OR phone LIKE ? OR email LIKE ?)';
+      countQuery += ' AND (name LIKE ? OR phone LIKE ? OR email LIKE ?)';
+      const searchTerm = `%${search}%`;
+      params.push(searchTerm, searchTerm, searchTerm);
+    }
 
-/**
- * @swagger
- * /api/customers:
- *   post:
- *     tags: [Customers]
- *     summary: Create a new customer
- *     security: [{ bearerAuth: [] }]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [name]
- *             properties:
- *               name: { type: string }
- *               phone: { type: string }
- *               alternate_mobile: { type: string }
- *               email: { type: string }
- *               address: { type: string }
- *               occupation: { type: string }
- *               credit_limit: { type: number }
- *               notes: { type: string }
- *               reference_person: { type: string }
- *     responses:
- *       201: { description: Customer created }
- */
-router.post('/', customerController.create);
+    const countParams = [...params];
+    query += ' ORDER BY name ASC LIMIT ? OFFSET ?';
+    params.push(limit, offset);
+
+    const [rows] = await pool.query(query, params);
+    const [countResult] = await pool.query(countQuery, countParams);
+    const pagination = buildPaginationMeta(countResult[0].total, page, limit);
+    return ApiResponse.paginated(res, rows, pagination);
+  } catch (error) {
+    next(error);
+  }
+});
 
 /**
  * @swagger
  * /api/customers/{id}:
  *   get:
  *     tags: [Customers]
- *     summary: Get a single customer with outstanding balance
+ *     summary: Get customer by ID
  *     security: [{ bearerAuth: [] }]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: integer }
  *     responses:
- *       200: { description: Customer details with balance }
- *       404: { description: Customer not found }
+ *       200: { description: Customer details }
  */
-router.get('/:id', customerController.getById);
+router.get('/:id', authenticate, async (req, res, next) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.query(
+      'SELECT * FROM customers WHERE id = ? AND shop_id = ?',
+      [req.params.id, req.user.shop_id]
+    );
+    if (rows.length === 0) return ApiResponse.notFound(res, 'Customer not found');
+    return ApiResponse.success(res, rows[0]);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * @swagger
+ * /api/customers:
+ *   post:
+ *     tags: [Customers]
+ *     summary: Create a customer
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       201: { description: Customer created }
+ */
+router.post('/', authenticate, async (req, res, next) => {
+  try {
+    const pool = getPool();
+    const { name, email, phone, address, notes } = req.body;
+    const uuid = generateId();
+    const [result] = await pool.query(
+      'INSERT INTO customers (uuid, shop_id, name, email, phone, address, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [uuid, req.user.shop_id, name, email || null, phone || null, address || null, notes || null]
+    );
+    return ApiResponse.created(res, { id: result.insertId, uuid, name });
+  } catch (error) {
+    next(error);
+  }
+});
 
 /**
  * @swagger
@@ -118,55 +102,41 @@ router.get('/:id', customerController.getById);
  *     tags: [Customers]
  *     summary: Update a customer
  *     security: [{ bearerAuth: [] }]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: integer }
  *     responses:
  *       200: { description: Customer updated }
- *       404: { description: Customer not found }
  */
-router.put('/:id', customerController.update);
+router.put('/:id', authenticate, async (req, res, next) => {
+  try {
+    const pool = getPool();
+    const { name, email, phone, address, notes } = req.body;
+    await pool.query(
+      'UPDATE customers SET name = ?, email = ?, phone = ?, address = ?, notes = ? WHERE id = ? AND shop_id = ?',
+      [name, email || null, phone || null, address || null, notes || null, req.params.id, req.user.shop_id]
+    );
+    return ApiResponse.success(res, null, 'Customer updated');
+  } catch (error) {
+    next(error);
+  }
+});
 
 /**
  * @swagger
  * /api/customers/{id}:
  *   delete:
  *     tags: [Customers]
- *     summary: Delete a customer (soft-delete by default)
+ *     summary: Delete a customer
  *     security: [{ bearerAuth: [] }]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: integer }
- *       - in: query
- *         name: hard
- *         schema: { type: boolean }
- *         description: Set to true for permanent deletion
  *     responses:
  *       200: { description: Customer deleted }
- *       404: { description: Customer not found }
  */
-router.delete('/:id', customerController.delete);
-
-/**
- * @swagger
- * /api/customers/{id}/history:
- *   get:
- *     tags: [Customers]
- *     summary: Get transaction history with running balance for a customer
- *     security: [{ bearerAuth: [] }]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: integer }
- *     responses:
- *       200: { description: Transaction history with running balance }
- *       404: { description: Customer not found }
- */
-router.get('/:id/history', customerController.getHistory);
+router.delete('/:id', authenticate, async (req, res, next) => {
+  try {
+    const pool = getPool();
+    await pool.query('DELETE FROM customers WHERE id = ? AND shop_id = ?', [req.params.id, req.user.shop_id]);
+    return ApiResponse.success(res, null, 'Customer deleted');
+  } catch (error) {
+    next(error);
+  }
+});
 
 module.exports = router;

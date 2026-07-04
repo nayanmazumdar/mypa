@@ -1,11 +1,11 @@
 const { validationResult } = require('express-validator');
-const ApiResponse = require('../utils/response');
 
 /**
- * Validate request using express-validator rules
+ * Validation middleware - runs express-validator checks and returns errors
  */
 const validate = (validations) => {
   return async (req, res, next) => {
+    // Run all validations
     await Promise.all(validations.map((validation) => validation.run(req)));
 
     const errors = validationResult(req);
@@ -13,12 +13,17 @@ const validate = (validations) => {
       return next();
     }
 
-    const extractedErrors = errors.array().map((err) => ({
+    const formattedErrors = errors.array().map((err) => ({
       field: err.path,
       message: err.msg,
+      value: err.value,
     }));
 
-    return ApiResponse.error(res, 'Validation failed', 422, extractedErrors);
+    return res.status(400).json({
+      success: false,
+      message: 'Validation failed',
+      errors: formattedErrors,
+    });
   };
 };
 

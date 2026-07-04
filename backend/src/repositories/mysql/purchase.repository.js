@@ -3,7 +3,7 @@ const { getPool } = require('../../config/db');
 class PurchaseRepository {
   async findAll(userId, { limit, offset, status, startDate, endDate }) {
     const pool = getPool();
-    let query = 'SELECT p.*, s.name as supplier_name FROM purchases p LEFT JOIN suppliers s ON p.supplier_id = s.id WHERE p.user_id = ?';
+    let query = 'SELECT p.*, s.name as supplier_name FROM purchases p LEFT JOIN suppliers s ON p.supplier_id = s.id WHERE p.shop_id = ?';
     const params = [userId];
 
     if (status) {
@@ -22,13 +22,13 @@ class PurchaseRepository {
     query += ' ORDER BY p.created_at DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
 
-    const [rows] = await pool.execute(query, params);
+    const [rows] = await pool.query(query, params);
     return rows;
   }
 
   async count(userId, { status, startDate, endDate }) {
     const pool = getPool();
-    let query = 'SELECT COUNT(*) as total FROM purchases WHERE user_id = ?';
+    let query = 'SELECT COUNT(*) as total FROM purchases WHERE shop_id = ?';
     const params = [userId];
 
     if (status) {
@@ -44,14 +44,14 @@ class PurchaseRepository {
       params.push(endDate);
     }
 
-    const [rows] = await pool.execute(query, params);
+    const [rows] = await pool.query(query, params);
     return rows[0].total;
   }
 
   async findById(id, userId) {
     const pool = getPool();
-    const [rows] = await pool.execute(
-      'SELECT p.*, s.name as supplier_name FROM purchases p LEFT JOIN suppliers s ON p.supplier_id = s.id WHERE p.id = ? AND p.user_id = ?',
+    const [rows] = await pool.query(
+      'SELECT p.*, s.name as supplier_name FROM purchases p LEFT JOIN suppliers s ON p.supplier_id = s.id WHERE p.id = ? AND p.shop_id = ?',
       [id, userId]
     );
     return rows[0] || null;
@@ -59,7 +59,7 @@ class PurchaseRepository {
 
   async findItemsByPurchaseId(purchaseId) {
     const pool = getPool();
-    const [rows] = await pool.execute(
+    const [rows] = await pool.query(
       'SELECT pi.*, p.name as product_name FROM purchase_items pi JOIN products p ON pi.product_id = p.id WHERE pi.purchase_id = ?',
       [purchaseId]
     );
@@ -76,14 +76,14 @@ class PurchaseRepository {
       const placeholders = fields.map(() => '?').join(', ');
       const values = Object.values(purchaseData);
 
-      const [purchaseResult] = await connection.execute(
+      const [purchaseResult] = await connection.query(
         `INSERT INTO purchases (${fields.join(', ')}) VALUES (${placeholders})`,
         values
       );
       const purchaseId = purchaseResult.insertId;
 
       for (const item of items) {
-        await connection.execute(
+        await connection.query(
           'INSERT INTO purchase_items (purchase_id, product_id, quantity, unit_price, total) VALUES (?, ?, ?, ?, ?)',
           [purchaseId, item.product_id, item.quantity, item.unit_price, item.total]
         );
@@ -101,8 +101,8 @@ class PurchaseRepository {
 
   async updateStatus(id, userId, status) {
     const pool = getPool();
-    await pool.execute(
-      'UPDATE purchases SET status = ? WHERE id = ? AND user_id = ?',
+    await pool.query(
+      'UPDATE purchases SET status = ? WHERE id = ? AND shop_id = ?',
       [status, id, userId]
     );
     return this.findById(id, userId);

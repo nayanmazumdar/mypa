@@ -8,7 +8,7 @@ export const fetchProducts = createAsyncThunk(
       const response = await productApi.getAll(params);
       return response;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch products');
+      return rejectWithValue(error.structured || { code: 'INTERNAL', message: 'Failed to fetch products' });
     }
   }
 );
@@ -20,7 +20,7 @@ export const createProduct = createAsyncThunk(
       const response = await productApi.create(data);
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to create product');
+      return rejectWithValue(error.structured || { code: 'INTERNAL', message: 'Failed to create product' });
     }
   }
 );
@@ -32,7 +32,7 @@ export const updateProduct = createAsyncThunk(
       const response = await productApi.update(id, data);
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to update product');
+      return rejectWithValue(error.structured || { code: 'INTERNAL', message: 'Failed to update product' });
     }
   }
 );
@@ -44,7 +44,7 @@ export const deleteProduct = createAsyncThunk(
       await productApi.delete(id);
       return id;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to delete product');
+      return rejectWithValue(error.structured || { code: 'INTERNAL', message: 'Failed to delete product' });
     }
   }
 );

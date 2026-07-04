@@ -17,11 +17,14 @@ export const loginUser = createAsyncThunk(
   async (credentials, { rejectWithValue }) => {
     try {
       const response = await authApi.login(credentials);
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-      return response.data;
+      const { token, user } = response.data;
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+      return { token, user };
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Login failed');
+      return rejectWithValue(
+        error.structured?.message || error.response?.data?.message || 'Login failed'
+      );
     }
   }
 );
@@ -31,11 +34,14 @@ export const registerUser = createAsyncThunk(
   async (userData, { rejectWithValue }) => {
     try {
       const response = await authApi.register(userData);
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-      return response.data;
+      const { token, user } = response.data;
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+      return { token, user };
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Registration failed');
+      return rejectWithValue(
+        error.structured?.message || error.response?.data?.message || 'Registration failed'
+      );
     }
   }
 );
@@ -70,6 +76,20 @@ const authSlice = createSlice({
       localStorage.removeItem('token');
       localStorage.removeItem('user');
     },
+    switchShop(state) {
+      // Keep user logged in but clear shop context
+      if (state.user) {
+        state.user = { ...state.user, shop_id: null, shop_name: null };
+        localStorage.setItem('user', JSON.stringify(state.user));
+      }
+    },
+    setActiveShop(state, action) {
+      const { shop_id, shop_name, role } = action.payload;
+      if (state.user) {
+        state.user = { ...state.user, shop_id, shop_name, role };
+        localStorage.setItem('user', JSON.stringify(state.user));
+      }
+    },
     loadUser(state) {
       const token = localStorage.getItem('token');
       const user = localStorage.getItem('user');
@@ -78,7 +98,6 @@ const authSlice = createSlice({
         state.user = JSON.parse(user);
         state.isAuthenticated = true;
       } else {
-        // Token missing or expired — clean up
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         state.token = null;
@@ -129,5 +148,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { logout, loadUser, clearError } = authSlice.actions;
+export const { logout, switchShop, setActiveShop, loadUser, clearError } = authSlice.actions;
 export default authSlice.reducer;

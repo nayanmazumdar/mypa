@@ -1,70 +1,97 @@
 const { getPool } = require('../../config/db');
-const { generateId } = require('../../utils/helper');
 
 class ProductRepository {
-  findAll(userId, { limit = 20, offset = 0, search = '', categoryId = null } = {}) {
-    const db = getPool();
-    let sql = `SELECT p.*, c.name as category_name,
-               COALESCE(i.quantity, 0) as stock
-               FROM products p
-               LEFT JOIN categories c ON p.category_id = c.id
-               LEFT JOIN inventory i ON i.product_id = p.id AND i.user_id = p.user_id
-               WHERE p.user_id = ? AND p.is_active = 1`;
+  async findAll(userId, { limit, offset, search, categoryId }) {
+    const pool = getPool();
+    let query = 'SELECT * FROM products WHERE shop_id = ?';
     const params = [userId];
-    if (search) { sql += ` AND p.name LIKE ?`; params.push(`%${search}%`); }
-    if (categoryId) { sql += ` AND p.category_id = ?`; params.push(categoryId); }
-    sql += ` ORDER BY p.created_at DESC LIMIT ? OFFSET ?`;
+
+    if (search) {
+      query += ' AND (name LIKE ? OR sku LIKE ? OR barcode LIKE ?)';
+      const searchTerm = `%${search}%`;
+      params.push(searchTerm, searchTerm, searchTerm);
+    }
+    if (categoryId) {
+      query += ' AND category_id = ?';
+      params.push(categoryId);
+    }
+
+    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
-    return db.prepare(sql).all(...params);
+
+    const [rows] = await pool.query(query, params);
+    return rows;
   }
 
-  count(userId, { search = '', categoryId = null } = {}) {
-    const db = getPool();
-    let sql = `SELECT COUNT(*) as total FROM products WHERE user_id = ? AND is_active = 1`;
+  async count(userId, { search, categoryId }) {
+    const pool = getPool();
+    let query = 'SELECT COUNT(*) as total FROM products WHERE shop_id = ?';
     const params = [userId];
-    if (search) { sql += ` AND name LIKE ?`; params.push(`%${search}%`); }
-    if (categoryId) { sql += ` AND category_id = ?`; params.push(categoryId); }
-    return db.prepare(sql).get(...params)?.total || 0;
+
+    if (search) {
+      query += ' AND (name LIKE ? OR sku LIKE ? OR barcode LIKE ?)';
+      const searchTerm = `%${search}%`;
+      params.push(searchTerm, searchTerm, searchTerm);
+    }
+    if (categoryId) {
+      query += ' AND category_id = ?';
+      params.push(categoryId);
+    }
+
+    const [rows] = await pool.query(query, params);
+    return rows[0].total;
   }
 
-  findById(id, userId) {
-    const db = getPool();
-    return db.prepare(`SELECT p.*, c.name as category_name,
-      COALESCE(i.quantity, 0) as stock
-      FROM products p
-      LEFT JOIN categories c ON p.category_id = c.id
-      LEFT JOIN inventory i ON i.product_id = p.id AND i.user_id = p.user_id
-      WHERE p.id = ? AND p.user_id = ?`).get(id, userId);
+  async findById(id, userId) {
+    const pool = getPool();
+    const [rows] = await pool.query(
+      'SELECT * FROM products WHERE id = ? AND shop_id = ?',
+      [id, userId]
+    );
+    return rows[0] || null;
   }
 
-  create(data) {
-    const db = getPool();
-    const info = db.prepare(`INSERT INTO products
-      (uuid, user_id, category_id, name, sku, barcode, description, purchase_price, selling_price, unit, tax_rate, image_url)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(data.uuid, data.user_id, data.category_id || null, data.name,
-      data.sku || null, data.barcode || null, data.description || null,
-      data.purchase_price, data.selling_price, data.unit || 'piece',
-      data.tax_rate || 0, data.image_url || null);
-
-    // Create inventory record
-    db.prepare(`INSERT OR IGNORE INTO inventory (product_id, user_id, quantity) VALUES (?, ?, 0)`)
-      .run(info.lastInsertRowid, data.user_id);
-
-    return this.findById(info.lastInsertRowid, data.user_id);
+  async findByUuid(uuid, userId) {
+    const pool = getPool();
+    const [rows] = await pool.query(
+      'SELECT * FROM products WHERE uuid = ? AND shop_id = ?',
+      [uuid, userId]
+    );
+    return rows[0] || null;
   }
 
-  update(id, userId, data) {
-    const db = getPool();
-    const fields = Object.keys(data).map(k => `${k} = ?`).join(', ');
-    db.prepare(`UPDATE products SET ${fields}, updated_at = datetime('now') WHERE id = ? AND user_id = ?`)
-      .run(...Object.values(data), id, userId);
+  async create(data) {
+    const pool = getPool();
+    const fields = Object.keys(data);
+    const placeholders = fields.map(() => '?').join(', ');
+    const values = Object.values(data);
+
+    const [result] = await pool.query(
+      `INSERT INTO products (${fields.join(', ')}) VALUES (${placeholders})`,
+      values
+    );
+    return { id: result.insertId, ...data };
+  }
+
+  async update(id, userId, data) {
+    const pool = getPool();
+    const fields = Object.keys(data).map((key) => `${key} = ?`).join(', ');
+    const values = [...Object.values(data), id, userId];
+
+    await pool.query(
+      `UPDATE products SET ${fields} WHERE id = ? AND shop_id = ?`,
+      values
+    );
     return this.findById(id, userId);
   }
 
-  delete(id, userId) {
-    const db = getPool();
-    db.prepare(`UPDATE products SET is_active = 0 WHERE id = ? AND user_id = ?`).run(id, userId);
+  async delete(id, userId) {
+    const pool = getPool();
+    const [result] = await pool.query(
+      'DELETE FROM products WHERE id = ? AND shop_id = ?',
+      [id, userId]
+    );
+    return result.affectedRows > 0;
   }
 }
 

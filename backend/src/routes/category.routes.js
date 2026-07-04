@@ -1,31 +1,38 @@
 const express = require('express');
 const router = express.Router();
-const categoryController = require('../controllers/category.controller');
-const { authenticateJWT, authorizeRoles } = require('../middlewares/auth.middleware');
-const { ROLES } = require('../utils/constants');
-
-// All category routes require authentication + business role
-router.use(authenticateJWT);
-router.use(authorizeRoles(ROLES.BUSINESS_OWNER, ROLES.STAFF, ROLES.ADMIN));
+const { getPool } = require('../config/db');
+const { authenticate } = require('../middlewares/auth.middleware');
+const ApiResponse = require('../utils/response');
 
 /**
  * @swagger
  * /api/categories:
  *   get:
  *     tags: [Categories]
- *     summary: List all categories for the authenticated business
+ *     summary: Get all categories
  *     security: [{ bearerAuth: [] }]
  *     responses:
  *       200: { description: List of categories }
  */
-router.get('/', categoryController.getAll);
+router.get('/', authenticate, async (req, res, next) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.query(
+      'SELECT * FROM categories WHERE shop_id = ? ORDER BY name ASC',
+      [req.user.shop_id]
+    );
+    return ApiResponse.success(res, rows);
+  } catch (error) {
+    next(error);
+  }
+});
 
 /**
  * @swagger
  * /api/categories:
  *   post:
  *     tags: [Categories]
- *     summary: Create a new category
+ *     summary: Create a category
  *     security: [{ bearerAuth: [] }]
  *     requestBody:
  *       required: true
@@ -36,37 +43,47 @@ router.get('/', categoryController.getAll);
  *             required: [name]
  *             properties:
  *               name: { type: string }
+ *               description: { type: string }
  *     responses:
  *       201: { description: Category created }
  */
-router.post('/', categoryController.create);
+router.post('/', authenticate, async (req, res, next) => {
+  try {
+    const pool = getPool();
+    const { name, description } = req.body;
+    const [result] = await pool.query(
+      'INSERT INTO categories (shop_id, name, description) VALUES (?, ?, ?)',
+      [req.user.shop_id, name, description || null]
+    );
+    return ApiResponse.created(res, { id: result.insertId, name, description });
+  } catch (error) {
+    next(error);
+  }
+});
 
 /**
  * @swagger
  * /api/categories/{id}:
  *   put:
  *     tags: [Categories]
- *     summary: Update a category name
+ *     summary: Update a category
  *     security: [{ bearerAuth: [] }]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: integer }
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [name]
- *             properties:
- *               name: { type: string }
  *     responses:
  *       200: { description: Category updated }
- *       404: { description: Category not found }
  */
-router.put('/:id', categoryController.update);
+router.put('/:id', authenticate, async (req, res, next) => {
+  try {
+    const pool = getPool();
+    const { name, description } = req.body;
+    await pool.query(
+      'UPDATE categories SET name = ?, description = ? WHERE id = ? AND shop_id = ?',
+      [name, description || null, req.params.id, req.user.shop_id]
+    );
+    return ApiResponse.success(res, null, 'Category updated');
+  } catch (error) {
+    next(error);
+  }
+});
 
 /**
  * @swagger
@@ -75,15 +92,20 @@ router.put('/:id', categoryController.update);
  *     tags: [Categories]
  *     summary: Delete a category
  *     security: [{ bearerAuth: [] }]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema: { type: integer }
  *     responses:
  *       200: { description: Category deleted }
- *       404: { description: Category not found }
  */
-router.delete('/:id', categoryController.delete);
+router.delete('/:id', authenticate, async (req, res, next) => {
+  try {
+    const pool = getPool();
+    await pool.query(
+      'DELETE FROM categories WHERE id = ? AND shop_id = ?',
+      [req.params.id, req.user.shop_id]
+    );
+    return ApiResponse.success(res, null, 'Category deleted');
+  } catch (error) {
+    next(error);
+  }
+});
 
 module.exports = router;

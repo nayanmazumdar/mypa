@@ -1,98 +1,85 @@
-const { getPool } = require('../config/db');
+const purchaseRepo = require('../repositories/mysql/purchase.repository');
+const inventoryService = require('./inventory.service');
 const { generateId, generateInvoiceNumber, formatDate } = require('../utils/helper');
 const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 const logger = require('../config/logger');
 
 class PurchaseService {
-  getAll(userId, query) {
-    const db = getPool();
+  async getAll(userId, query) {
     const { page, limit, offset } = parsePagination(query);
-    let sql = `SELECT p.*, s.name as supplier_name
-               FROM purchases p LEFT JOIN suppliers s ON p.supplier_id = s.id
-               WHERE p.user_id = ?`;
-    const params = [userId];
-    if (query.status)     { sql += ' AND p.status = ?';         params.push(query.status); }
-    if (query.start_date) { sql += ' AND p.purchase_date >= ?'; params.push(query.start_date); }
-    if (query.end_date)   { sql += ' AND p.purchase_date <= ?'; params.push(query.end_date); }
-    const total = db.prepare(
-      `SELECT COUNT(*) as total FROM purchases p WHERE p.user_id = ?`
-    ).get(userId).total;
-    sql += ' ORDER BY p.created_at DESC LIMIT ? OFFSET ?';
-    params.push(limit, offset);
-    return { purchases: db.prepare(sql).all(...params),
-             pagination: buildPaginationMeta(total, page, limit) };
+    const filters = { status: query.status, startDate: query.start_date, endDate: query.end_date };
+
+    const [purchases, total] = await Promise.all([
+      purchaseRepo.findAll(userId, { limit, offset, ...filters }),
+      purchaseRepo.count(userId, filters),
+    ]);
+
+    const pagination = buildPaginationMeta(total, page, limit);
+    return { purchases, pagination };
   }
 
-  getById(id, userId) {
-    const db = getPool();
-    const purchase = db.prepare(
-      `SELECT p.*, s.name as supplier_name
-       FROM purchases p LEFT JOIN suppliers s ON p.supplier_id = s.id
-       WHERE p.id = ? AND p.user_id = ?`
-    ).get(id, userId);
-    if (!purchase) { const e = new Error('Purchase not found'); e.statusCode = 404; throw e; }
-    purchase.items = db.prepare(
-      `SELECT pi.*, pr.name as product_name FROM purchase_items pi
-       JOIN products pr ON pi.product_id = pr.id WHERE pi.purchase_id = ?`
-    ).all(id);
-    return purchase;
-  }
-
-  create(userId, data) {
-    const db = getPool();
-    if (!data.items || !data.items.length) {
-      const e = new Error('Purchase must have at least one item'); e.statusCode = 400; throw e;
+  async getById(id, userId) {
+    const purchase = await purchaseRepo.findById(id, userId);
+    if (!purchase) {
+      const error = new Error('Purchase not found');
+      error.statusCode = 404;
+      throw error;
     }
+    const items = await purchaseRepo.findItemsByPurchaseId(id);
+    return { ...purchase, items };
+  }
+
+  async create(userId, data) {
     const uuid = generateId();
+    const invoiceNumber = data.invoice_number || generateInvoiceNumber('PUR');
+
+    // Calculate totals
     let totalAmount = 0;
-    const items = data.items.map(item => {
+    const items = data.items.map((item) => {
       const total = item.quantity * item.unit_price;
       totalAmount += total;
       return { ...item, total };
     });
-    const discount  = data.discount   || 0;
+
+    const discount = data.discount || 0;
     const taxAmount = data.tax_amount || 0;
     const netAmount = totalAmount - discount + taxAmount;
-    const purchaseDate = data.purchase_date || formatDate(new Date());
 
-    const info = db.prepare(
-      `INSERT INTO purchases
-       (uuid, user_id, supplier_id, invoice_number, total_amount, discount,
-        tax_amount, net_amount, payment_status, payment_method, status, notes, purchase_date)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?)`
-    ).run(uuid, userId, data.supplier_id || null, data.invoice_number || null,
-      totalAmount, discount, taxAmount, netAmount,
-      data.payment_method === 'credit' ? 'unpaid' : 'paid',
-      data.payment_method || 'cash', data.notes || null, purchaseDate);
+    const purchaseData = {
+      uuid,
+      shop_id: userId,
+      supplier_id: data.supplier_id || null,
+      invoice_number: invoiceNumber,
+      total_amount: totalAmount,
+      discount,
+      tax_amount: taxAmount,
+      net_amount: netAmount,
+      payment_status: data.payment_status || 'unpaid',
+      payment_method: data.payment_method || 'cash',
+      status: 'completed',
+      notes: data.notes || null,
+      purchase_date: formatDate(new Date()),
+    };
 
-    const purchaseId = info.lastInsertRowid;
-    const insertItem = db.prepare(
-      `INSERT INTO purchase_items (purchase_id, product_id, quantity, unit_price, total)
-       VALUES (?, ?, ?, ?, ?)`
-    );
+    const purchase = await purchaseRepo.create(purchaseData, items);
+
+    // Update inventory (add stock)
     for (const item of items) {
-      insertItem.run(purchaseId, item.product_id, item.quantity, item.unit_price, item.total);
+      await inventoryService.addStock(userId, item.product_id, item.quantity, 'in', 'purchase', purchase.id, `Purchase: ${invoiceNumber}`);
     }
 
-    logger.info(`Purchase created: ${uuid}`);
-    return this.getById(purchaseId, userId);
+    logger.info(`Purchase created: ${invoiceNumber}`);
+    return purchase;
   }
 
-  updateStatus(id, userId, status) {
-    const db = getPool();
-    this.getById(id, userId);
-    db.prepare(
-      `UPDATE purchases SET status = ?, updated_at = datetime('now') WHERE id = ? AND user_id = ?`
-    ).run(status, id, userId);
-    return this.getById(id, userId);
-  }
-
-  delete(id, userId) {
-    const db = getPool();
-    this.getById(id, userId);
-    db.prepare('DELETE FROM purchase_items WHERE purchase_id = ?').run(id);
-    db.prepare('DELETE FROM purchases WHERE id = ? AND user_id = ?').run(id, userId);
-    return true;
+  async updateStatus(id, userId, status) {
+    const existing = await purchaseRepo.findById(id, userId);
+    if (!existing) {
+      const error = new Error('Purchase not found');
+      error.statusCode = 404;
+      throw error;
+    }
+    return purchaseRepo.updateStatus(id, userId, status);
   }
 }
 

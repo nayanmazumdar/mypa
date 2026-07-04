@@ -20,13 +20,13 @@ router.get('/', authenticate, async (req, res, next) => {
     const pool = getPool();
     const { page, limit, offset } = parsePagination(req.query);
 
-    const [rows] = await pool.execute(
-      'SELECT * FROM payments WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
-      [req.user.id, limit, offset]
+    const [rows] = await pool.query(
+      'SELECT * FROM payments WHERE shop_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
+      [req.user.shop_id, limit, offset]
     );
-    const [countResult] = await pool.execute(
-      'SELECT COUNT(*) as total FROM payments WHERE user_id = ?',
-      [req.user.id]
+    const [countResult] = await pool.query(
+      'SELECT COUNT(*) as total FROM payments WHERE shop_id = ?',
+      [req.user.shop_id]
     );
     const pagination = buildPaginationMeta(countResult[0].total, page, limit);
     return ApiResponse.paginated(res, rows, pagination);
@@ -63,28 +63,28 @@ router.post('/', authenticate, async (req, res, next) => {
     const pool = getPool();
     const { reference_type, reference_id, amount, payment_method, notes } = req.body;
 
-    const [result] = await pool.execute(
-      'INSERT INTO payments (user_id, reference_type, reference_id, amount, payment_method, notes) VALUES (?, ?, ?, ?, ?, ?)',
-      [req.user.id, reference_type, reference_id, amount, payment_method, notes || null]
+    const [result] = await pool.query(
+      'INSERT INTO payments (shop_id, reference_type, reference_id, amount, payment_method, notes) VALUES (?, ?, ?, ?, ?, ?)',
+      [req.user.shop_id, reference_type, reference_id, amount, payment_method, notes || null]
     );
 
     // Update payment status on the referenced sale/purchase
     const table = reference_type === 'sale' ? 'sales' : 'purchases';
-    const [[ref]] = await pool.execute(
-      `SELECT net_amount FROM ${table} WHERE id = ? AND user_id = ?`,
-      [reference_id, req.user.id]
+    const [[ref]] = await pool.query(
+      `SELECT net_amount FROM ${table} WHERE id = ? AND shop_id = ?`,
+      [reference_id, req.user.shop_id]
     );
 
     if (ref) {
-      const [[totalPaid]] = await pool.execute(
-        'SELECT COALESCE(SUM(amount), 0) as paid FROM payments WHERE reference_type = ? AND reference_id = ? AND user_id = ?',
-        [reference_type, reference_id, req.user.id]
+      const [[totalPaid]] = await pool.query(
+        'SELECT COALESCE(SUM(amount), 0) as paid FROM payments WHERE reference_type = ? AND reference_id = ? AND shop_id = ?',
+        [reference_type, reference_id, req.user.shop_id]
       );
 
       const status = totalPaid.paid >= ref.net_amount ? 'paid' : 'partial';
-      await pool.execute(
-        `UPDATE ${table} SET payment_status = ? WHERE id = ? AND user_id = ?`,
-        [status, reference_id, req.user.id]
+      await pool.query(
+        `UPDATE ${table} SET payment_status = ? WHERE id = ? AND shop_id = ?`,
+        [status, reference_id, req.user.shop_id]
       );
     }
 
