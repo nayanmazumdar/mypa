@@ -241,13 +241,14 @@ var payIcons = {
             <tr><th>Date</th><th>Category</th><th>Description</th><th>Payment</th><th>Amount</th><th>Action</th></tr>
           </thead>
           <tbody>
-            <% const payIcons={cash:'💵',upi:'📱',card:'💳',netbanking:'🏦',cheque:'📄'}; %>
+            <% const payIcons={cash:'💵',upi:'📱',card:'💳',netbanking:'🏦',cheque:'📄'};
+             const catIcons2={'Food & Dining':'🍽️','Groceries':'🛒','Transport':'🚗','Utilities':'💡','Rent':'🏠','Healthcare':'💊','Education':'📚','Shopping':'🛍️','Entertainment':'🎬','Fuel':'⛽','Mobile/Internet':'📱','EMI/Loan':'🏦','Insurance':'🛡️','Investment':'📈','Personal Care':'💆','Travel':'✈️','Gifts':'🎁','Other':'📦'}; %>
             <% expenditures.forEach(e => { %>
             <tr>
               <td class="text-sm"><%= new Date(e.date).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) %></td>
               <td>
                 <span style="display:inline-flex;align-items:center;gap:.35rem;">
-                  <%= catIcons[e.category] || '📦' %>
+                  <%= catIcons2[e.category] || '📦' %>
                   <span class="badge badge-gold"><%= e.category %></span>
                 </span>
               </td>

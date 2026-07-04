@@ -1,0 +1,912 @@
+Below is a production-level KIRO specification for your project. It is organized into three independent specifications so that KIRO (or any AI coding assistant) can generate the projects separately.
+
+PROJECT NAME
+
+MyPA (My Personal Accounts)
+
+Tagline: Simply Assist
+
+Overview
+
+MyPA is a cloud-based credit management platform that acts as an intermediary between businesses (shops, service providers) and their customers.
+
+The platform maintains secure ledgers of customer credit purchases, payments, outstanding balances, and account history.
+
+Customers can log in to view their own credit accounts while businesses can manage customers, products, invoices, collections, and reports.
+
+The system follows a strict RBAC model with separate dashboards for:
+
+Super Admin
+Business Owner
+Staff
+Customer
+
+The entire solution consists of two completely separate projects.
+
+mypa/
+
+    frontend/
+
+    backend/
+SPECIFICATION 1
+FRONTEND SPECIFICATION
+Technology Stack
+React 19
+Vite
+Redux Toolkit
+Redux Persist
+React Router DOM
+Axios
+TailwindCSS
+React Hook Form
+Yup Validation
+React Query (optional)
+React Toastify
+Framer Motion
+Hero Icons
+Chart.js
+React Data Table
+DayJS
+JWT Decode
+Folder Structure
+frontend/
+
+src/
+
+    api/
+
+        axios.js
+
+        auth.api.js
+
+        customer.api.js
+
+        business.api.js
+
+        sales.api.js
+
+        payment.api.js
+
+        subscription.api.js
+
+        reports.api.js
+
+        admin.api.js
+
+    app/
+
+        store.js
+
+        rootReducer.js
+
+    assets/
+
+        images/
+
+        icons/
+
+        logos/
+
+    components/
+
+        common/
+
+        forms/
+
+        buttons/
+
+        cards/
+
+        tables/
+
+        charts/
+
+        loaders/
+
+        alerts/
+
+        modals/
+
+        navbar/
+
+        sidebar/
+
+        footer/
+
+        pagination/
+
+    hooks/
+
+    layouts/
+
+        PublicLayout.jsx
+
+        AdminLayout.jsx
+
+        BusinessLayout.jsx
+
+        CustomerLayout.jsx
+
+    pages/
+
+        auth/
+
+        business/
+
+        customer/
+
+        admin/
+
+        reports/
+
+        subscriptions/
+
+        settings/
+
+        errors/
+
+    redux/
+
+        auth/
+
+        business/
+
+        customer/
+
+        products/
+
+        sales/
+
+        payments/
+
+        subscriptions/
+
+    routes/
+
+        ProtectedRoute.jsx
+
+        RoleGuard.jsx
+
+        Routes.jsx
+
+    utils/
+
+    validations/
+
+    constants/
+
+    services/
+
+    contexts/
+
+    App.jsx
+
+    main.jsx
+Authentication
+
+JWT Authentication
+
+Refresh Tokens
+
+Remember Me
+
+Forgot Password
+
+OTP Verification
+
+Email Verification
+
+Device Validation
+
+Dashboards
+Admin Dashboard
+
+Statistics
+
+Businesses
+
+Revenue
+
+Subscriptions
+
+Complaints
+
+Approvals
+
+User Management
+
+Reports
+
+System Logs
+
+Audit Logs
+
+Business Dashboard
+
+Today's Sales
+
+Today's Collections
+
+Outstanding Amount
+
+Customer Count
+
+Credit Sales
+
+Cash Sales
+
+Top Customers
+
+Pending Payments
+
+Subscription Status
+
+Quick Actions
+
+Customer Dashboard
+
+Outstanding Balance
+
+Credit History
+
+Payments
+
+Invoices
+
+Due Date
+
+Notifications
+
+Download Statements
+
+Profile
+
+Navigation Based on Roles
+Guest
+
+Login
+Register
+Pricing
+About
+
+Business
+
+Dashboard
+
+Customers
+
+Products
+
+Sales
+
+Payments
+
+Reports
+
+Subscription
+
+Settings
+
+Customer
+
+Dashboard
+
+Transactions
+
+Invoices
+
+Payments
+
+Statements
+
+Profile
+
+Admin
+
+Dashboard
+
+Businesses
+
+Users
+
+Subscriptions
+
+Reports
+
+Logs
+
+Settings
+Forms
+
+Business Registration
+
+Customer Registration
+
+Product
+
+Sales Entry
+
+Credit Sale
+
+Payment Entry
+
+Subscription Purchase
+
+Profile Update
+
+Password Change
+
+Forgot Password
+
+UI Features
+
+Responsive
+
+Dark Mode
+
+Light Mode
+
+Loading Skeleton
+
+Infinite Scroll
+
+Data Tables
+
+Charts
+
+Filters
+
+Search
+
+Pagination
+
+Export
+
+Notifications
+
+Toast Messages
+
+SPECIFICATION 2
+BACKEND SPECIFICATION
+Technology Stack
+NodeJS
+
+ExpressJS
+
+MySQL
+
+SQLite
+
+Sequelize ORM
+
+JWT
+
+Bcrypt
+
+Swagger
+
+Nodemon
+
+RBAC
+
+Helmet
+
+Morgan
+
+Compression
+
+Cors
+
+Multer
+
+dotenv
+
+UUID
+
+Node Cache
+
+Cron Jobs
+
+Express Validator
+Folder Structure
+backend/
+
+src/
+
+    config/
+
+    database/
+
+        mysql/
+
+        sqlite/
+
+    models/
+
+    controllers/
+
+    routes/
+
+    middleware/
+
+    repositories/
+
+    services/
+
+    validators/
+
+    helpers/
+
+    utils/
+
+    jobs/
+
+    scheduler/
+
+    swagger/
+
+    docs/
+
+    sockets/
+
+    constants/
+
+    logs/
+
+    uploads/
+
+    migrations/
+
+    seeders/
+
+    app.js
+
+server.js
+Database
+MySQL
+
+Primary Database
+
+Stores
+
+Users
+
+Businesses
+
+Customers
+
+Products
+
+Sales
+
+Invoices
+
+Payments
+
+Subscriptions
+
+Notifications
+
+Audit Logs
+
+Activity Logs
+
+SQLite
+
+Offline Cache
+
+Pending Transactions
+
+Offline Sales
+
+Offline Payments
+
+Synchronization Queue
+
+Failed Requests
+
+Authentication
+
+JWT
+
+Refresh Tokens
+
+Role Based Access
+
+Permission Based Access
+
+Session Management
+
+Multi Device Login
+
+Password Encryption
+
+OTP Login
+
+Roles
+SUPER_ADMIN
+
+ADMIN
+
+BUSINESS_OWNER
+
+BUSINESS_MANAGER
+
+STAFF
+
+CUSTOMER
+RBAC
+
+Each endpoint checks
+
+Authentication
+
+Role
+
+Permission
+
+Business Ownership
+
+Resource Ownership
+
+Middleware
+
+JWT
+
+RBAC
+
+Error Handler
+
+Validation
+
+Logging
+
+Audit
+
+Compression
+
+Helmet
+
+Cors
+
+Request Limiter
+
+IP Filter
+
+Subscription Validator
+
+Business Active Check
+
+Services
+
+Authentication
+
+Business
+
+Customer
+
+Sales
+
+Products
+
+Payments
+
+Subscription
+
+Notification
+
+Reports
+
+Synchronization
+
+Audit
+
+Email
+
+SMS
+
+OTP
+
+PDF Generator
+
+Invoice Generator
+
+Offline Sync
+
+SQLite stores
+
+Pending Sales
+
+Pending Payments
+
+Pending Customers
+
+Network Monitor
+
+Automatic Sync
+
+Conflict Resolver
+
+Retry Queue
+
+Logging
+
+API Logs
+
+Audit Logs
+
+Error Logs
+
+Security Logs
+
+Login Logs
+
+Scheduler
+
+Subscription Expiry
+
+Daily Backup
+
+Monthly Reports
+
+Pending Sync
+
+Notification Sender
+
+Inactive Customers
+
+Swagger
+
+Complete REST Documentation
+
+Authentication Examples
+
+Schemas
+
+Error Responses
+
+Response Examples
+
+SPECIFICATION 3
+REST API SPECIFICATION
+Authentication
+POST
+
+/api/auth/login
+
+POST
+
+/api/auth/register
+
+POST
+
+/api/auth/logout
+
+POST
+
+/api/auth/refresh
+
+POST
+
+/api/auth/forgot-password
+
+POST
+
+/api/auth/reset-password
+
+POST
+
+/api/auth/verify-otp
+
+GET
+
+/api/auth/profile
+
+PUT
+
+/api/auth/profile
+Business APIs
+GET
+
+/api/business
+
+POST
+
+/api/business
+
+PUT
+
+/api/business/{id}
+
+DELETE
+
+/api/business/{id}
+
+GET
+
+/api/business/dashboard
+
+GET
+
+/api/business/statistics
+Customer APIs
+GET /api/customers
+
+POST /api/customers
+
+PUT /api/customers/{id}
+
+DELETE /api/customers/{id}
+
+GET /api/customers/{id}
+
+GET /api/customers/search
+
+GET /api/customers/history
+
+GET /api/customers/outstanding
+Product APIs
+GET /api/products
+
+POST /api/products
+
+PUT /api/products/{id}
+
+DELETE /api/products/{id}
+
+GET /api/products/search
+
+GET /api/products/categories
+Sales APIs
+POST /api/sales
+
+GET /api/sales
+
+GET /api/sales/{id}
+
+PUT /api/sales/{id}
+
+DELETE /api/sales/{id}
+
+GET /api/sales/today
+
+GET /api/sales/monthly
+
+GET /api/sales/customer/{id}
+
+GET /api/sales/business/{id}
+Credit Transactions
+POST /api/credit
+
+GET /api/credit
+
+GET /api/credit/customer/{id}
+
+GET /api/credit/outstanding
+
+PUT /api/credit/payment
+
+GET /api/credit/history
+Payments
+POST /api/payments
+
+GET /api/payments
+
+GET /api/payments/{id}
+
+PUT /api/payments/{id}
+
+DELETE /api/payments/{id}
+
+GET /api/payments/customer/{id}
+Subscription
+GET /api/subscriptions
+
+POST /api/subscriptions
+
+PUT /api/subscriptions
+
+GET /api/subscriptions/history
+
+GET /api/subscriptions/status
+Reports
+GET /api/reports/sales
+
+GET /api/reports/customers
+
+GET /api/reports/payments
+
+GET /api/reports/outstanding
+
+GET /api/reports/profit
+
+GET /api/reports/business
+
+GET /api/reports/admin
+
+GET /api/reports/export/pdf
+
+GET /api/reports/export/excel
+Notifications
+GET /api/notifications
+
+POST /api/notifications
+
+PUT /api/notifications/read
+
+DELETE /api/notifications/{id}
+Admin
+GET /api/admin/dashboard
+
+GET /api/admin/users
+
+GET /api/admin/businesses
+
+GET /api/admin/subscriptions
+
+GET /api/admin/revenue
+
+GET /api/admin/audit
+
+GET /api/admin/logs
+
+POST /api/admin/approve-business
+
+POST /api/admin/block-business
+File Uploads
+POST /api/upload/profile
+
+POST /api/upload/product
+
+POST /api/upload/business
+
+DELETE /api/upload/{id}
+Synchronization APIs
+POST /api/sync/upload
+
+GET /api/sync/status
+
+POST /api/sync/download
+
+GET /api/sync/conflicts
+
+POST /api/sync/resolve
+Architecture
+                React Frontend
+                       │
+                Redux Toolkit
+                       │
+                  Axios Client
+                       │
+             Express REST API Layer
+                       │
+        ┌──────────────┼──────────────┐
+        │              │              │
+ Authentication   Business Logic   Synchronization
+        │              │              │
+        └──────────────┼──────────────┘
+                       │
+              RBAC + Middleware
+                       │
+         ┌─────────────┴─────────────┐
+         │                           │
+     MySQL Database             SQLite Cache
+         │                           │
+         └─────────────┬─────────────┘
+                       │
+             Reports • PDF • Swagger
+Recommended Enterprise Enhancements
+
+To make MyPA suitable for production and future SaaS deployment, consider including:
+
+Multi-tenancy: Each business has isolated data using a business_id partitioning strategy.
+Subscription tiers: Free, Basic, Premium, and Enterprise plans with feature flags and usage limits.
+Payment gateway integration: Support providers such as Razorpay, Cashfree, or PhonePe for subscription billing.
+Real-time notifications: Use WebSockets (e.g., Socket.IO) for instant payment updates and customer notifications.
+Background jobs: Queue email, SMS, report generation, and synchronization tasks using a job queue such as BullMQ.
+API versioning: Prefix endpoints with /api/v1 to allow future evolution without breaking clients.
+Comprehensive auditing: Record every create, update, delete, login, and permission change for compliance.
+Automated testing: Unit, integration, and end-to-end tests using Jest and Supertest.
+Deployment-ready configuration: Docker, Docker Compose, CI/CD pipelines, environment-based configuration, centralized logging, and health-check endpoints.
+
+This specification provides a solid foundation for KIRO to generate a scalable, enterprise-grade React + Express + MySQL/SQLite application with clear separation of concerns between the frontend, backend, and REST API layers.
