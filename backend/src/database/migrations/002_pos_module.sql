@@ -4,16 +4,18 @@ CREATE TABLE IF NOT EXISTS pos_transactions (
   uuid VARCHAR(36) NOT NULL UNIQUE,
   user_id INT NOT NULL,
   customer_name VARCHAR(100),
+  customer_id INT DEFAULT NULL,
   total_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
   discount DECIMAL(10,2) DEFAULT 0,
   net_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
-  payment_method ENUM('cash', 'card', 'upi') DEFAULT 'cash',
+  payment_method VARCHAR(20) DEFAULT 'cash',
   amount_received DECIMAL(10,2) DEFAULT 0,
   change_amount DECIMAL(10,2) DEFAULT 0,
   status ENUM('completed', 'cancelled') DEFAULT 'completed',
   receipt_number VARCHAR(50) NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
 );
 
 -- POS Transaction Items

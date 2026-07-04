@@ -32,10 +32,3 @@ CREATE TABLE IF NOT EXISTS customer_ledger (
 -- Backfill user_shops from existing users that have a shop_id
 INSERT IGNORE INTO user_shops (user_id, shop_id, role)
 SELECT id, shop_id, role FROM users WHERE shop_id IS NOT NULL;
-
--- Add customer_id FK to pos_transactions for linking sales to customers
-ALTER TABLE pos_transactions ADD COLUMN customer_id INT DEFAULT NULL AFTER customer_name;
-ALTER TABLE pos_transactions ADD CONSTRAINT fk_pos_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL;
-
--- Expand payment_method enum to include 'credit' for udhar sales
-ALTER TABLE pos_transactions MODIFY COLUMN payment_method VARCHAR(20) DEFAULT 'cash';
