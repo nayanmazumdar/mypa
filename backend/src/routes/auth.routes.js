@@ -19,12 +19,4 @@ router.post('/set-passcode', authenticate, authController.setPasscode);
 router.get('/staff', authenticate, authorize('admin'), authController.getStaff);
 router.post('/staff', authenticate, authorize('admin'), authController.addStaff);
 
-// New auth routes
-router.post('/refresh', authController.refresh);
-router.post('/logout', authenticate, authController.logout);
-router.post('/forgot-password', authController.forgotPassword);
-router.post('/verify-otp', authController.verifyOtp);
-router.post('/reset-password', authController.resetPassword);
-router.put('/profile', authenticate, authController.updateProfile);
-
 module.exports = router;

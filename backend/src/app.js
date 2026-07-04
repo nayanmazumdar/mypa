@@ -10,7 +10,6 @@ const { errorHandler, notFoundHandler } = require('./middlewares/error.middlewar
 
 // Import routes
 const authRoutes = require('./routes/auth.routes');
-const businessRoutes = require('./routes/business.routes');
 const userRoutes = require('./routes/user.routes');
 const productRoutes = require('./routes/product.routes');
 const categoryRoutes = require('./routes/category.routes');
@@ -25,7 +24,6 @@ const reportRoutes = require('./routes/report.routes');
 const posRoutes = require('./routes/pos.routes');
 const expenseRoutes = require('./routes/expense.routes');
 const offerRoutes = require('./routes/offer.routes');
-const shopRoutes = require('./routes/shop.routes');
 
 const app = express();
 
@@ -91,7 +89,6 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // API ROUTES
 // ===================
 app.use('/api/auth', authRoutes);
-app.use('/api/business', businessRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
@@ -106,7 +103,6 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/pos', posRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/offers', offerRoutes);
-app.use('/api/shop', shopRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
