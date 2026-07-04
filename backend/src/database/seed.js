@@ -35,268 +35,238 @@ async function seed() {
     const adminPassword = await bcrypt.hash('admin123', 10);
     const demoPassword = await bcrypt.hash('demo1234', 10);
 
+    const adminUuid = uuidv4();
+    const demoUuid = uuidv4();
+
     await connection.execute(
-      `INSERT IGNORE INTO users (uuid, name, email, phone, password, role, shop_name, address) VALUES 
-       (?, 'Admin', 'admin@shopkeeper.com', '9876543210', ?, 'admin', 'Admin Shop', '123 Admin Street'),
-       (?, 'Demo Shopkeeper', 'demo@shopkeeper.com', '9876543211', ?, 'shopkeeper', 'Demo General Store', '456 Market Road, City')`,
-      [uuidv4(), adminPassword, uuidv4(), demoPassword]
+      `INSERT IGNORE INTO users (uuid, name, email, phone, password, role, shop_name, address) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [adminUuid, 'Admin', 'admin@shopkeeper.com', '9876543210', adminPassword, 'admin', 'Admin Shop', '123 Admin Street']
+    );
+    await connection.execute(
+      `INSERT IGNORE INTO users (uuid, name, email, phone, password, role, shop_name, address) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [demoUuid, 'Demo Shopkeeper', 'demo@shopkeeper.com', '9876543211', demoPassword, 'admin', 'Demo General Store', '456 Market Road, City']
     );
     console.log('  ✓ 2 users seeded');
 
-    // Get demo user ID for scoped data
+    // Get user IDs
     const [[demoUser]] = await connection.execute("SELECT id FROM users WHERE email = 'demo@shopkeeper.com'");
+    const [[adminUser]] = await connection.execute("SELECT id FROM users WHERE email = 'admin@shopkeeper.com'");
     const userId = demoUser.id;
+
+    // --- SHOP ---
+    console.log('\nSeeding shop...');
+    const shopUuid = uuidv4();
+    await connection.execute(
+      `INSERT IGNORE INTO shops (uuid, name, address, phone, email, gst_number, owner_id) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [shopUuid, 'Demo General Store', '456 Market Road, City', '9876543211', 'demo@shopkeeper.com', '27AABCD1234E1ZF', userId]
+    );
+    const [[shop]] = await connection.execute("SELECT id FROM shops WHERE uuid = ?", [shopUuid]);
+    const shopId = shop.id;
+
+    // Update users with shop_id
+    await connection.execute('UPDATE users SET shop_id = ? WHERE id = ?', [shopId, userId]);
+    await connection.execute('UPDATE users SET shop_id = ? WHERE id = ?', [shopId, adminUser.id]);
+
+    // Add to user_shops junction table
+    await connection.execute(
+      `INSERT IGNORE INTO user_shops (user_id, shop_id, role) VALUES (?, ?, ?), (?, ?, ?)`,
+      [userId, shopId, 'admin', adminUser.id, shopId, 'admin']
+    );
+    console.log(`  ✓ Shop created (id: ${shopId})`);
 
     // --- CATEGORIES ---
     console.log('\nSeeding categories...');
-    await connection.execute(
-      `INSERT IGNORE INTO categories (user_id, name, description) VALUES 
-       (?, 'Groceries', 'Daily grocery items'),
-       (?, 'Beverages', 'Drinks and beverages'),
-       (?, 'Snacks', 'Packaged snacks and chips'),
-       (?, 'Personal Care', 'Soaps, shampoos, hygiene'),
-       (?, 'Dairy', 'Milk, curd, cheese products'),
-       (?, 'Stationery', 'Pens, notebooks, office supplies'),
-       (?, 'Household', 'Cleaning and household items')`,
-      [userId, userId, userId, userId, userId, userId, userId]
-    );
-    console.log('  ✓ 7 categories seeded');
+    const catNames = ['Groceries', 'Beverages', 'Snacks', 'Personal Care', 'Dairy', 'Stationery', 'Household'];
+    const catDescs = ['Daily grocery items', 'Drinks and beverages', 'Packaged snacks and chips', 'Soaps, shampoos, hygiene', 'Milk, curd, cheese products', 'Pens, notebooks, office supplies', 'Cleaning and household items'];
+    for (let i = 0; i < catNames.length; i++) {
+      await connection.execute(
+        'INSERT IGNORE INTO categories (user_id, shop_id, name, description) VALUES (?, ?, ?, ?)',
+        [userId, shopId, catNames[i], catDescs[i]]
+      );
+    }
+    console.log(`  ✓ ${catNames.length} categories seeded`);
 
-    const [[cat1]] = await connection.execute("SELECT id FROM categories WHERE user_id = ? AND name = 'Groceries'", [userId]);
-    const [[cat2]] = await connection.execute("SELECT id FROM categories WHERE user_id = ? AND name = 'Beverages'", [userId]);
-    const [[cat3]] = await connection.execute("SELECT id FROM categories WHERE user_id = ? AND name = 'Snacks'", [userId]);
-    const [[cat4]] = await connection.execute("SELECT id FROM categories WHERE user_id = ? AND name = 'Personal Care'", [userId]);
-    const [[cat5]] = await connection.execute("SELECT id FROM categories WHERE user_id = ? AND name = 'Dairy'", [userId]);
+    // Get category IDs
+    const [cats] = await connection.execute('SELECT id, name FROM categories WHERE shop_id = ? ORDER BY id', [shopId]);
+    const catMap = {};
+    cats.forEach(c => catMap[c.name] = c.id);
 
     // --- PRODUCTS ---
     console.log('\nSeeding products...');
     const products = [
-      [uuidv4(), userId, cat1.id, 'Tata Salt 1kg', 'SKU-001', null, 'Iodized salt', 18, 25, 'packet', 0],
-      [uuidv4(), userId, cat1.id, 'Aashirvaad Atta 5kg', 'SKU-002', null, 'Whole wheat flour', 210, 280, 'packet', 5],
-      [uuidv4(), userId, cat1.id, 'Fortune Sunflower Oil 1L', 'SKU-003', null, 'Refined sunflower oil', 120, 155, 'bottle', 5],
-      [uuidv4(), userId, cat1.id, 'Toor Dal 1kg', 'SKU-004', null, 'Yellow lentils', 110, 140, 'packet', 5],
-      [uuidv4(), userId, cat1.id, 'Basmati Rice 5kg', 'SKU-005', null, 'Premium basmati rice', 350, 450, 'packet', 5],
-      [uuidv4(), userId, cat2.id, 'Coca-Cola 2L', 'SKU-006', null, 'Cold drink', 72, 95, 'bottle', 12],
-      [uuidv4(), userId, cat2.id, 'Parle Frooti 600ml', 'SKU-007', null, 'Mango drink', 25, 35, 'bottle', 12],
-      [uuidv4(), userId, cat2.id, 'Red Bull 250ml', 'SKU-008', null, 'Energy drink', 95, 125, 'can', 12],
-      [uuidv4(), userId, cat2.id, 'Bisleri Water 1L', 'SKU-009', null, 'Packaged drinking water', 15, 20, 'bottle', 0],
-      [uuidv4(), userId, cat3.id, 'Lays Classic Salted', 'SKU-010', null, 'Potato chips 52g', 15, 20, 'packet', 12],
-      [uuidv4(), userId, cat3.id, 'Kurkure Masala Munch', 'SKU-011', null, 'Corn puffs 90g', 15, 20, 'packet', 12],
-      [uuidv4(), userId, cat3.id, 'Haldiram Namkeen 200g', 'SKU-012', null, 'Mixed namkeen', 40, 55, 'packet', 12],
-      [uuidv4(), userId, cat4.id, 'Dove Soap 100g', 'SKU-013', null, 'Moisturizing soap', 42, 58, 'piece', 12],
-      [uuidv4(), userId, cat4.id, 'Head & Shoulders 180ml', 'SKU-014', null, 'Anti-dandruff shampoo', 155, 199, 'bottle', 12],
-      [uuidv4(), userId, cat4.id, 'Colgate MaxFresh 150g', 'SKU-015', null, 'Toothpaste', 85, 110, 'tube', 12],
-      [uuidv4(), userId, cat5.id, 'Amul Milk 500ml', 'SKU-016', null, 'Toned milk', 24, 30, 'packet', 0],
-      [uuidv4(), userId, cat5.id, 'Amul Butter 100g', 'SKU-017', null, 'Pasteurized butter', 48, 57, 'packet', 12],
-      [uuidv4(), userId, cat5.id, 'Mother Dairy Curd 400g', 'SKU-018', null, 'Fresh curd', 35, 45, 'cup', 5],
-      [uuidv4(), userId, cat1.id, 'Maggi Noodles (4 pack)', 'SKU-019', null, 'Instant noodles', 48, 56, 'packet', 12],
-      [uuidv4(), userId, cat1.id, 'Sugar 1kg', 'SKU-020', null, 'White sugar', 38, 48, 'packet', 0],
+      { name: 'Tata Salt 1kg', sku: 'SKU-001', cat: 'Groceries', desc: 'Iodized salt', pp: 18, sp: 25, unit: 'packet', tax: 0 },
+      { name: 'Aashirvaad Atta 5kg', sku: 'SKU-002', cat: 'Groceries', desc: 'Whole wheat flour', pp: 210, sp: 280, unit: 'packet', tax: 5 },
+      { name: 'Fortune Sunflower Oil 1L', sku: 'SKU-003', cat: 'Groceries', desc: 'Refined sunflower oil', pp: 120, sp: 155, unit: 'bottle', tax: 5 },
+      { name: 'Toor Dal 1kg', sku: 'SKU-004', cat: 'Groceries', desc: 'Yellow lentils', pp: 110, sp: 140, unit: 'packet', tax: 5 },
+      { name: 'Basmati Rice 5kg', sku: 'SKU-005', cat: 'Groceries', desc: 'Premium basmati rice', pp: 350, sp: 450, unit: 'packet', tax: 5 },
+      { name: 'Coca-Cola 2L', sku: 'SKU-006', cat: 'Beverages', desc: 'Cold drink', pp: 72, sp: 95, unit: 'bottle', tax: 12 },
+      { name: 'Parle Frooti 600ml', sku: 'SKU-007', cat: 'Beverages', desc: 'Mango drink', pp: 25, sp: 35, unit: 'bottle', tax: 12 },
+      { name: 'Red Bull 250ml', sku: 'SKU-008', cat: 'Beverages', desc: 'Energy drink', pp: 95, sp: 125, unit: 'piece', tax: 12 },
+      { name: 'Bisleri Water 1L', sku: 'SKU-009', cat: 'Beverages', desc: 'Packaged drinking water', pp: 15, sp: 20, unit: 'bottle', tax: 0 },
+      { name: 'Lays Classic Salted', sku: 'SKU-010', cat: 'Snacks', desc: 'Potato chips 52g', pp: 15, sp: 20, unit: 'packet', tax: 12 },
+      { name: 'Kurkure Masala Munch', sku: 'SKU-011', cat: 'Snacks', desc: 'Corn puffs 90g', pp: 15, sp: 20, unit: 'packet', tax: 12 },
+      { name: 'Haldiram Namkeen 200g', sku: 'SKU-012', cat: 'Snacks', desc: 'Mixed namkeen', pp: 40, sp: 55, unit: 'packet', tax: 12 },
+      { name: 'Dove Soap 100g', sku: 'SKU-013', cat: 'Personal Care', desc: 'Moisturizing soap', pp: 42, sp: 58, unit: 'piece', tax: 12 },
+      { name: 'Head & Shoulders 180ml', sku: 'SKU-014', cat: 'Personal Care', desc: 'Anti-dandruff shampoo', pp: 155, sp: 199, unit: 'bottle', tax: 12 },
+      { name: 'Colgate MaxFresh 150g', sku: 'SKU-015', cat: 'Personal Care', desc: 'Toothpaste', pp: 85, sp: 110, unit: 'piece', tax: 12 },
+      { name: 'Amul Milk 500ml', sku: 'SKU-016', cat: 'Dairy', desc: 'Toned milk', pp: 24, sp: 30, unit: 'packet', tax: 0 },
+      { name: 'Amul Butter 100g', sku: 'SKU-017', cat: 'Dairy', desc: 'Pasteurized butter', pp: 48, sp: 57, unit: 'packet', tax: 12 },
+      { name: 'Mother Dairy Curd 400g', sku: 'SKU-018', cat: 'Dairy', desc: 'Fresh curd', pp: 35, sp: 45, unit: 'piece', tax: 5 },
+      { name: 'Maggi Noodles (4 pack)', sku: 'SKU-019', cat: 'Groceries', desc: 'Instant noodles', pp: 48, sp: 56, unit: 'packet', tax: 12 },
+      { name: 'Sugar 1kg', sku: 'SKU-020', cat: 'Groceries', desc: 'White sugar', pp: 38, sp: 48, unit: 'packet', tax: 0 },
     ];
 
+    const productIds = [];
     for (const p of products) {
-      await connection.execute(
-        `INSERT INTO products (uuid, user_id, category_id, name, sku, barcode, description, purchase_price, selling_price, unit, tax_rate) 
+      const uuid = uuidv4();
+      const [result] = await connection.execute(
+        `INSERT INTO products (uuid, user_id, shop_id, category_id, name, sku, description, purchase_price, selling_price, unit, tax_rate)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        p
+        [uuid, userId, shopId, catMap[p.cat], p.name, p.sku, p.desc, p.pp, p.sp, p.unit, p.tax]
       );
+      productIds.push(result.insertId);
     }
     console.log(`  ✓ ${products.length} products seeded`);
+
+    // --- INVENTORY ---
+    console.log('\nSeeding inventory...');
+    const stockLevels = [50, 25, 30, 40, 15, 60, 80, 24, 100, 90, 70, 35, 45, 20, 30, 50, 25, 20, 100, 40];
+    const minLevels =   [10, 5,  5,  10, 3,  12, 15, 6,  20,  20, 15, 10, 10, 5,  8,  20, 5,  10, 20,  10];
+
+    for (let i = 0; i < productIds.length; i++) {
+      await connection.execute(
+        'INSERT INTO inventory (product_id, user_id, shop_id, quantity, min_stock_level, max_stock_level) VALUES (?, ?, ?, ?, ?, ?)',
+        [productIds[i], userId, shopId, stockLevels[i], minLevels[i], stockLevels[i] * 3]
+      );
+    }
+    console.log(`  ✓ ${productIds.length} inventory records seeded`);
 
     // --- CUSTOMERS ---
     console.log('\nSeeding customers...');
     const customers = [
-      [uuidv4(), userId, 'Rajesh Kumar', 'rajesh@email.com', '9811111111', '12 MG Road, Delhi', 0, 'Regular customer'],
-      [uuidv4(), userId, 'Priya Sharma', 'priya@email.com', '9822222222', '45 Ring Road, Mumbai', 500, 'Loyal customer, weekly buyer'],
-      [uuidv4(), userId, 'Amit Patel', 'amit@email.com', '9833333333', '78 Station Road, Ahmedabad', 0, null],
-      [uuidv4(), userId, 'Sunita Verma', null, '9844444444', '23 Market Lane, Jaipur', 250, 'Credit customer'],
-      [uuidv4(), userId, 'Vikas Singh', 'vikas@email.com', '9855555555', '56 Gandhi Nagar, Lucknow', 0, 'New customer'],
+      ['Rajesh Kumar', 'rajesh@email.com', '9811111111', '12 MG Road, Delhi', 0],
+      ['Priya Sharma', 'priya@email.com', '9822222222', '45 Ring Road, Mumbai', 500],
+      ['Amit Patel', 'amit@email.com', '9833333333', '78 Station Road, Ahmedabad', 0],
+      ['Sunita Verma', null, '9844444444', '23 Market Lane, Jaipur', 250],
+      ['Vikas Singh', 'vikas@email.com', '9855555555', '56 Gandhi Nagar, Lucknow', 0],
     ];
-
+    const customerIds = [];
     for (const c of customers) {
-      await connection.execute(
-        `INSERT INTO customers (uuid, user_id, name, email, phone, address, balance, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        c
+      const uuid = uuidv4();
+      const [result] = await connection.execute(
+        'INSERT INTO customers (uuid, user_id, shop_id, name, email, phone, address, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [uuid, userId, shopId, c[0], c[1], c[2], c[3], c[4]]
       );
+      customerIds.push(result.insertId);
     }
     console.log(`  ✓ ${customers.length} customers seeded`);
 
     // --- SUPPLIERS ---
     console.log('\nSeeding suppliers...');
     const suppliers = [
-      [uuidv4(), userId, 'Wholesale Mart', 'contact@wholesalemart.com', '9900001111', 'Wholesale Mart Pvt Ltd', '101 Industrial Area, Delhi', '27AABCW1234A1ZA', 0],
-      [uuidv4(), userId, 'Fresh Dairy Suppliers', 'dairy@freshsupply.com', '9900002222', 'Fresh Dairy Co.', '22 Dairy Complex, Anand', '24AABCF5678B1ZB', 0],
-      [uuidv4(), userId, 'Beverage Distributors', 'sales@bevdist.com', '9900003333', 'Bev Distributors LLP', '33 MIDC, Pune', '27AABCB9012C1ZC', 0],
-      [uuidv4(), userId, 'FMCG Direct', null, '9900004444', 'FMCG Direct India', '44 Sector 12, Noida', null, 1200],
+      ['Wholesale Mart', 'contact@wholesalemart.com', '9900001111', 'Wholesale Mart Pvt Ltd', '101 Industrial Area, Delhi', '27AABCW1234A1ZA', 0],
+      ['Fresh Dairy Suppliers', 'dairy@freshsupply.com', '9900002222', 'Fresh Dairy Co.', '22 Dairy Complex, Anand', '24AABCF5678B1ZB', 0],
+      ['Beverage Distributors', 'sales@bevdist.com', '9900003333', 'Bev Distributors LLP', '33 MIDC, Pune', '27AABCB9012C1ZC', 0],
+      ['FMCG Direct', null, '9900004444', 'FMCG Direct India', '44 Sector 12, Noida', null, 1200],
     ];
-
+    const supplierIds = [];
     for (const s of suppliers) {
-      await connection.execute(
-        `INSERT INTO suppliers (uuid, user_id, name, email, phone, company, address, gst_number, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        s
+      const uuid = uuidv4();
+      const [result] = await connection.execute(
+        'INSERT INTO suppliers (uuid, user_id, shop_id, name, email, phone, company, address, gst_number, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [uuid, userId, shopId, s[0], s[1], s[2], s[3], s[4], s[5], s[6]]
       );
+      supplierIds.push(result.insertId);
     }
     console.log(`  ✓ ${suppliers.length} suppliers seeded`);
 
-    // --- INVENTORY ---
-    console.log('\nSeeding inventory...');
-    const [[firstProduct]] = await connection.execute('SELECT id FROM products WHERE user_id = ? ORDER BY id LIMIT 1', [userId]);
-    const startId = firstProduct.id;
-
-    const inventoryData = [
-      [startId, userId, 50, 10, 200, 'Shelf A1'],
-      [startId + 1, userId, 25, 5, 50, 'Shelf A2'],
-      [startId + 2, userId, 30, 5, 60, 'Shelf A3'],
-      [startId + 3, userId, 40, 10, 100, 'Shelf A4'],
-      [startId + 4, userId, 15, 3, 30, 'Shelf A5'],
-      [startId + 5, userId, 60, 12, 120, 'Shelf B1'],
-      [startId + 6, userId, 80, 15, 150, 'Shelf B2'],
-      [startId + 7, userId, 24, 6, 48, 'Shelf B3'],
-      [startId + 8, userId, 100, 20, 200, 'Shelf B4'],
-      [startId + 9, userId, 90, 20, 200, 'Shelf C1'],
-      [startId + 10, userId, 70, 15, 150, 'Shelf C2'],
-      [startId + 11, userId, 35, 10, 80, 'Shelf C3'],
-      [startId + 12, userId, 45, 10, 100, 'Shelf D1'],
-      [startId + 13, userId, 20, 5, 40, 'Shelf D2'],
-      [startId + 14, userId, 30, 8, 60, 'Shelf D3'],
-      [startId + 15, userId, 50, 20, 100, 'Cooler 1'],
-      [startId + 16, userId, 25, 5, 50, 'Cooler 2'],
-      [startId + 17, userId, 20, 10, 40, 'Cooler 3'],
-      [startId + 18, userId, 100, 20, 200, 'Shelf A6'],
-      [startId + 19, userId, 40, 10, 80, 'Shelf A7'],
-    ];
-
-    for (const inv of inventoryData) {
-      await connection.execute(
-        `INSERT INTO inventory (product_id, user_id, quantity, min_stock_level, max_stock_level, location) VALUES (?, ?, ?, ?, ?, ?)`,
-        inv
-      );
-    }
-    console.log(`  ✓ ${inventoryData.length} inventory records seeded`);
-
     // --- SALES ---
     console.log('\nSeeding sales...');
-    const [[cust1]] = await connection.execute('SELECT id FROM customers WHERE user_id = ? ORDER BY id LIMIT 1', [userId]);
-
     const sales = [
-      [uuidv4(), userId, cust1.id, 'INV-20260601-001', 280, 0, 14, 294, 'paid', 'cash', 'completed', null, '2026-06-28'],
-      [uuidv4(), userId, cust1.id + 1, 'INV-20260601-002', 560, 20, 27, 567, 'paid', 'upi', 'completed', 'Bulk purchase', '2026-06-29'],
-      [uuidv4(), userId, null, 'INV-20260601-003', 95, 0, 11.4, 106.4, 'paid', 'cash', 'completed', null, '2026-06-30'],
-      [uuidv4(), userId, cust1.id + 2, 'INV-20260601-004', 450, 0, 22.5, 472.5, 'unpaid', 'cash', 'completed', 'Credit sale', '2026-07-01'],
-      [uuidv4(), userId, cust1.id, 'INV-20260701-005', 155, 0, 7.75, 162.75, 'paid', 'card', 'completed', null, '2026-07-02'],
+      { cust: 0, inv: 'INV-20260601-001', total: 280, disc: 0, tax: 14, net: 294, pstatus: 'paid', pm: 'cash', status: 'completed', date: '2026-06-28' },
+      { cust: 1, inv: 'INV-20260601-002', total: 560, disc: 20, tax: 27, net: 567, pstatus: 'paid', pm: 'upi', status: 'completed', date: '2026-06-29' },
+      { cust: null, inv: 'INV-20260601-003', total: 95, disc: 0, tax: 11.4, net: 106.4, pstatus: 'paid', pm: 'cash', status: 'completed', date: '2026-06-30' },
+      { cust: 2, inv: 'INV-20260601-004', total: 450, disc: 0, tax: 22.5, net: 472.5, pstatus: 'unpaid', pm: 'cash', status: 'completed', date: '2026-07-01' },
+      { cust: 0, inv: 'INV-20260701-005', total: 155, disc: 0, tax: 7.75, net: 162.75, pstatus: 'paid', pm: 'card', status: 'completed', date: '2026-07-02' },
     ];
-
+    const saleIds = [];
     for (const s of sales) {
-      await connection.execute(
-        `INSERT INTO sales (uuid, user_id, customer_id, invoice_number, total_amount, discount, tax_amount, net_amount, payment_status, payment_method, status, notes, sale_date) 
+      const uuid = uuidv4();
+      const custId = s.cust !== null ? customerIds[s.cust] : null;
+      const [result] = await connection.execute(
+        `INSERT INTO sales (uuid, user_id, shop_id, customer_id, invoice_number, total_amount, discount, tax_amount, net_amount, payment_status, payment_method, status, sale_date)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        s
+        [uuid, userId, shopId, custId, s.inv, s.total, s.disc, s.tax, s.net, s.pstatus, s.pm, s.status, s.date]
       );
+      saleIds.push(result.insertId);
     }
     console.log(`  ✓ ${sales.length} sales seeded`);
 
     // Sale items
-    const [[sale1]] = await connection.execute("SELECT id FROM sales WHERE invoice_number = 'INV-20260601-001'");
-    const [[sale2]] = await connection.execute("SELECT id FROM sales WHERE invoice_number = 'INV-20260601-002'");
-    const [[sale3]] = await connection.execute("SELECT id FROM sales WHERE invoice_number = 'INV-20260601-003'");
-    const [[sale4]] = await connection.execute("SELECT id FROM sales WHERE invoice_number = 'INV-20260601-004'");
-    const [[sale5]] = await connection.execute("SELECT id FROM sales WHERE invoice_number = 'INV-20260701-005'");
-
     const saleItems = [
-      [sale1.id, startId + 1, 1, 280, 0, 280],
-      [sale2.id, startId, 2, 25, 0, 50],
-      [sale2.id, startId + 1, 1, 280, 0, 280],
-      [sale2.id, startId + 4, 1, 450, 20, 230],
-      [sale3.id, startId + 5, 1, 95, 0, 95],
-      [sale4.id, startId + 4, 1, 450, 0, 450],
-      [sale5.id, startId + 2, 1, 155, 0, 155],
+      [saleIds[0], productIds[1], 1, 280, 0, 280],
+      [saleIds[1], productIds[0], 2, 25, 0, 50],
+      [saleIds[1], productIds[1], 1, 280, 0, 280],
+      [saleIds[1], productIds[4], 1, 450, 20, 230],
+      [saleIds[2], productIds[5], 1, 95, 0, 95],
+      [saleIds[3], productIds[4], 1, 450, 0, 450],
+      [saleIds[4], productIds[2], 1, 155, 0, 155],
     ];
-
     for (const si of saleItems) {
       await connection.execute(
-        'INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, discount, total) VALUES (?, ?, ?, ?, ?, ?)',
-        si
+        'INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, discount, total) VALUES (?, ?, ?, ?, ?, ?)', si
       );
     }
     console.log(`  ✓ ${saleItems.length} sale items seeded`);
 
     // --- PURCHASES ---
     console.log('\nSeeding purchases...');
-    const [[supp1]] = await connection.execute('SELECT id FROM suppliers WHERE user_id = ? ORDER BY id LIMIT 1', [userId]);
-
     const purchases = [
-      [uuidv4(), userId, supp1.id, 'PUR-20260601-001', 5000, 0, 250, 5250, 'paid', 'bank_transfer', 'completed', 'Monthly restock', '2026-06-25'],
-      [uuidv4(), userId, supp1.id + 1, 'PUR-20260601-002', 2400, 100, 0, 2300, 'paid', 'upi', 'completed', 'Dairy restock', '2026-06-27'],
-      [uuidv4(), userId, supp1.id + 2, 'PUR-20260601-003', 3600, 0, 432, 4032, 'unpaid', 'cash', 'completed', 'Beverages order', '2026-06-30'],
+      { sup: 0, inv: 'PUR-20260601-001', total: 5000, disc: 0, tax: 250, net: 5250, pstatus: 'paid', pm: 'bank_transfer', status: 'completed', date: '2026-06-25' },
+      { sup: 1, inv: 'PUR-20260601-002', total: 2400, disc: 100, tax: 0, net: 2300, pstatus: 'paid', pm: 'upi', status: 'completed', date: '2026-06-27' },
+      { sup: 2, inv: 'PUR-20260601-003', total: 3600, disc: 0, tax: 432, net: 4032, pstatus: 'unpaid', pm: 'cash', status: 'completed', date: '2026-06-30' },
     ];
-
+    const purchaseIds = [];
     for (const p of purchases) {
-      await connection.execute(
-        `INSERT INTO purchases (uuid, user_id, supplier_id, invoice_number, total_amount, discount, tax_amount, net_amount, payment_status, payment_method, status, notes, purchase_date) 
+      const uuid = uuidv4();
+      const [result] = await connection.execute(
+        `INSERT INTO purchases (uuid, user_id, shop_id, supplier_id, invoice_number, total_amount, discount, tax_amount, net_amount, payment_status, payment_method, status, purchase_date)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        p
+        [uuid, userId, shopId, supplierIds[p.sup], p.inv, p.total, p.disc, p.tax, p.net, p.pstatus, p.pm, p.status, p.date]
       );
+      purchaseIds.push(result.insertId);
     }
     console.log(`  ✓ ${purchases.length} purchases seeded`);
 
     // Purchase items
-    const [[pur1]] = await connection.execute("SELECT id FROM purchases WHERE invoice_number = 'PUR-20260601-001'");
-    const [[pur2]] = await connection.execute("SELECT id FROM purchases WHERE invoice_number = 'PUR-20260601-002'");
-    const [[pur3]] = await connection.execute("SELECT id FROM purchases WHERE invoice_number = 'PUR-20260601-003'");
-
     const purchaseItems = [
-      [pur1.id, startId, 100, 18, 1800],
-      [pur1.id, startId + 1, 10, 210, 2100],
-      [pur1.id, startId + 3, 10, 110, 1100],
-      [pur2.id, startId + 15, 50, 24, 1200],
-      [pur2.id, startId + 16, 25, 48, 1200],
-      [pur3.id, startId + 5, 50, 72, 3600],
+      [purchaseIds[0], productIds[0], 100, 18, 1800],
+      [purchaseIds[0], productIds[1], 10, 210, 2100],
+      [purchaseIds[0], productIds[3], 10, 110, 1100],
+      [purchaseIds[1], productIds[15], 50, 24, 1200],
+      [purchaseIds[1], productIds[16], 25, 48, 1200],
+      [purchaseIds[2], productIds[5], 50, 72, 3600],
     ];
-
     for (const pi of purchaseItems) {
       await connection.execute(
-        'INSERT INTO purchase_items (purchase_id, product_id, quantity, unit_price, total) VALUES (?, ?, ?, ?, ?)',
-        pi
+        'INSERT INTO purchase_items (purchase_id, product_id, quantity, unit_price, total) VALUES (?, ?, ?, ?, ?)', pi
       );
     }
     console.log(`  ✓ ${purchaseItems.length} purchase items seeded`);
 
-    // --- STOCK MOVEMENTS ---
-    console.log('\nSeeding stock movements...');
-    const movements = [
-      [startId, userId, 'in', 100, 'purchase', pur1.id, 'Initial stock from PUR-20260601-001'],
-      [startId + 1, userId, 'in', 10, 'purchase', pur1.id, 'Initial stock from PUR-20260601-001'],
-      [startId + 3, userId, 'in', 10, 'purchase', pur1.id, 'Initial stock from PUR-20260601-001'],
-      [startId + 15, userId, 'in', 50, 'purchase', pur2.id, 'Dairy restock'],
-      [startId + 16, userId, 'in', 25, 'purchase', pur2.id, 'Dairy restock'],
-      [startId + 5, userId, 'in', 50, 'purchase', pur3.id, 'Beverages order'],
-      [startId + 1, userId, 'out', 1, 'sale', sale1.id, 'Sale INV-20260601-001'],
-      [startId, userId, 'out', 2, 'sale', sale2.id, 'Sale INV-20260601-002'],
-      [startId + 5, userId, 'out', 1, 'sale', sale3.id, 'Sale INV-20260601-003'],
-    ];
-
-    for (const m of movements) {
-      await connection.execute(
-        'INSERT INTO stock_movements (product_id, user_id, type, quantity, reference_type, reference_id, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        m
-      );
-    }
-    console.log(`  ✓ ${movements.length} stock movements seeded`);
-
     // --- PAYMENTS ---
     console.log('\nSeeding payments...');
     const payments = [
-      [userId, 'sale', sale1.id, 294, 'cash', null],
-      [userId, 'sale', sale2.id, 567, 'upi', null],
-      [userId, 'sale', sale3.id, 106.4, 'cash', null],
-      [userId, 'sale', sale5.id, 162.75, 'card', null],
-      [userId, 'purchase', pur1.id, 5250, 'bank_transfer', 'Monthly payment'],
-      [userId, 'purchase', pur2.id, 2300, 'upi', null],
+      [userId, shopId, 'sale', saleIds[0], 294, 'cash'],
+      [userId, shopId, 'sale', saleIds[1], 567, 'upi'],
+      [userId, shopId, 'sale', saleIds[2], 106.4, 'cash'],
+      [userId, shopId, 'sale', saleIds[4], 162.75, 'card'],
+      [userId, shopId, 'purchase', purchaseIds[0], 5250, 'bank_transfer'],
+      [userId, shopId, 'purchase', purchaseIds[1], 2300, 'upi'],
     ];
-
     for (const pay of payments) {
       await connection.execute(
-        'INSERT INTO payments (user_id, reference_type, reference_id, amount, payment_method, notes) VALUES (?, ?, ?, ?, ?, ?)',
-        pay
+        'INSERT INTO payments (user_id, shop_id, reference_type, reference_id, amount, payment_method) VALUES (?, ?, ?, ?, ?, ?)', pay
       );
     }
     console.log(`  ✓ ${payments.length} payments seeded`);
@@ -305,6 +275,7 @@ async function seed() {
     console.log('\n📋 Login Credentials:');
     console.log('   Admin:      admin@shopkeeper.com / admin123');
     console.log('   Shopkeeper: demo@shopkeeper.com  / demo1234');
+    console.log(`\n📦 Shop: "Demo General Store" (id: ${shopId})`);
 
   } catch (error) {
     console.error('✗ Seeding failed:', error.message);
