@@ -47,6 +47,27 @@ router.get('/', authenticate, async (req, res, next) => {
 });
 
 /**
+ * GET /api/customers/search/quick - Quick search for POS (returns top 10 by name/phone)
+ */
+router.get('/search/quick', authenticate, async (req, res, next) => {
+  try {
+    const pool = getPool();
+    const { q } = req.query;
+    if (!q || q.length < 2) return ApiResponse.success(res, []);
+
+    const [rows] = await pool.query(
+      `SELECT id, name, phone, email, balance FROM customers
+       WHERE shop_id = ? AND (name LIKE ? OR phone LIKE ?) AND is_active = 1
+       ORDER BY name ASC LIMIT 10`,
+      [req.user.shop_id, `%${q}%`, `%${q}%`]
+    );
+    return ApiResponse.success(res, rows);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
  * @swagger
  * /api/customers/{id}:
  *   get:
@@ -134,6 +155,75 @@ router.delete('/:id', authenticate, async (req, res, next) => {
     const pool = getPool();
     await pool.query('DELETE FROM customers WHERE id = ? AND shop_id = ?', [req.params.id, req.user.shop_id]);
     return ApiResponse.success(res, null, 'Customer deleted');
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/customers/:id/credit - Add credit (increase balance) after a credit sale
+ */
+router.post('/:id/credit', authenticate, async (req, res, next) => {
+  try {
+    const pool = getPool();
+    const { amount, reference, notes } = req.body;
+    if (!amount || amount <= 0) return ApiResponse.error(res, 'Amount must be positive', 400);
+
+    await pool.query(
+      'UPDATE customers SET balance = balance + ? WHERE id = ? AND shop_id = ?',
+      [amount, req.params.id, req.user.shop_id]
+    );
+
+    // Log the credit transaction
+    await pool.query(
+      'INSERT INTO customer_ledger (customer_id, shop_id, type, amount, reference, notes) VALUES (?, ?, ?, ?, ?, ?)',
+      [req.params.id, req.user.shop_id, 'credit', amount, reference || null, notes || null]
+    );
+
+    const [[customer]] = await pool.query('SELECT id, name, balance FROM customers WHERE id = ?', [req.params.id]);
+    return ApiResponse.success(res, customer, 'Credit added');
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/customers/:id/payment - Record payment (reduce balance)
+ */
+router.post('/:id/payment', authenticate, async (req, res, next) => {
+  try {
+    const pool = getPool();
+    const { amount, payment_method, notes } = req.body;
+    if (!amount || amount <= 0) return ApiResponse.error(res, 'Amount must be positive', 400);
+
+    await pool.query(
+      'UPDATE customers SET balance = GREATEST(0, balance - ?) WHERE id = ? AND shop_id = ?',
+      [amount, req.params.id, req.user.shop_id]
+    );
+
+    await pool.query(
+      'INSERT INTO customer_ledger (customer_id, shop_id, type, amount, payment_method, notes) VALUES (?, ?, ?, ?, ?, ?)',
+      [req.params.id, req.user.shop_id, 'payment', amount, payment_method || 'cash', notes || null]
+    );
+
+    const [[customer]] = await pool.query('SELECT id, name, balance FROM customers WHERE id = ?', [req.params.id]);
+    return ApiResponse.success(res, customer, 'Payment recorded');
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/customers/:id/ledger - Get credit/payment history
+ */
+router.get('/:id/ledger', authenticate, async (req, res, next) => {
+  try {
+    const pool = getPool();
+    const [rows] = await pool.query(
+      'SELECT * FROM customer_ledger WHERE customer_id = ? AND shop_id = ? ORDER BY created_at DESC LIMIT 50',
+      [req.params.id, req.user.shop_id]
+    );
+    return ApiResponse.success(res, rows);
   } catch (error) {
     next(error);
   }
