@@ -83,11 +83,17 @@ async function migrate() {
     // Migration 6: Auth enhancements + Customer Ledger
     const migration6Path = path.join(__dirname, 'migrations', '006_customer_ledger.sql');
     if (fs.existsSync(migration6Path)) {
-      try {
-        const sql6 = fs.readFileSync(migration6Path, 'utf8');
-        await connection.query(sql6);
-      } catch (e) {
-        if (!e.message.includes('already exists') && !e.message.includes('Duplicate column')) throw e;
+      const sql6 = fs.readFileSync(migration6Path, 'utf8');
+      // Run each statement individually to handle idempotent ALTERs
+      const statements = sql6.split(';').map(s => s.trim()).filter(s => s && !s.startsWith('--'));
+      for (const stmt of statements) {
+        try {
+          await connection.query(stmt);
+        } catch (e) {
+          if (!e.message.includes('already exists') && !e.message.includes('Duplicate column') && !e.message.includes('Duplicate key name') && !e.message.includes('Duplicate entry') && !e.message.includes('Duplicate foreign key')) {
+            throw e;
+          }
+        }
       }
     }
 

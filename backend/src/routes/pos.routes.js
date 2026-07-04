@@ -119,7 +119,7 @@ router.get('/barcode/:code', authenticate, async (req, res, next) => {
 router.post('/checkout', authenticate, async (req, res, next) => {
   try {
     const pool = getPool();
-    const { items, customer_name, discount, payment_method, amount_received } = req.body;
+    const { items, customer_name, customer_id, discount, payment_method, amount_received } = req.body;
 
     if (!items || items.length === 0) {
       return ApiResponse.error(res, 'Cart is empty', 400);
@@ -146,9 +146,9 @@ router.post('/checkout', authenticate, async (req, res, next) => {
 
       // Insert transaction
       const [txResult] = await connection.query(
-        `INSERT INTO pos_transactions (uuid, shop_id, customer_name, total_amount, discount, net_amount, payment_method, amount_received, change_amount, receipt_number)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [uuid, req.user.shop_id, customer_name || null, totalAmount, discountAmount, netAmount, payment_method || 'cash', amount_received || netAmount, changeAmount > 0 ? changeAmount : 0, receiptNumber]
+        `INSERT INTO pos_transactions (uuid, shop_id, customer_name, customer_id, total_amount, discount, net_amount, payment_method, amount_received, change_amount, receipt_number)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uuid, req.user.shop_id, customer_name || null, customer_id || null, totalAmount, discountAmount, netAmount, payment_method || 'cash', amount_received || netAmount, changeAmount > 0 ? changeAmount : 0, receiptNumber]
       );
       const transactionId = txResult.insertId;
 

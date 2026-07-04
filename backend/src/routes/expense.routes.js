@@ -67,19 +67,6 @@ router.post('/', authenticate, async (req, res, next) => {
 });
 
 /**
- * DELETE /api/expenses/:id - Delete expense
- */
-router.delete('/:id', authenticate, async (req, res, next) => {
-  try {
-    const pool = getPool();
-    await pool.query('DELETE FROM expenses WHERE id = ? AND shop_id = ?', [req.params.id, req.user.shop_id]);
-    return ApiResponse.success(res, null, 'Expense deleted');
-  } catch (error) {
-    next(error);
-  }
-});
-
-/**
  * GET /api/expenses/summary - Get expense summary by category
  */
 router.get('/summary', authenticate, async (req, res, next) => {
@@ -108,6 +95,19 @@ router.get('/summary', authenticate, async (req, res, next) => {
 
     const [rows] = await pool.query(query, params);
     return ApiResponse.success(res, rows);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * DELETE /api/expenses/:id - Delete expense
+ */
+router.delete('/:id', authenticate, async (req, res, next) => {
+  try {
+    const pool = getPool();
+    await pool.query('DELETE FROM expenses WHERE id = ? AND shop_id = ?', [req.params.id, req.user.shop_id]);
+    return ApiResponse.success(res, null, 'Expense deleted');
   } catch (error) {
     next(error);
   }

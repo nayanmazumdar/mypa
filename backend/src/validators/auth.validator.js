@@ -35,6 +35,12 @@ const loginValidator = [
   body('passcode')
     .optional()
     .matches(/^\d{4}$/).withMessage('Passcode must be 4 digits'),
+  body().custom((value) => {
+    if (!value.password && !value.passcode) {
+      throw new Error('Either password or passcode is required');
+    }
+    return true;
+  }),
 ];
 
 module.exports = { registerValidator, loginValidator };
