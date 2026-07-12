@@ -152,12 +152,12 @@ class AuthService {
       const uuid = generateId();
       const [result] = await pool.query(
         'INSERT INTO users (uuid, name, email, phone, password, role, shop_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [uuid, name, email, phone || null, hashedPassword, role || 'staff', shop_id]
+        [uuid, name, email, phone || null, hashedPassword, 'staff', shop_id]
       );
       userId = result.insertId;
     }
 
-    const staffRole = role === 'admin' ? 'manager' : (role || 'staff');
+    const staffRole = role || 'staff';
     await pool.query('INSERT INTO user_shops (user_id, shop_id, role) VALUES (?, ?, ?)', [userId, shop_id, staffRole]);
     logger.info(`Staff ${email} added to shop ${shop_id}`);
     return { id: userId, name, email, role: staffRole, shop_id };

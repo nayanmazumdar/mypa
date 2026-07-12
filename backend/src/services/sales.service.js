@@ -1,39 +1,67 @@
-const salesRepo = require('../repositories/mysql/sales.repository');
-const inventoryService = require('./inventory.service');
+const { Sale, SaleItem, Product, Customer, Inventory, StockMovement, sequelize } = require('../models');
+const { Op } = require('sequelize');
 const { generateId, generateInvoiceNumber, formatDate } = require('../utils/helper');
 const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 const logger = require('../config/logger');
 
 class SalesService {
-  async getAll(userId, query) {
+  async getAll(shopId, query) {
     const { page, limit, offset } = parsePagination(query);
-    const filters = { status: query.status, startDate: query.start_date, endDate: query.end_date };
+    const where = { shop_id: shopId };
 
-    const [sales, total] = await Promise.all([
-      salesRepo.findAll(userId, { limit, offset, ...filters }),
-      salesRepo.count(userId, filters),
-    ]);
+    if (query.status) where.status = query.status;
+    if (query.start_date) where.sale_date = { ...where.sale_date, [Op.gte]: query.start_date };
+    if (query.end_date) where.sale_date = { ...where.sale_date, [Op.lte]: query.end_date };
 
-    const pagination = buildPaginationMeta(total, page, limit);
+    const { rows, count } = await Sale.findAndCountAll({
+      where,
+      include: [{ model: Customer, attributes: ['name'] }],
+      order: [['created_at', 'DESC']],
+      limit,
+      offset,
+    });
+
+    const sales = rows.map(s => {
+      const plain = s.get({ plain: true });
+      plain.customer_name = plain.Customer?.name || null;
+      delete plain.Customer;
+      return plain;
+    });
+
+    const pagination = buildPaginationMeta(count, page, limit);
     return { sales, pagination };
   }
 
-  async getById(id, userId) {
-    const sale = await salesRepo.findById(id, userId);
+  async getById(id, shopId) {
+    const sale = await Sale.findOne({
+      where: { id, shop_id: shopId },
+      include: [
+        { model: Customer, attributes: ['name'] },
+        { model: SaleItem, as: 'items', include: [{ model: Product, attributes: ['name', 'sku'] }] },
+      ],
+    });
     if (!sale) {
       const error = new Error('Sale not found');
       error.statusCode = 404;
       throw error;
     }
-    const items = await salesRepo.findItemsBySaleId(id);
-    return { ...sale, items };
+
+    const plain = sale.get({ plain: true });
+    plain.customer_name = plain.Customer?.name || null;
+    delete plain.Customer;
+    plain.items = (plain.items || []).map(i => ({
+      ...i,
+      product_name: i.Product?.name || null,
+      sku: i.Product?.sku || null,
+      Product: undefined,
+    }));
+    return plain;
   }
 
-  async create(userId, data) {
+  async create(shopId, data) {
     const uuid = generateId();
     const invoiceNumber = generateInvoiceNumber('INV');
 
-    // Calculate totals
     let totalAmount = 0;
     const items = data.items.map((item) => {
       const total = item.quantity * item.unit_price - (item.discount || 0);
@@ -45,41 +73,70 @@ class SalesService {
     const taxAmount = data.tax_amount || 0;
     const netAmount = totalAmount - discount + taxAmount;
 
-    const saleData = {
-      uuid,
-      shop_id: userId,
-      customer_id: data.customer_id || null,
-      invoice_number: invoiceNumber,
-      total_amount: totalAmount,
-      discount,
-      tax_amount: taxAmount,
-      net_amount: netAmount,
-      payment_status: data.payment_status || 'unpaid',
-      payment_method: data.payment_method || 'cash',
-      status: 'completed',
-      notes: data.notes || null,
-      sale_date: formatDate(new Date()),
-    };
+    const result = await sequelize.transaction(async (t) => {
+      const sale = await Sale.create({
+        uuid,
+        user_id: shopId, // legacy field
+        shop_id: shopId,
+        customer_id: data.customer_id || null,
+        invoice_number: invoiceNumber,
+        total_amount: totalAmount,
+        discount,
+        tax_amount: taxAmount,
+        net_amount: netAmount,
+        payment_status: data.payment_status || 'unpaid',
+        payment_method: data.payment_method || 'cash',
+        status: 'completed',
+        notes: data.notes || null,
+        sale_date: formatDate(new Date()),
+      }, { transaction: t });
 
-    const sale = await salesRepo.create(saleData, items);
+      for (const item of items) {
+        await SaleItem.create({
+          sale_id: sale.id,
+          product_id: item.product_id,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          discount: item.discount || 0,
+          total: item.total,
+        }, { transaction: t });
 
-    // Update inventory (reduce stock)
-    for (const item of items) {
-      await inventoryService.addStock(userId, item.product_id, item.quantity, 'out', 'sale', sale.id, `Sale: ${invoiceNumber}`);
-    }
+        // Reduce inventory
+        await Inventory.decrement('quantity', {
+          by: item.quantity,
+          where: { product_id: item.product_id, shop_id: shopId },
+          transaction: t,
+        });
+
+        // Log stock movement
+        await StockMovement.create({
+          product_id: item.product_id,
+          user_id: shopId,
+          shop_id: shopId,
+          type: 'out',
+          quantity: item.quantity,
+          reference_type: 'sale',
+          reference_id: sale.id,
+          notes: `Sale: ${invoiceNumber}`,
+        }, { transaction: t });
+      }
+
+      return sale;
+    });
 
     logger.info(`Sale created: ${invoiceNumber}`);
-    return sale;
+    return result;
   }
 
-  async updateStatus(id, userId, status) {
-    const existing = await salesRepo.findById(id, userId);
-    if (!existing) {
+  async updateStatus(id, shopId, status) {
+    const sale = await Sale.findOne({ where: { id, shop_id: shopId } });
+    if (!sale) {
       const error = new Error('Sale not found');
       error.statusCode = 404;
       throw error;
     }
-    return salesRepo.updateStatus(id, userId, status);
+    await sale.update({ status });
+    return sale;
   }
 }
 

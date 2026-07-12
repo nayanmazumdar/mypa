@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { HiOutlinePlus, HiOutlinePencil, HiOutlineTrash, HiOutlineCube, HiOutlinePhoto } from 'react-icons/hi2';
+import { HiOutlineCube, HiOutlinePhoto } from 'react-icons/hi2';
 import toast from 'react-hot-toast';
 import { fetchProducts, createProduct, updateProduct, deleteProduct } from '../store/productSlice';
-import Modal from '../components/common/Modal';
-import LoadingSpinner from '../components/common/LoadingSpinner';
-import { PageError, EmptyState } from '../components/common/ErrorDisplay';
+import {
+  PageHeader, SearchInput, DataTable, ActionButton, ActionGroup,
+  Modal, FormField, FormRow, FormSection, Avatar, EmptyState,
+  PageError, LoadingSpinner,
+} from '../components/common';
 import api from '../api/axios';
+import { usePermission } from '../hooks/usePermission';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 const INITIAL_FORM = {
   name: '', description: '', brand: '', sku: '', barcode: '', hsn_code: '',
@@ -15,9 +19,19 @@ const INITIAL_FORM = {
   expiry_date: '', image_url: '', is_featured: false,
 };
 
+const UNIT_OPTIONS = [
+  { value: 'piece', label: 'Piece' }, { value: 'kg', label: 'Kg' },
+  { value: 'gram', label: 'Gram' }, { value: 'litre', label: 'Litre' },
+  { value: 'ml', label: 'ml' }, { value: 'meter', label: 'Meter' },
+  { value: 'box', label: 'Box' }, { value: 'dozen', label: 'Dozen' },
+  { value: 'packet', label: 'Packet' }, { value: 'bottle', label: 'Bottle' },
+];
+
 export default function Products() {
+  usePageTitle('Products');
   const dispatch = useDispatch();
   const { items, pagination, loading, error } = useSelector((state) => state.products);
+  const { can } = usePermission();
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [search, setSearch] = useState('');
@@ -25,13 +39,13 @@ export default function Products() {
   const [form, setForm] = useState(INITIAL_FORM);
   const [categories, setCategories] = useState([]);
   const [imagePreview, setImagePreview] = useState('');
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
-    dispatch(fetchProducts({ page: 1, limit: 20, search }));
-  }, [dispatch, search]);
+    dispatch(fetchProducts({ page, limit: 20, search }));
+  }, [dispatch, search, page]);
 
   useEffect(() => {
-    // Load categories for dropdown
     api.get('/categories').then(res => setCategories(res.data || [])).catch(() => {});
   }, []);
 
@@ -86,262 +100,184 @@ export default function Products() {
       if (updateProduct.fulfilled.match(result)) {
         toast.success('Product updated');
         setShowModal(false);
-        dispatch(fetchProducts({ page: 1, limit: 20, search }));
-      } else {
-        toast.error(result.payload?.message || 'Failed to update');
-      }
+        dispatch(fetchProducts({ page, limit: 20, search }));
+      } else toast.error(result.payload?.message || 'Failed to update');
     } else {
       result = await dispatch(createProduct(payload));
       if (createProduct.fulfilled.match(result)) {
         toast.success('Product created');
         setShowModal(false);
         setForm(INITIAL_FORM);
-      } else {
-        toast.error(result.payload?.message || 'Failed to create');
-      }
+      } else toast.error(result.payload?.message || 'Failed to create');
     }
   };
 
   const handleDelete = async (id) => {
     if (!confirm('Delete this product? This cannot be undone.')) return;
     const result = await dispatch(deleteProduct(id));
-    if (deleteProduct.fulfilled.match(result)) {
-      toast.success('Product deleted');
-    } else {
-      toast.error(result.payload?.message || 'Cannot delete — may be in use');
-    }
+    if (deleteProduct.fulfilled.match(result)) toast.success('Product deleted');
+    else toast.error(result.payload?.message || 'Cannot delete — may be in use');
   };
 
-  const handleImageUrl = (e) => {
-    const url = e.target.value;
-    setForm({ ...form, image_url: url });
-    setImagePreview(url);
-  };
+  const updateForm = (key, val) => setForm({ ...form, [key]: val });
+
+  const categoryOptions = [{ value: '', label: 'None' }, ...categories.map(c => ({ value: c.id, label: c.name }))];
 
   if (loading && items.length === 0) return <LoadingSpinner />;
 
+  const columns = [
+    { key: 'product', label: 'Product' },
+    { key: 'sku', label: 'SKU', hideOn: 'sm' },
+    { key: 'unit', label: 'Unit', hideOn: 'md' },
+    { key: 'cost', label: 'Cost', align: 'right', hideOn: 'lg' },
+    { key: 'price', label: 'Price', align: 'right' },
+    { key: 'mrp', label: 'MRP', align: 'right', hideOn: 'lg' },
+    { key: 'actions', label: '', align: 'center' },
+  ];
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Products</h1>
-          <p className="text-gray-500">{pagination?.total || 0} items in catalog</p>
-        </div>
-        <button onClick={openCreate} className="btn-primary flex items-center gap-2">
-          <HiOutlinePlus className="w-5 h-5" /> Add Product
-        </button>
+    <div className="space-y-8">
+      <PageHeader
+        title="Products"
+        subtitle={`${pagination?.total || 0} items in catalog`}
+        action={can('products:create') ? 'Add Product' : null}
+        onAction={openCreate}
+      />
+
+      <SearchInput
+        value={search}
+        onChange={(v) => { setSearch(v); setPage(1); }}
+        placeholder="Search by name, SKU, barcode, or brand..."
+      />
+
+      {/* Mobile Cards */}
+      <div className="md:hidden space-y-3">
+        {items.length === 0 ? (
+          <EmptyState icon={HiOutlineCube} title="No products yet" message="Add your first product to get started." actionLabel="Add Product" onAction={openCreate} />
+        ) : items.map((product) => (
+          <div key={product.id} className="card p-4 flex items-center gap-4">
+            <Avatar name={product.name} src={product.image_url} />
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-gray-900 truncate">{product.name}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{product.brand || product.sku || product.unit}</p>
+            </div>
+            <div className="text-right flex-shrink-0">
+              <p className="text-sm font-semibold text-gray-900">₹{product.selling_price}</p>
+              <p className="text-[11px] text-gray-400">Cost: ₹{product.purchase_price}</p>
+            </div>
+            <ActionGroup>
+              {can('products:update') && <ActionButton variant="edit" onClick={() => openEdit(product)} title="Edit" />}
+              {can('products:delete') && <ActionButton variant="delete" onClick={() => handleDelete(product.id)} title="Delete" />}
+            </ActionGroup>
+          </div>
+        ))}
       </div>
 
-      {/* Search */}
-      <div className="card">
-        <input
-          type="text"
-          placeholder="Search by name, SKU, barcode, or brand..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="input-field"
+      {/* Desktop Table */}
+      <div className="hidden md:block">
+        <DataTable
+          columns={columns}
+          data={items}
+          pagination={pagination}
+          page={page}
+          onPageChange={setPage}
+          emptyState={<EmptyState icon={HiOutlineCube} title="No products yet" message="Add your first product to get started." actionLabel="Add Product" onAction={openCreate} />}
+          renderRow={(product) => (
+            <tr key={product.id} className="hover:bg-gray-50/50 transition-colors">
+              <td className="px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <Avatar name={product.name} src={product.image_url} />
+                  <div>
+                    <p className="font-medium text-gray-900">{product.name}</p>
+                    {product.brand && <p className="text-xs text-gray-400 mt-0.5">{product.brand}</p>}
+                  </div>
+                </div>
+              </td>
+              <td className="px-5 py-4 hidden sm:table-cell">
+                <p className="text-gray-600 font-mono text-xs">{product.sku || '—'}</p>
+              </td>
+              <td className="px-5 py-4 text-gray-500 capitalize hidden md:table-cell">{product.unit}</td>
+              <td className="px-5 py-4 text-right text-gray-500 hidden lg:table-cell">₹{product.purchase_price}</td>
+              <td className="px-5 py-4 text-right font-semibold text-gray-900">₹{product.selling_price}</td>
+              <td className="px-5 py-4 text-right text-gray-400 hidden lg:table-cell">₹{product.mrp || product.selling_price}</td>
+              <td className="px-5 py-4">
+                <ActionGroup>
+                  {can('products:update') && <ActionButton variant="edit" onClick={() => openEdit(product)} title="Edit" />}
+                  {can('products:delete') && <ActionButton variant="delete" onClick={() => handleDelete(product.id)} title="Delete" />}
+                </ActionGroup>
+              </td>
+            </tr>
+          )}
         />
       </div>
 
-      {/* Products Table */}
-      <div className="card overflow-hidden p-0">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Product</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">SKU / Barcode</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Unit</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600">Cost</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600">Price</th>
-                <th className="text-right px-4 py-3 font-medium text-gray-600">MRP</th>
-                <th className="text-center px-4 py-3 font-medium text-gray-600">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {items.length === 0 ? (
-                <tr>
-                  <td colSpan="7">
-                    <EmptyState icon={HiOutlineCube} title="No products yet" message="Add your first product to get started." actionLabel="Add Product" onAction={openCreate} />
-                  </td>
-                </tr>
-              ) : (
-                items.map((product) => (
-                  <tr key={product.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        {product.image_url ? (
-                          <img src={product.image_url} alt="" className="w-10 h-10 rounded-lg object-cover border border-gray-200" />
-                        ) : (
-                          <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
-                            <HiOutlinePhoto className="w-5 h-5 text-gray-400" />
-                          </div>
-                        )}
-                        <div>
-                          <p className="font-medium text-gray-900">{product.name}</p>
-                          {product.brand && <p className="text-xs text-gray-400">{product.brand}</p>}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="text-gray-700 font-mono text-xs">{product.sku || '-'}</p>
-                      {product.barcode && <p className="text-gray-400 font-mono text-xs">{product.barcode}</p>}
-                    </td>
-                    <td className="px-4 py-3 text-gray-500">{product.unit}{product.weight ? ` (${product.weight})` : ''}</td>
-                    <td className="px-4 py-3 text-right text-gray-500">₹{product.purchase_price}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-primary-700">₹{product.selling_price}</td>
-                    <td className="px-4 py-3 text-right text-gray-400">₹{product.mrp || product.selling_price}</td>
-                    <td className="px-4 py-3 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => openEdit(product)} className="p-1.5 rounded text-gray-500 hover:text-primary-600 hover:bg-primary-50" aria-label="Edit">
-                          <HiOutlinePencil className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => handleDelete(product.id)} className="p-1.5 rounded text-gray-500 hover:text-red-600 hover:bg-red-50" aria-label="Delete">
-                          <HiOutlineTrash className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
       {/* Add/Edit Product Modal */}
-      <Modal open={showModal} onClose={() => setShowModal(false)} title={editingId ? 'Edit Product' : 'Add New Product'}>
-        <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-          {/* Image Preview */}
+      <Modal open={showModal} onClose={() => setShowModal(false)} title={editingId ? 'Edit Product' : 'Add New Product'} size="lg">
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Image */}
           <div className="flex items-center gap-4">
             {imagePreview ? (
-              <img src={imagePreview} alt="Preview" className="w-16 h-16 rounded-lg object-cover border border-gray-200" onError={() => setImagePreview('')} />
+              <img src={imagePreview} alt="Preview" className="w-16 h-16 rounded-xl object-cover border border-gray-100" onError={() => setImagePreview('')} />
             ) : (
-              <div className="w-16 h-16 rounded-lg bg-gray-100 flex items-center justify-center">
-                <HiOutlinePhoto className="w-8 h-8 text-gray-300" />
+              <div className="w-16 h-16 rounded-xl bg-gray-50 flex items-center justify-center border border-dashed border-gray-200">
+                <HiOutlinePhoto className="w-7 h-7 text-gray-300" />
               </div>
             )}
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
-              <input type="url" value={form.image_url} onChange={handleImageUrl} className="input-field text-sm" placeholder="https://..." />
+              <FormField label="Image URL" type="url" value={form.image_url} onChange={(v) => { updateForm('image_url', v); setImagePreview(v); }} placeholder="https://..." />
             </div>
           </div>
 
-          {/* Basic Info */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Product Name *</label>
-            <input type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input-field" />
-          </div>
+          <FormField label="Product Name" required value={form.name} onChange={(v) => updateForm('name', v)} placeholder="e.g. Tata Salt 1kg" />
+          <FormField label="Description" type="textarea" rows={2} value={form.description} onChange={(v) => updateForm('description', v)} placeholder="Optional product description" />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <textarea rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="input-field" placeholder="Optional product description" />
-          </div>
+          <FormRow>
+            <FormField label="Brand" value={form.brand} onChange={(v) => updateForm('brand', v)} placeholder="e.g. Amul, Tata" />
+            <FormField label="Category" type="select" value={form.category_id} onChange={(v) => updateForm('category_id', v)} options={categoryOptions} />
+          </FormRow>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Brand</label>
-              <input type="text" value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} className="input-field" placeholder="e.g. Amul, Tata" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-              <select value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })} className="input-field">
-                <option value="">None</option>
-                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-          </div>
+          <FormSection title="Pricing">
+            <FormRow cols={3}>
+              <FormField label="Cost Price" type="number" step="0.01" required value={form.purchase_price} onChange={(v) => updateForm('purchase_price', v)} placeholder="₹" />
+              <FormField label="Sell Price" type="number" step="0.01" required value={form.selling_price} onChange={(v) => updateForm('selling_price', v)} placeholder="₹" />
+              <FormField label="MRP" type="number" step="0.01" value={form.mrp} onChange={(v) => updateForm('mrp', v)} placeholder="₹" />
+            </FormRow>
+          </FormSection>
 
-          {/* Pricing */}
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Cost Price *</label>
-              <input type="number" step="0.01" required value={form.purchase_price} onChange={(e) => setForm({ ...form, purchase_price: e.target.value })} className="input-field" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Sell Price *</label>
-              <input type="number" step="0.01" required value={form.selling_price} onChange={(e) => setForm({ ...form, selling_price: e.target.value })} className="input-field" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">MRP</label>
-              <input type="number" step="0.01" value={form.mrp} onChange={(e) => setForm({ ...form, mrp: e.target.value })} className="input-field" placeholder="Max retail" />
-            </div>
-          </div>
+          <FormRow cols={3}>
+            <FormField label="Unit" type="select" value={form.unit} onChange={(v) => updateForm('unit', v)} options={UNIT_OPTIONS} />
+            <FormField label="SKU" value={form.sku} onChange={(v) => updateForm('sku', v)} placeholder="Auto or manual" />
+            <FormField label="Barcode" value={form.barcode} onChange={(v) => updateForm('barcode', v)} placeholder="Scan or type" />
+          </FormRow>
 
-          {/* Unit & Identification */}
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
-              <select value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} className="input-field">
-                <option value="piece">Piece</option>
-                <option value="kg">Kg</option>
-                <option value="gram">Gram</option>
-                <option value="litre">Litre</option>
-                <option value="ml">ml</option>
-                <option value="meter">Meter</option>
-                <option value="box">Box</option>
-                <option value="dozen">Dozen</option>
-                <option value="packet">Packet</option>
-                <option value="bottle">Bottle</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">SKU</label>
-              <input type="text" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} className="input-field" placeholder="Auto or manual" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Barcode</label>
-              <input type="text" value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} className="input-field" placeholder="Scan or type" />
-            </div>
-          </div>
-
-          {/* Advanced Options Toggle */}
-          <button type="button" onClick={() => setShowAdvanced(!showAdvanced)} className="text-sm text-primary-600 hover:text-primary-700 font-medium">
+          <button type="button" onClick={() => setShowAdvanced(!showAdvanced)} className="text-xs text-primary-600 hover:text-primary-700 font-semibold uppercase tracking-wide">
             {showAdvanced ? '▾ Hide' : '▸ Show'} advanced options
           </button>
 
           {showAdvanced && (
-            <div className="space-y-4 pt-2 border-t border-gray-100">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Weight / Size</label>
-                  <input type="text" value={form.weight} onChange={(e) => setForm({ ...form, weight: e.target.value })} className="input-field" placeholder="e.g. 500g, 1L" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">HSN Code</label>
-                  <input type="text" value={form.hsn_code} onChange={(e) => setForm({ ...form, hsn_code: e.target.value })} className="input-field" placeholder="GST HSN/SAC" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Tax Rate (%)</label>
-                  <input type="number" step="0.01" value={form.tax_rate} onChange={(e) => setForm({ ...form, tax_rate: e.target.value })} className="input-field" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
-                  <input type="date" value={form.expiry_date} onChange={(e) => setForm({ ...form, expiry_date: e.target.value })} className="input-field" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Min Stock Level</label>
-                  <input type="number" value={form.min_stock_level} onChange={(e) => setForm({ ...form, min_stock_level: e.target.value })} className="input-field" placeholder="Reorder point" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Max Stock Level</label>
-                  <input type="number" value={form.max_stock_level} onChange={(e) => setForm({ ...form, max_stock_level: e.target.value })} className="input-field" placeholder="Maximum capacity" />
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="is_featured" checked={form.is_featured} onChange={(e) => setForm({ ...form, is_featured: e.target.checked })} className="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
-                <label htmlFor="is_featured" className="text-sm text-gray-700">Featured item (show in POS quick list)</label>
-              </div>
+            <div className="space-y-4 pt-4 border-t border-gray-100">
+              <FormRow>
+                <FormField label="Weight / Size" value={form.weight} onChange={(v) => updateForm('weight', v)} placeholder="e.g. 500g, 1L" />
+                <FormField label="HSN Code" value={form.hsn_code} onChange={(v) => updateForm('hsn_code', v)} placeholder="GST HSN/SAC" />
+              </FormRow>
+              <FormRow>
+                <FormField label="Tax Rate (%)" type="number" step="0.01" value={form.tax_rate} onChange={(v) => updateForm('tax_rate', v)} />
+                <FormField label="Expiry Date" type="date" value={form.expiry_date} onChange={(v) => updateForm('expiry_date', v)} />
+              </FormRow>
+              <FormRow>
+                <FormField label="Min Stock Level" type="number" value={form.min_stock_level} onChange={(v) => updateForm('min_stock_level', v)} placeholder="Reorder point" />
+                <FormField label="Max Stock Level" type="number" value={form.max_stock_level} onChange={(v) => updateForm('max_stock_level', v)} placeholder="Max capacity" />
+              </FormRow>
+              <label className="flex items-center gap-2.5 cursor-pointer">
+                <input type="checkbox" checked={form.is_featured} onChange={(e) => updateForm('is_featured', e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+                <span className="text-sm text-gray-700">Featured item (show in POS quick list)</span>
+              </label>
             </div>
           )}
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-            <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Cancel</button>
-            <button type="submit" className="btn-primary">{editingId ? 'Save Changes' : 'Create Product'}</button>
+          <div className="flex justify-end gap-3 pt-5 border-t border-gray-100">
+            <button type="button" onClick={() => setShowModal(false)} className="btn-secondary text-sm">Cancel</button>
+            <button type="submit" className="btn-primary text-sm">{editingId ? 'Save Changes' : 'Create Product'}</button>
           </div>
         </form>
       </Modal>

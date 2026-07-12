@@ -1,35 +1,24 @@
-/**
- * Sale Model Schema
- */
-module.exports = {
-  tableName: 'sales',
-  schema: {
-    id: 'INT AUTO_INCREMENT PRIMARY KEY',
-    uuid: 'VARCHAR(36) NOT NULL UNIQUE',
-    user_id: 'INT NOT NULL',
-    customer_id: 'INT',
-    invoice_number: 'VARCHAR(50) NOT NULL UNIQUE',
-    total_amount: 'DECIMAL(10,2) NOT NULL DEFAULT 0',
-    discount: 'DECIMAL(10,2) DEFAULT 0',
-    tax_amount: 'DECIMAL(10,2) DEFAULT 0',
-    net_amount: 'DECIMAL(10,2) NOT NULL DEFAULT 0',
-    payment_status: "ENUM('paid', 'unpaid', 'partial') DEFAULT 'unpaid'",
-    payment_method: "ENUM('cash', 'card', 'upi', 'bank_transfer') DEFAULT 'cash'",
-    status: "ENUM('pending', 'completed', 'cancelled') DEFAULT 'pending'",
-    notes: 'TEXT',
-    sale_date: 'DATE NOT NULL',
-    created_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
-    updated_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
-  },
-  // sale_items table
-  itemsTable: 'sale_items',
-  itemsSchema: {
-    id: 'INT AUTO_INCREMENT PRIMARY KEY',
-    sale_id: 'INT NOT NULL',
-    product_id: 'INT NOT NULL',
-    quantity: 'DECIMAL(10,2) NOT NULL',
-    unit_price: 'DECIMAL(10,2) NOT NULL',
-    discount: 'DECIMAL(10,2) DEFAULT 0',
-    total: 'DECIMAL(10,2) NOT NULL',
-  },
+const { DataTypes } = require('sequelize');
+
+module.exports = (sequelize) => {
+  return sequelize.define('Sale', {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    uuid: { type: DataTypes.STRING(36), unique: true, allowNull: false },
+    user_id: { type: DataTypes.INTEGER, allowNull: false },
+    shop_id: { type: DataTypes.INTEGER },
+    customer_id: { type: DataTypes.INTEGER },
+    invoice_number: { type: DataTypes.STRING(50), unique: true, allowNull: false },
+    total_amount: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    discount: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    tax_amount: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    net_amount: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    payment_status: { type: DataTypes.ENUM('paid', 'unpaid', 'partial'), defaultValue: 'unpaid' },
+    payment_method: { type: DataTypes.ENUM('cash', 'card', 'upi', 'bank_transfer'), defaultValue: 'cash' },
+    status: { type: DataTypes.ENUM('pending', 'completed', 'cancelled'), defaultValue: 'pending' },
+    notes: { type: DataTypes.TEXT },
+    sale_date: { type: DataTypes.DATEONLY, allowNull: false },
+  }, {
+    tableName: 'sales',
+    timestamps: true,
+  });
 };

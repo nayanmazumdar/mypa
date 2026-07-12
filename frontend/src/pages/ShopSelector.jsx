@@ -4,8 +4,10 @@ import toast from 'react-hot-toast';
 import { HiOutlineBuildingStorefront, HiOutlinePlus, HiOutlineArrowRightOnRectangle, HiOutlineChevronRight } from 'react-icons/hi2';
 import api from '../api/axios';
 import { logout, setActiveShop } from '../store/authSlice';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 export default function ShopSelector() {
+  usePageTitle('Select Shop');
   const { user } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -57,7 +59,7 @@ export default function ShopSelector() {
               <button
                 key={shop.id}
                 onClick={() => handleSelectShop(shop)}
-                className="w-full bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4 hover:border-primary-300 hover:shadow-md transition-all text-left group"
+                className="w-full rounded-2xl p-4 flex items-center gap-4 transition-all text-left group" style={{ background: "#e8edf5", boxShadow: "4px 4px 8px #c8cfd8, -4px -4px 8px #ffffff" }}
               >
                 <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   <HiOutlineBuildingStorefront className="w-6 h-6 text-primary-600" />
@@ -79,7 +81,7 @@ export default function ShopSelector() {
 
         {/* Empty state */}
         {shops.length === 0 && (
-          <div className="bg-white rounded-xl border border-gray-200 p-8 text-center mb-4">
+          <div className="rounded-2xl p-8 text-center mb-4" style={{ background: "#e8edf5", boxShadow: "6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff" }}>
             <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4">
               <HiOutlineBuildingStorefront className="w-8 h-8 text-primary-400" />
             </div>

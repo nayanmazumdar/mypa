@@ -1,24 +1,47 @@
-const productRepo = require('../repositories/mysql/product.repository');
+const { Product, Category, Inventory } = require('../models');
+const { Op } = require('sequelize');
 const { generateId } = require('../utils/helper');
 const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 const logger = require('../config/logger');
 
 class ProductService {
-  async getAll(userId, query) {
+  async getAll(shopId, query) {
     const { page, limit, offset } = parsePagination(query);
-    const filters = { search: query.search, categoryId: query.category_id };
+    const where = { shop_id: shopId };
 
-    const [products, total] = await Promise.all([
-      productRepo.findAll(userId, { limit, offset, ...filters }),
-      productRepo.count(userId, filters),
-    ]);
+    if (query.search) {
+      where[Op.or] = [
+        { name: { [Op.like]: `%${query.search}%` } },
+        { sku: { [Op.like]: `%${query.search}%` } },
+        { barcode: { [Op.like]: `%${query.search}%` } },
+      ];
+    }
+    if (query.category_id) where.category_id = query.category_id;
 
-    const pagination = buildPaginationMeta(total, page, limit);
+    const { rows, count } = await Product.findAndCountAll({
+      where,
+      include: [{ model: Category, attributes: ['name'] }],
+      order: [['created_at', 'DESC']],
+      limit,
+      offset,
+    });
+
+    const products = rows.map(p => {
+      const plain = p.get({ plain: true });
+      plain.category_name = plain.Category?.name || null;
+      delete plain.Category;
+      return plain;
+    });
+
+    const pagination = buildPaginationMeta(count, page, limit);
     return { products, pagination };
   }
 
-  async getById(id, userId) {
-    const product = await productRepo.findById(id, userId);
+  async getById(id, shopId) {
+    const product = await Product.findOne({
+      where: { id, shop_id: shopId },
+      include: [{ model: Category, attributes: ['name'] }],
+    });
     if (!product) {
       const error = new Error('Product not found');
       error.statusCode = 404;
@@ -27,70 +50,47 @@ class ProductService {
     return product;
   }
 
-  async create(userId, data, createdBy) {
+  async create(shopId, data, userId) {
     const uuid = generateId();
-    const productData = {
+    const product = await Product.create({
+      ...data,
       uuid,
-      user_id: createdBy || null,
-      shop_id: userId,
-      name: data.name,
-      sku: data.sku || null,
-      barcode: data.barcode || null,
-      category_id: data.category_id || null,
-      description: data.description || null,
-      brand: data.brand || null,
-      hsn_code: data.hsn_code || null,
-      purchase_price: data.purchase_price,
-      selling_price: data.selling_price,
-      mrp: data.mrp || data.selling_price || 0,
-      unit: data.unit || 'piece',
-      weight: data.weight || null,
+      user_id: userId,
+      shop_id: shopId,
+    });
+
+    // Create inventory entry
+    await Inventory.create({
+      product_id: product.id,
+      user_id: userId,
+      shop_id: shopId,
+      quantity: 0,
       min_stock_level: data.min_stock_level || 0,
       max_stock_level: data.max_stock_level || 0,
-      expiry_date: data.expiry_date || null,
-      tax_rate: data.tax_rate || 0,
-      image_url: data.image_url || null,
-      is_featured: data.is_featured || false,
-    };
+    });
 
-    const product = await productRepo.create(productData);
-    logger.info(`Product created: ${product.name} (${uuid})`);
+    logger.info(`Product created: ${product.name} (${product.sku})`);
     return product;
   }
 
-  async update(id, userId, data) {
-    const existing = await productRepo.findById(id, userId);
-    if (!existing) {
+  async update(id, shopId, data) {
+    const product = await Product.findOne({ where: { id, shop_id: shopId } });
+    if (!product) {
       const error = new Error('Product not found');
       error.statusCode = 404;
       throw error;
     }
-
-    const updateData = {};
-    const allowedFields = ['name', 'sku', 'barcode', 'category_id', 'description', 'brand', 'hsn_code',
-      'purchase_price', 'selling_price', 'mrp', 'unit', 'weight', 'min_stock_level', 'max_stock_level',
-      'expiry_date', 'tax_rate', 'image_url', 'is_active', 'is_featured'];
-    for (const field of allowedFields) {
-      if (data[field] !== undefined) {
-        updateData[field] = data[field];
-      }
-    }
-
-    const product = await productRepo.update(id, userId, updateData);
-    logger.info(`Product updated: ${id}`);
+    await product.update(data);
     return product;
   }
 
-  async delete(id, userId) {
-    const existing = await productRepo.findById(id, userId);
-    if (!existing) {
+  async delete(id, shopId) {
+    const deleted = await Product.destroy({ where: { id, shop_id: shopId } });
+    if (!deleted) {
       const error = new Error('Product not found');
       error.statusCode = 404;
       throw error;
     }
-
-    await productRepo.delete(id, userId);
-    logger.info(`Product deleted: ${id}`);
     return true;
   }
 }

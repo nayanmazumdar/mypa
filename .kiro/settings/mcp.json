@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "code-review-graph": {
+      "command": "/opt/anaconda3/bin/python3.13",
+      "args": [
+        "-m",
+        "code_review_graph",
+        "serve"
+      ],
+      "cwd": "/Users/biswajit/workspace/mypa/mypa",
+      "type": "stdio",
+      "autoApprove": [
+        "semantic_search_nodes_tool"
+      ]
+    }
+  }
+}

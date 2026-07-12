@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { HiOutlineXMark } from 'react-icons/hi2';
 
-export default function Modal({ open, onClose, title, children }) {
+export default function Modal({ open, onClose, title, children, size = 'md' }) {
   useEffect(() => {
     if (open) {
       document.body.style.overflow = 'hidden';
@@ -13,27 +13,47 @@ export default function Modal({ open, onClose, title, children }) {
     };
   }, [open]);
 
+  // Close on Escape
+  useEffect(() => {
+    if (!open) return;
+    const handleKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [open, onClose]);
+
   if (!open) return null;
 
+  const sizeClasses = {
+    sm: 'max-w-sm',
+    md: 'max-w-lg',
+    lg: 'max-w-2xl',
+    xl: 'max-w-4xl',
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[10vh] sm:items-center sm:pt-4">
+      {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/50"
+        className="absolute inset-0 bg-gray-900/30 backdrop-blur-sm"
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className="relative bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+      {/* Panel */}
+      <div className={`relative w-full ${sizeClasses[size] || sizeClasses.md} max-h-[85vh] flex flex-col rounded-3xl`} style={{ background: '#e8edf5', boxShadow: '10px 10px 20px #c8cfd8, -10px -10px 20px #ffffff' }}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 flex-shrink-0" style={{ borderBottom: '1px solid rgba(200,207,216,0.5)' }}>
           <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
           <button
             onClick={onClose}
-            className="p-1 rounded-md text-gray-400 hover:text-gray-600"
+            className="p-2 -mr-1.5 rounded-xl text-gray-400 hover:text-gray-600 transition-all"
+            style={{ background: '#e8edf5', boxShadow: '2px 2px 4px #c8cfd8, -2px -2px 4px #ffffff' }}
             aria-label="Close modal"
           >
-            <HiOutlineXMark className="w-5 h-5" />
+            <HiOutlineXMark className="w-4 h-4" />
           </button>
         </div>
-        <div className="p-4">{children}</div>
+        {/* Body */}
+        <div className="px-6 py-5 overflow-y-auto flex-1">{children}</div>
       </div>
     </div>
   );

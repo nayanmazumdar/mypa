@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const purchaseController = require('../controllers/purchase.controller');
-const { authenticate } = require('../middlewares/auth.middleware');
+const { authenticate, permit } = require('../middlewares/auth.middleware');
 const { validate } = require('../middlewares/validate.middleware');
 const { createPurchaseValidator } = require('../validators/purchase.validator');
 
@@ -25,7 +25,7 @@ const { createPurchaseValidator } = require('../validators/purchase.validator');
  *     responses:
  *       200: { description: List of purchases }
  */
-router.get('/', authenticate, purchaseController.getAll);
+router.get('/', authenticate, permit('purchases:read'), purchaseController.getAll);
 
 /**
  * @swagger
@@ -37,7 +37,7 @@ router.get('/', authenticate, purchaseController.getAll);
  *     responses:
  *       200: { description: Purchase details }
  */
-router.get('/:id', authenticate, purchaseController.getById);
+router.get('/:id', authenticate, permit('purchases:read'), purchaseController.getById);
 
 /**
  * @swagger
@@ -49,7 +49,7 @@ router.get('/:id', authenticate, purchaseController.getById);
  *     responses:
  *       201: { description: Purchase created }
  */
-router.post('/', authenticate, validate(createPurchaseValidator), purchaseController.create);
+router.post('/', authenticate, permit('purchases:create'), validate(createPurchaseValidator), purchaseController.create);
 
 /**
  * @swagger
@@ -61,6 +61,6 @@ router.post('/', authenticate, validate(createPurchaseValidator), purchaseContro
  *     responses:
  *       200: { description: Status updated }
  */
-router.patch('/:id/status', authenticate, purchaseController.updateStatus);
+router.patch('/:id/status', authenticate, permit('purchases:update'), purchaseController.updateStatus);
 
 module.exports = router;

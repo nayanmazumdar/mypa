@@ -3,8 +3,10 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { loginUser, clearError } from '../store/authSlice';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 export default function Login() {
+  usePageTitle('Login');
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { loading, error } = useSelector((state) => state.auth);
@@ -138,7 +140,7 @@ export default function Login() {
                 value={digit}
                 onChange={(e) => handlePasscodeChange(i, e.target.value)}
                 onKeyDown={(e) => handlePasscodeKeyDown(i, e)}
-                className="w-12 h-14 text-center text-2xl font-bold border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:ring-2 focus:ring-primary-200 outline-none transition-all"
+                className="w-12 h-14 text-center text-2xl font-bold rounded-xl outline-none transition-all" style={{ background: "#e8edf5", boxShadow: "inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff" }}
                 autoFocus={i === 0}
               />
             ))}

@@ -24,6 +24,8 @@ const reportRoutes = require('./routes/report.routes');
 const posRoutes = require('./routes/pos.routes');
 const expenseRoutes = require('./routes/expense.routes');
 const offerRoutes = require('./routes/offer.routes');
+const shopRoutes = require('./routes/shop.routes');
+const customerLedgerRoutes = require('./routes/customer-ledger.routes');
 
 const app = express();
 
@@ -86,6 +88,16 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // ===================
+// SWAGGER DOCS
+// ===================
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./config/swagger');
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'MyPA API Documentation',
+}));
+
+// ===================
 // API ROUTES
 // ===================
 app.use('/api/auth', authRoutes);
@@ -103,6 +115,8 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/pos', posRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/offers', offerRoutes);
+app.use('/api/shop', shopRoutes);
+app.use('/api/customer-ledger', customerLedgerRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

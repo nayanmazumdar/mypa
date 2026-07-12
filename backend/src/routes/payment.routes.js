@@ -1,34 +1,40 @@
 const express = require('express');
 const router = express.Router();
-const { getPool } = require('../config/db');
-const { authenticate } = require('../middlewares/auth.middleware');
+const { Payment, Sale, Purchase, sequelize } = require('../models');
+const { authenticate, permit } = require('../middlewares/auth.middleware');
 const ApiResponse = require('../utils/response');
 const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
+const { fn, col } = require('sequelize');
 
 /**
  * @swagger
  * /api/payments:
  *   get:
  *     tags: [Payments]
- *     summary: Get payment history
+ *     summary: Get all payments
  *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 20 }
  *     responses:
- *       200: { description: Payment list }
+ *       200: { description: Paginated list of payments }
  */
-router.get('/', authenticate, async (req, res, next) => {
+router.get('/', authenticate, permit('payments:read'), async (req, res, next) => {
   try {
-    const pool = getPool();
     const { page, limit, offset } = parsePagination(req.query);
 
-    const [rows] = await pool.query(
-      'SELECT * FROM payments WHERE shop_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
-      [req.user.shop_id, limit, offset]
-    );
-    const [countResult] = await pool.query(
-      'SELECT COUNT(*) as total FROM payments WHERE shop_id = ?',
-      [req.user.shop_id]
-    );
-    const pagination = buildPaginationMeta(countResult[0].total, page, limit);
+    const { rows, count } = await Payment.findAndCountAll({
+      where: { shop_id: req.user.shop_id },
+      order: [['created_at', 'DESC']],
+      limit,
+      offset,
+    });
+
+    const pagination = buildPaginationMeta(count, page, limit);
     return ApiResponse.paginated(res, rows, pagination);
   } catch (error) {
     next(error);
@@ -40,7 +46,7 @@ router.get('/', authenticate, async (req, res, next) => {
  * /api/payments:
  *   post:
  *     tags: [Payments]
- *     summary: Record a payment
+ *     summary: Record a payment against a sale or purchase
  *     security: [{ bearerAuth: [] }]
  *     requestBody:
  *       required: true
@@ -52,43 +58,39 @@ router.get('/', authenticate, async (req, res, next) => {
  *             properties:
  *               reference_type: { type: string, enum: [sale, purchase] }
  *               reference_id: { type: integer }
- *               amount: { type: number }
- *               payment_method: { type: string, enum: [cash, card, upi, bank_transfer] }
+ *               amount: { type: number, minimum: 0.01 }
+ *               payment_method: { type: string, enum: [cash, upi, card, bank_transfer] }
  *               notes: { type: string }
  *     responses:
  *       201: { description: Payment recorded }
  */
-router.post('/', authenticate, async (req, res, next) => {
+router.post('/', authenticate, permit('payments:create'), async (req, res, next) => {
   try {
-    const pool = getPool();
     const { reference_type, reference_id, amount, payment_method, notes } = req.body;
 
-    const [result] = await pool.query(
-      'INSERT INTO payments (shop_id, reference_type, reference_id, amount, payment_method, notes) VALUES (?, ?, ?, ?, ?, ?)',
-      [req.user.shop_id, reference_type, reference_id, amount, payment_method, notes || null]
-    );
+    const payment = await Payment.create({
+      user_id: req.user.id,
+      shop_id: req.user.shop_id,
+      reference_type,
+      reference_id,
+      amount,
+      payment_method,
+      notes: notes || null,
+    });
 
     // Update payment status on the referenced sale/purchase
-    const table = reference_type === 'sale' ? 'sales' : 'purchases';
-    const [[ref]] = await pool.query(
-      `SELECT net_amount FROM ${table} WHERE id = ? AND shop_id = ?`,
-      [reference_id, req.user.shop_id]
-    );
+    const Model = reference_type === 'sale' ? Sale : Purchase;
+    const ref = await Model.findOne({ where: { id: reference_id, shop_id: req.user.shop_id }, attributes: ['net_amount'] });
 
     if (ref) {
-      const [[totalPaid]] = await pool.query(
-        'SELECT COALESCE(SUM(amount), 0) as paid FROM payments WHERE reference_type = ? AND reference_id = ? AND shop_id = ?',
-        [reference_type, reference_id, req.user.shop_id]
-      );
-
-      const status = totalPaid.paid >= ref.net_amount ? 'paid' : 'partial';
-      await pool.query(
-        `UPDATE ${table} SET payment_status = ? WHERE id = ? AND shop_id = ?`,
-        [status, reference_id, req.user.shop_id]
-      );
+      const totalPaid = await Payment.sum('amount', {
+        where: { reference_type, reference_id, shop_id: req.user.shop_id },
+      });
+      const status = totalPaid >= parseFloat(ref.net_amount) ? 'paid' : 'partial';
+      await Model.update({ payment_status: status }, { where: { id: reference_id, shop_id: req.user.shop_id } });
     }
 
-    return ApiResponse.created(res, { id: result.insertId }, 'Payment recorded');
+    return ApiResponse.created(res, payment, 'Payment recorded');
   } catch (error) {
     next(error);
   }

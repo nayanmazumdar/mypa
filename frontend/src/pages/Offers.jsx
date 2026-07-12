@@ -2,11 +2,14 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { HiOutlinePlus, HiOutlineTrash, HiOutlineGift, HiOutlinePencil } from 'react-icons/hi2';
 import api from '../api/axios';
-import Modal from '../components/common/Modal';
-import LoadingSpinner from '../components/common/LoadingSpinner';
+import { PageHeader, Modal, LoadingSpinner, Pagination, FormField, FormRow } from '../components/common';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 export default function Offers() {
+  usePageTitle('Offers & Discounts');
   const [offers, setOffers] = useState([]);
+  const [pagination, setPagination] = useState(null);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -18,13 +21,14 @@ export default function Offers() {
     category_id: '', product_id: '', start_date: '', end_date: '', is_active: true,
   });
 
-  useEffect(() => { loadOffers(); loadMeta(); }, []);
+  useEffect(() => { loadOffers(); loadMeta(); }, [page]);
 
   const loadOffers = async () => {
     setLoading(true);
     try {
-      const res = await api.get('/offers', { params: { limit: 50 } });
+      const res = await api.get('/offers', { params: { limit: 20, page } });
       setOffers(res.data || []);
+      setPagination(res.pagination || null);
     } catch {} finally { setLoading(false); }
   };
 
@@ -93,16 +97,13 @@ export default function Offers() {
   if (loading) return <LoadingSpinner />;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Offers & Discounts</h1>
-          <p className="text-gray-500">Manage promotions for your shop</p>
-        </div>
-        <button onClick={openCreate} className="btn-primary flex items-center gap-2">
-          <HiOutlinePlus className="w-5 h-5" /> New Offer
-        </button>
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        title="Offers & Discounts"
+        subtitle="Manage promotions for your shop"
+        action="New Offer"
+        onAction={openCreate}
+      />
 
       {offers.length === 0 ? (
         <div className="card text-center py-12">
@@ -114,7 +115,7 @@ export default function Offers() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {offers.map((offer) => (
-            <div key={offer.id} className={`card relative ${isActive(offer) ? 'border-green-200' : 'border-gray-200 opacity-60'}`}>
+            <div key={offer.id} className={`card relative ${!isActive(offer) ? 'opacity-60' : ''}`}>
               {isActive(offer) && <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-green-500 rounded-full"></span>}
               <div className="flex items-start justify-between mb-3">
                 <div>
@@ -122,7 +123,7 @@ export default function Offers() {
                   {offer.description && <p className="text-xs text-gray-500 mt-0.5">{offer.description}</p>}
                 </div>
               </div>
-              <div className="bg-primary-50 rounded-lg p-3 mb-3 text-center">
+              <div className="rounded-xl p-3 mb-3 text-center" style={{ background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }}>
                 <span className="text-2xl font-bold text-primary-700">
                   {offer.discount_type === 'percentage' ? `${offer.discount_value}%` : `₹${offer.discount_value}`}
                 </span>
@@ -144,6 +145,9 @@ export default function Offers() {
           ))}
         </div>
       )}
+
+      {/* Pagination */}
+      {pagination && <Pagination pagination={pagination} page={page} onPageChange={setPage} />}
 
       {/* Create/Edit Offer Modal */}
       <Modal open={showModal} onClose={() => setShowModal(false)} title={editingId ? 'Edit Offer' : 'Create New Offer'}>

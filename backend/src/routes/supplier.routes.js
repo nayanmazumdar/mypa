@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { getPool } = require('../config/db');
-const { authenticate } = require('../middlewares/auth.middleware');
+const { Op } = require('sequelize');
+const { Supplier } = require('../models');
+const { authenticate, permit } = require('../middlewares/auth.middleware');
 const ApiResponse = require('../utils/response');
 const { generateId } = require('../utils/helper');
 const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
@@ -13,23 +14,42 @@ const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
  *     tags: [Suppliers]
  *     summary: Get all suppliers
  *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 20 }
+ *       - in: query
+ *         name: search
+ *         schema: { type: string }
+ *         description: Search by name, company, or phone
  *     responses:
- *       200: { description: List of suppliers }
+ *       200: { description: Paginated list of suppliers }
  */
-router.get('/', authenticate, async (req, res, next) => {
+router.get('/', authenticate, permit('suppliers:read'), async (req, res, next) => {
   try {
-    const pool = getPool();
     const { page, limit, offset } = parsePagination(req.query);
+    const { search } = req.query;
 
-    const [rows] = await pool.query(
-      'SELECT * FROM suppliers WHERE shop_id = ? ORDER BY name ASC LIMIT ? OFFSET ?',
-      [req.user.shop_id, limit, offset]
-    );
-    const [countResult] = await pool.query(
-      'SELECT COUNT(*) as total FROM suppliers WHERE shop_id = ?',
-      [req.user.shop_id]
-    );
-    const pagination = buildPaginationMeta(countResult[0].total, page, limit);
+    const where = { shop_id: req.user.shop_id };
+    if (search) {
+      where[Op.or] = [
+        { name: { [Op.like]: `%${search}%` } },
+        { company: { [Op.like]: `%${search}%` } },
+        { phone: { [Op.like]: `%${search}%` } },
+      ];
+    }
+
+    const { rows, count } = await Supplier.findAndCountAll({
+      where,
+      order: [['name', 'ASC']],
+      limit,
+      offset,
+    });
+
+    const pagination = buildPaginationMeta(count, page, limit);
     return ApiResponse.paginated(res, rows, pagination);
   } catch (error) {
     next(error);
@@ -43,18 +63,22 @@ router.get('/', authenticate, async (req, res, next) => {
  *     tags: [Suppliers]
  *     summary: Get supplier by ID
  *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
  *     responses:
  *       200: { description: Supplier details }
+ *       404: { description: Supplier not found }
  */
-router.get('/:id', authenticate, async (req, res, next) => {
+router.get('/:id', authenticate, permit('suppliers:read'), async (req, res, next) => {
   try {
-    const pool = getPool();
-    const [rows] = await pool.query(
-      'SELECT * FROM suppliers WHERE id = ? AND shop_id = ?',
-      [req.params.id, req.user.shop_id]
-    );
-    if (rows.length === 0) return ApiResponse.notFound(res, 'Supplier not found');
-    return ApiResponse.success(res, rows[0]);
+    const supplier = await Supplier.findOne({
+      where: { id: req.params.id, shop_id: req.user.shop_id },
+    });
+    if (!supplier) return ApiResponse.notFound(res, 'Supplier not found');
+    return ApiResponse.success(res, supplier);
   } catch (error) {
     next(error);
   }
@@ -65,21 +89,40 @@ router.get('/:id', authenticate, async (req, res, next) => {
  * /api/suppliers:
  *   post:
  *     tags: [Suppliers]
- *     summary: Create a supplier
+ *     summary: Create a new supplier
  *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name]
+ *             properties:
+ *               name: { type: string, example: "Ravi Traders" }
+ *               company: { type: string }
+ *               phone: { type: string }
+ *               email: { type: string, format: email }
+ *               address: { type: string }
+ *               gst_number: { type: string }
  *     responses:
  *       201: { description: Supplier created }
  */
-router.post('/', authenticate, async (req, res, next) => {
+router.post('/', authenticate, permit('suppliers:create'), async (req, res, next) => {
   try {
-    const pool = getPool();
     const { name, email, phone, company, address, gst_number } = req.body;
-    const uuid = generateId();
-    const [result] = await pool.query(
-      'INSERT INTO suppliers (uuid, shop_id, name, email, phone, company, address, gst_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [uuid, req.user.shop_id, name, email || null, phone || null, company || null, address || null, gst_number || null]
-    );
-    return ApiResponse.created(res, { id: result.insertId, uuid, name });
+    const supplier = await Supplier.create({
+      uuid: generateId(),
+      user_id: req.user.id,
+      shop_id: req.user.shop_id,
+      name,
+      email: email || null,
+      phone: phone || null,
+      company: company || null,
+      address: address || null,
+      gst_number: gst_number || null,
+    });
+    return ApiResponse.created(res, supplier);
   } catch (error) {
     next(error);
   }
@@ -92,17 +135,35 @@ router.post('/', authenticate, async (req, res, next) => {
  *     tags: [Suppliers]
  *     summary: Update a supplier
  *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name: { type: string }
+ *               company: { type: string }
+ *               phone: { type: string }
+ *               email: { type: string }
+ *               address: { type: string }
+ *               gst_number: { type: string }
  *     responses:
  *       200: { description: Supplier updated }
+ *       404: { description: Supplier not found }
  */
-router.put('/:id', authenticate, async (req, res, next) => {
+router.put('/:id', authenticate, permit('suppliers:update'), async (req, res, next) => {
   try {
-    const pool = getPool();
     const { name, email, phone, company, address, gst_number } = req.body;
-    await pool.query(
-      'UPDATE suppliers SET name = ?, email = ?, phone = ?, company = ?, address = ?, gst_number = ? WHERE id = ? AND shop_id = ?',
-      [name, email || null, phone || null, company || null, address || null, gst_number || null, req.params.id, req.user.shop_id]
+    const [updated] = await Supplier.update(
+      { name, email: email || null, phone: phone || null, company: company || null, address: address || null, gst_number: gst_number || null },
+      { where: { id: req.params.id, shop_id: req.user.shop_id } }
     );
+    if (!updated) return ApiResponse.notFound(res, 'Supplier not found');
     return ApiResponse.success(res, null, 'Supplier updated');
   } catch (error) {
     next(error);
@@ -116,13 +177,21 @@ router.put('/:id', authenticate, async (req, res, next) => {
  *     tags: [Suppliers]
  *     summary: Delete a supplier
  *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
  *     responses:
  *       200: { description: Supplier deleted }
+ *       404: { description: Supplier not found }
  */
-router.delete('/:id', authenticate, async (req, res, next) => {
+router.delete('/:id', authenticate, permit('suppliers:delete'), async (req, res, next) => {
   try {
-    const pool = getPool();
-    await pool.query('DELETE FROM suppliers WHERE id = ? AND shop_id = ?', [req.params.id, req.user.shop_id]);
+    const deleted = await Supplier.destroy({
+      where: { id: req.params.id, shop_id: req.user.shop_id },
+    });
+    if (!deleted) return ApiResponse.notFound(res, 'Supplier not found');
     return ApiResponse.success(res, null, 'Supplier deleted');
   } catch (error) {
     next(error);

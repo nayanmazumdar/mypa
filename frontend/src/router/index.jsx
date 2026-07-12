@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import ProtectedRoute from './ProtectedRoute';
 import ShopRequired from './ShopRequired';
+import PermissionRoute from './PermissionRoute';
 import DashboardLayout from '../layouts/DashboardLayout';
 import AuthLayout from '../layouts/AuthLayout';
 import Login from '../pages/Login';
@@ -18,6 +19,7 @@ import Settings from '../pages/Settings';
 import POS from '../pages/POS';
 import Accounts from '../pages/Accounts';
 import Offers from '../pages/Offers';
+import Reports from '../pages/Reports';
 import NotFound from '../pages/NotFound';
 
 export default function AppRouter() {
@@ -41,15 +43,16 @@ export default function AppRouter() {
           <Route element={<DashboardLayout />}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/pos" element={<POS />} />
-            <Route path="/products" element={<Products />} />
-            <Route path="/offers" element={<Offers />} />
-            <Route path="/sales" element={<Sales />} />
-            <Route path="/purchases" element={<Purchase />} />
-            <Route path="/inventory" element={<Inventory />} />
-            <Route path="/customers" element={<Customers />} />
-            <Route path="/suppliers" element={<Suppliers />} />
-            <Route path="/accounts" element={<Accounts />} />
+            <Route path="/pos" element={<PermissionRoute permission="pos:read"><POS /></PermissionRoute>} />
+            <Route path="/products" element={<PermissionRoute permission="products:read"><Products /></PermissionRoute>} />
+            <Route path="/offers" element={<PermissionRoute permission="offers:read"><Offers /></PermissionRoute>} />
+            <Route path="/sales" element={<PermissionRoute permission="sales:read"><Sales /></PermissionRoute>} />
+            <Route path="/purchases" element={<PermissionRoute permission="purchases:read"><Purchase /></PermissionRoute>} />
+            <Route path="/inventory" element={<PermissionRoute permission="inventory:read"><Inventory /></PermissionRoute>} />
+            <Route path="/customers" element={<PermissionRoute permission="customers:read"><Customers /></PermissionRoute>} />
+            <Route path="/suppliers" element={<PermissionRoute permission="suppliers:read"><Suppliers /></PermissionRoute>} />
+            <Route path="/accounts" element={<PermissionRoute permission="expenses:read"><Accounts /></PermissionRoute>} />
+            <Route path="/reports" element={<PermissionRoute permission="reports:read"><Reports /></PermissionRoute>} />
             <Route path="/settings" element={<Settings />} />
           </Route>
         </Route>

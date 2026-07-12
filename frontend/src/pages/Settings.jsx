@@ -7,10 +7,11 @@ import {
   HiOutlinePrinter, HiOutlineBell, HiOutlineReceiptPercent,
 } from 'react-icons/hi2';
 import api from '../api/axios';
-import Modal from '../components/common/Modal';
-import LoadingSpinner from '../components/common/LoadingSpinner';
+import { PageHeader, FilterTabs, Modal, LoadingSpinner, FormField, FormRow } from '../components/common';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 export default function Settings() {
+  usePageTitle('Settings');
   const { user } = useSelector((state) => state.auth);
   const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(false);
@@ -112,35 +113,21 @@ export default function Settings() {
 
   const isAdmin = user?.role === 'admin';
 
-  const tabs = [
-    { id: 'profile', label: 'Profile', icon: HiOutlineUser },
-    { id: 'security', label: 'Security', icon: HiOutlineShieldCheck },
-    { id: 'shop', label: 'Shop Details', icon: HiOutlineBuildingStorefront },
-    ...(isAdmin ? [{ id: 'team', label: 'Team', icon: HiOutlineUserGroup }] : []),
-    { id: 'pos', label: 'POS & Billing', icon: HiOutlineReceiptPercent },
-    { id: 'notifications', label: 'Notifications', icon: HiOutlineBell },
-  ];
-
   if (!profile) return <LoadingSpinner />;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        <p className="text-gray-500">Manage your account, shop, team, and preferences</p>
-      </div>
+    <div className="space-y-8">
+      <PageHeader title="Settings" subtitle="Manage your account, shop, team, and preferences" />
 
       {/* Tabs — scrollable on mobile */}
-      <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
-        <div className="flex gap-1 border-b border-gray-200 w-fit min-w-max">
-          {tabs.map((tab) => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${activeTab === tab.id ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
-              <tab.icon className="w-4 h-4" />{tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <FilterTabs value={activeTab} onChange={setActiveTab} options={[
+        { value: 'profile', label: 'Profile' },
+        { value: 'security', label: 'Security' },
+        { value: 'shop', label: 'Shop Details' },
+        ...(isAdmin ? [{ value: 'team', label: 'Team' }] : []),
+        { value: 'pos', label: 'POS & Billing' },
+        { value: 'notifications', label: 'Notifications' },
+      ]} />
 
       {/* ========== PROFILE TAB ========== */}
       {activeTab === 'profile' && (
@@ -294,21 +281,21 @@ export default function Settings() {
             </button>
           </div>
 
-          <div className="card overflow-hidden p-0">
+          <div className="rounded-3xl overflow-hidden" style={{ background: "#e8edf5", boxShadow: "6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff" }}>
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead style={{ background: "rgba(200,207,216,0.2)" }}>
                 <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Member</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Role</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Joined</th>
-                  <th className="text-center px-4 py-3 font-medium text-gray-600">Action</th>
+                  <th className="text-left px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Member</th>
+                  <th className="text-left px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Role</th>
+                  <th className="text-left px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Status</th>
+                  <th className="text-left px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Joined</th>
+                  <th className="text-center px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="">
                 {staff.map((m) => (
-                  <tr key={m.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
+                  <tr key={m.id} className="transition-colors" style={{ }}>
+                    <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center">
                           <span className="text-primary-700 text-sm font-medium">{m.name?.charAt(0)?.toUpperCase()}</span>
@@ -319,14 +306,14 @@ export default function Settings() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3"><RoleBadge role={m.role} /></td>
-                    <td className="px-4 py-3">
+                    <td className="px-5 py-4"><RoleBadge role={m.role} /></td>
+                    <td className="px-5 py-4">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${m.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                         {m.is_active ? 'Active' : 'Disabled'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-400 text-xs">{m.joined_at ? new Date(m.joined_at).toLocaleDateString() : '-'}</td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-5 py-4 text-gray-400 text-xs">{m.joined_at ? new Date(m.joined_at).toLocaleDateString() : '-'}</td>
+                    <td className="px-5 py-4 text-center">
                       {m.role !== 'admin' && (
                         <button onClick={() => handleToggleStaff(m.id, m.is_active)}
                           className={`text-xs font-medium px-3 py-1 rounded-md ${m.is_active ? 'text-red-600 hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}`}>

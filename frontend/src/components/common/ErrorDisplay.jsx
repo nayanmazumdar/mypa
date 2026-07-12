@@ -39,7 +39,7 @@ export function InlineError({ error, onRetry, onDismiss }) {
   const { message, actions } = getErrorDisplay(error);
 
   return (
-    <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+    <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }}>
       <HiOutlineExclamationTriangle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
       <div className="flex-1">
         <p className="text-sm text-red-800 font-medium">{message}</p>

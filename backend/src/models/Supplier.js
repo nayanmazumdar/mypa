@@ -1,21 +1,21 @@
-/**
- * Supplier Model Schema
- */
-module.exports = {
-  tableName: 'suppliers',
-  schema: {
-    id: 'INT AUTO_INCREMENT PRIMARY KEY',
-    uuid: 'VARCHAR(36) NOT NULL UNIQUE',
-    user_id: 'INT NOT NULL',
-    name: 'VARCHAR(100) NOT NULL',
-    email: 'VARCHAR(150)',
-    phone: 'VARCHAR(15)',
-    company: 'VARCHAR(200)',
-    address: 'TEXT',
-    gst_number: 'VARCHAR(20)',
-    balance: 'DECIMAL(10,2) DEFAULT 0',
-    is_active: 'BOOLEAN DEFAULT TRUE',
-    created_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
-    updated_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
-  },
+const { DataTypes } = require('sequelize');
+
+module.exports = (sequelize) => {
+  return sequelize.define('Supplier', {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    uuid: { type: DataTypes.STRING(36), unique: true, allowNull: false },
+    user_id: { type: DataTypes.INTEGER },
+    shop_id: { type: DataTypes.INTEGER },
+    name: { type: DataTypes.STRING(100), allowNull: false },
+    email: { type: DataTypes.STRING(150) },
+    phone: { type: DataTypes.STRING(15) },
+    company: { type: DataTypes.STRING(200) },
+    address: { type: DataTypes.TEXT },
+    gst_number: { type: DataTypes.STRING(20) },
+    balance: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
+  }, {
+    tableName: 'suppliers',
+    timestamps: true,
+  });
 };

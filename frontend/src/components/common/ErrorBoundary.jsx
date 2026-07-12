@@ -23,8 +23,8 @@ export default class ErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 max-w-lg w-full text-center">
+        <div className="min-h-screen flex items-center justify-center p-4" style={{ background: "#e8edf5" }}>
+          <div className="rounded-2xl p-8 max-w-lg w-full text-center" style={{ background: "#e8edf5", boxShadow: "8px 8px 16px #c8cfd8, -8px -8px 16px #ffffff" }}>
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-5">
               <HiOutlineExclamationTriangle className="w-8 h-8 text-red-500" />
             </div>
@@ -49,7 +49,7 @@ export default class ErrorBoundary extends Component {
               </button>
             </div>
 
-            <details className="text-left bg-gray-50 rounded-lg p-3 text-xs text-gray-500">
+            <details className="text-left rounded-xl p-3 text-xs text-gray-500" style={{ background: "#e8edf5", boxShadow: "inset 2px 2px 4px #c8cfd8, inset -2px -2px 4px #ffffff" }}>
               <summary className="cursor-pointer font-medium text-gray-600">Technical Details</summary>
               <pre className="mt-2 whitespace-pre-wrap break-words">
                 {this.state.error?.message || 'Unknown error'}

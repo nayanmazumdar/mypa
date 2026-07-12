@@ -1,42 +1,51 @@
 const express = require('express');
 const router = express.Router();
-const { getPool } = require('../config/db');
-const { authenticate } = require('../middlewares/auth.middleware');
+const { Op, fn, col } = require('sequelize');
+const { Expense } = require('../models');
+const { authenticate, permit } = require('../middlewares/auth.middleware');
 const ApiResponse = require('../utils/response');
 const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 
 /**
- * GET /api/expenses - List expenses
+ * @swagger
+ * /api/expenses:
+ *   get:
+ *     tags: [Expenses]
+ *     summary: Get all expenses
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 20 }
+ *       - in: query
+ *         name: start_date
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: end_date
+ *         schema: { type: string, format: date }
+ *     responses:
+ *       200: { description: Paginated list of expenses }
  */
-router.get('/', authenticate, async (req, res, next) => {
+router.get('/', authenticate, permit('expenses:read'), async (req, res, next) => {
   try {
-    const pool = getPool();
     const { page, limit, offset } = parsePagination(req.query);
     const { start_date, end_date } = req.query;
 
-    let query = 'SELECT * FROM expenses WHERE shop_id = ?';
-    let countQuery = 'SELECT COUNT(*) as total FROM expenses WHERE shop_id = ?';
-    const params = [req.user.shop_id];
+    const where = { shop_id: req.user.shop_id };
+    if (start_date) where.expense_date = { ...where.expense_date, [Op.gte]: start_date };
+    if (end_date) where.expense_date = { ...where.expense_date, [Op.lte]: end_date };
 
-    if (start_date) {
-      query += ' AND expense_date >= ?';
-      countQuery += ' AND expense_date >= ?';
-      params.push(start_date);
-    }
-    if (end_date) {
-      query += ' AND expense_date <= ?';
-      countQuery += ' AND expense_date <= ?';
-      params.push(end_date);
-    }
+    const { rows, count } = await Expense.findAndCountAll({
+      where,
+      order: [['expense_date', 'DESC'], ['created_at', 'DESC']],
+      limit,
+      offset,
+    });
 
-    const countParams = [...params];
-    query += ' ORDER BY expense_date DESC, created_at DESC LIMIT ? OFFSET ?';
-    params.push(limit, offset);
-
-    const [rows] = await pool.query(query, params);
-    const [countResult] = await pool.query(countQuery, countParams);
-    const pagination = buildPaginationMeta(countResult[0].total, page, limit);
-
+    const pagination = buildPaginationMeta(count, page, limit);
     return ApiResponse.paginated(res, rows, pagination);
   } catch (error) {
     next(error);
@@ -44,56 +53,93 @@ router.get('/', authenticate, async (req, res, next) => {
 });
 
 /**
- * POST /api/expenses - Create expense
+ * @swagger
+ * /api/expenses:
+ *   post:
+ *     tags: [Expenses]
+ *     summary: Record a new expense
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [category, amount]
+ *             properties:
+ *               category: { type: string, enum: [Rent, Electricity, Staff Salary, Transport, Packaging, Maintenance, Wastage, Other] }
+ *               description: { type: string }
+ *               amount: { type: number, minimum: 0.01 }
+ *               payment_method: { type: string, enum: [cash, upi, card, bank_transfer], default: cash }
+ *               expense_date: { type: string, format: date }
+ *     responses:
+ *       201: { description: Expense recorded }
  */
-router.post('/', authenticate, async (req, res, next) => {
+router.post('/', authenticate, permit('expenses:create'), async (req, res, next) => {
   try {
-    const pool = getPool();
     const { category, description, amount, payment_method, expense_date } = req.body;
+    if (!category || !amount) return ApiResponse.error(res, 'Category and amount are required', 400);
 
-    if (!category || !amount) {
-      return ApiResponse.error(res, 'Category and amount are required', 400);
-    }
+    const expense = await Expense.create({
+      user_id: req.user.id,
+      shop_id: req.user.shop_id,
+      category,
+      description: description || null,
+      amount,
+      payment_method: payment_method || 'cash',
+      expense_date: expense_date || new Date().toISOString().split('T')[0],
+    });
 
-    const [result] = await pool.query(
-      'INSERT INTO expenses (shop_id, category, description, amount, payment_method, expense_date) VALUES (?, ?, ?, ?, ?, ?)',
-      [req.user.shop_id, category, description || null, amount, payment_method || 'cash', expense_date || new Date().toISOString().split('T')[0]]
-    );
-
-    return ApiResponse.created(res, { id: result.insertId, category, amount });
+    return ApiResponse.created(res, expense);
   } catch (error) {
     next(error);
   }
 });
 
 /**
- * GET /api/expenses/summary - Get expense summary by category
+ * @swagger
+ * /api/expenses/summary:
+ *   get:
+ *     tags: [Expenses]
+ *     summary: Get expense summary by category
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: query
+ *         name: start_date
+ *         schema: { type: string, format: date }
+ *       - in: query
+ *         name: end_date
+ *         schema: { type: string, format: date }
+ *     responses:
+ *       200: { description: Expense summary grouped by category }
  */
-router.get('/summary', authenticate, async (req, res, next) => {
+router.get('/summary', authenticate, permit('expenses:read'), async (req, res, next) => {
   try {
-    const pool = getPool();
     const { start_date, end_date } = req.query;
     const today = new Date().toISOString().split('T')[0];
 
-    let query = `SELECT category, SUM(amount) as total, COUNT(*) as count
-                 FROM expenses WHERE shop_id = ?`;
-    const params = [req.user.shop_id];
-
+    const where = { shop_id: req.user.shop_id };
     if (start_date) {
-      query += ' AND expense_date >= ?';
-      params.push(start_date);
+      where.expense_date = { [Op.gte]: start_date };
     } else {
-      query += ' AND expense_date >= ?';
-      params.push(today.slice(0, 7) + '-01'); // First of current month
+      where.expense_date = { [Op.gte]: today.slice(0, 7) + '-01' };
     }
     if (end_date) {
-      query += ' AND expense_date <= ?';
-      params.push(end_date);
+      where.expense_date = { ...where.expense_date, [Op.lte]: end_date };
     }
 
-    query += ' GROUP BY category ORDER BY total DESC';
+    const rows = await Expense.findAll({
+      attributes: [
+        'category',
+        [fn('SUM', col('amount')), 'total'],
+        [fn('COUNT', col('id')), 'count'],
+      ],
+      where,
+      group: ['category'],
+      order: [[fn('SUM', col('amount')), 'DESC']],
+      raw: true,
+    });
 
-    const [rows] = await pool.query(query, params);
     return ApiResponse.success(res, rows);
   } catch (error) {
     next(error);
@@ -101,12 +147,27 @@ router.get('/summary', authenticate, async (req, res, next) => {
 });
 
 /**
- * DELETE /api/expenses/:id - Delete expense
+ * @swagger
+ * /api/expenses/{id}:
+ *   delete:
+ *     tags: [Expenses]
+ *     summary: Delete an expense
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     responses:
+ *       200: { description: Expense deleted }
+ *       404: { description: Expense not found }
  */
-router.delete('/:id', authenticate, async (req, res, next) => {
+router.delete('/:id', authenticate, permit('expenses:delete'), async (req, res, next) => {
   try {
-    const pool = getPool();
-    await pool.query('DELETE FROM expenses WHERE id = ? AND shop_id = ?', [req.params.id, req.user.shop_id]);
+    const deleted = await Expense.destroy({
+      where: { id: req.params.id, shop_id: req.user.shop_id },
+    });
+    if (!deleted) return ApiResponse.notFound(res, 'Expense not found');
     return ApiResponse.success(res, null, 'Expense deleted');
   } catch (error) {
     next(error);

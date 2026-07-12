@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getPool } = require('../config/db');
-const { authenticate } = require('../middlewares/auth.middleware');
+const { authenticate, permit } = require('../middlewares/auth.middleware');
 const ApiResponse = require('../utils/response');
 const { generateId } = require('../utils/helper');
 const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
@@ -16,34 +16,59 @@ const generateReceiptNumber = () => {
 };
 
 /**
- * GET /api/pos/products - Get active products for POS with offers
+ * @swagger
+ * /api/pos/products:
+ *   get:
+ *     tags: [POS]
+ *     summary: Get active products for POS with offers applied
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: query
+ *         name: category_id
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: search
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Products with stock and offer prices }
  */
-router.get('/products', authenticate, async (req, res, next) => {
+router.get('/products', authenticate, permit('pos:read'), async (req, res, next) => {
   try {
     const pool = getPool();
-    const { category_id, search } = req.query;
+    const { category_id, search, page: pageParam, limit: limitParam } = req.query;
     const today = new Date().toISOString().split('T')[0];
+    const page = Math.max(1, parseInt(pageParam) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(limitParam) || 50));
+    const offset = (page - 1) * limit;
 
+    let baseWhere = 'WHERE p.shop_id = ? AND p.is_active = 1';
+    const params = [req.user.shop_id];
+
+    if (category_id) {
+      baseWhere += ' AND p.category_id = ?';
+      params.push(category_id);
+    }
+    if (search && search.trim().length > 0) {
+      baseWhere += ' AND (p.name LIKE ? OR p.barcode LIKE ? OR p.sku LIKE ? OR p.brand LIKE ?)';
+      const s = `%${search.trim()}%`;
+      params.push(s, s, s, s);
+    }
+
+    // Count total
+    const countQuery = `SELECT COUNT(*) as total FROM products p ${baseWhere}`;
+    const [[{ total }]] = await pool.query(countQuery, params);
+
+    // Fetch page
     let query = `SELECT p.id, p.name, p.selling_price, p.mrp, p.unit, p.category_id, p.barcode, p.sku,
                  p.image_url, p.brand, p.weight, c.name as category_name,
                  COALESCE(i.quantity, 0) as stock
                  FROM products p
                  LEFT JOIN categories c ON p.category_id = c.id
                  LEFT JOIN inventory i ON p.id = i.product_id AND i.shop_id = p.shop_id
-                 WHERE p.shop_id = ? AND p.is_active = 1`;
-    const params = [req.user.shop_id];
-
-    if (category_id) {
-      query += ' AND p.category_id = ?';
-      params.push(category_id);
-    }
-    if (search) {
-      query += ' AND (p.name LIKE ? OR p.barcode LIKE ? OR p.sku LIKE ? OR p.brand LIKE ?)';
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
-    }
-
-    query += ' ORDER BY p.name ASC';
-    const [rows] = await pool.query(query, params);
+                 ${baseWhere}
+                 ORDER BY p.name ASC LIMIT ? OFFSET ?`;
+    const queryParams = [...params, limit, offset];
+    const [rows] = await pool.query(query, queryParams);
 
     // Get active offers for the shop
     const [offers] = await pool.query(
@@ -82,16 +107,39 @@ router.get('/products', authenticate, async (req, res, next) => {
       return { ...p, offer, offer_price };
     });
 
-    return ApiResponse.success(res, products);
+    return res.json({
+      success: true,
+      data: products,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
   } catch (error) {
     next(error);
   }
 });
 
 /**
- * GET /api/pos/barcode/:code - Lookup product by barcode for quick scan
+ * @swagger
+ * /api/pos/barcode/{code}:
+ *   get:
+ *     tags: [POS]
+ *     summary: Lookup product by barcode/SKU
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: code
+ *         required: true
+ *         schema: { type: string }
+ *         description: Barcode or SKU
+ *     responses:
+ *       200: { description: Product found }
+ *       404: { description: Product not found }
  */
-router.get('/barcode/:code', authenticate, async (req, res, next) => {
+router.get('/barcode/:code', authenticate, permit('pos:read'), async (req, res, next) => {
   try {
     const pool = getPool();
     const [rows] = await pool.query(
@@ -114,9 +162,40 @@ router.get('/barcode/:code', authenticate, async (req, res, next) => {
 });
 
 /**
- * POST /api/pos/checkout - Process a POS transaction
+ * @swagger
+ * /api/pos/checkout:
+ *   post:
+ *     tags: [POS]
+ *     summary: Process a POS checkout/sale
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [items]
+ *             properties:
+ *               items:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     product_id: { type: integer }
+ *                     product_name: { type: string }
+ *                     quantity: { type: number }
+ *                     unit: { type: string }
+ *                     unit_price: { type: number }
+ *               customer_name: { type: string }
+ *               customer_id: { type: integer }
+ *               discount: { type: number }
+ *               payment_method: { type: string, enum: [cash, upi, card, credit] }
+ *               amount_received: { type: number }
+ *     responses:
+ *       201: { description: Checkout successful, returns receipt }
+ *       400: { description: Cart is empty }
  */
-router.post('/checkout', authenticate, async (req, res, next) => {
+router.post('/checkout', authenticate, permit('pos:checkout'), async (req, res, next) => {
   try {
     const pool = getPool();
     const { items, customer_name, customer_id, discount, payment_method, amount_received } = req.body;
@@ -146,9 +225,9 @@ router.post('/checkout', authenticate, async (req, res, next) => {
 
       // Insert transaction
       const [txResult] = await connection.query(
-        `INSERT INTO pos_transactions (uuid, shop_id, customer_name, customer_id, total_amount, discount, net_amount, payment_method, amount_received, change_amount, receipt_number)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [uuid, req.user.shop_id, customer_name || null, customer_id || null, totalAmount, discountAmount, netAmount, payment_method || 'cash', amount_received || netAmount, changeAmount > 0 ? changeAmount : 0, receiptNumber]
+        `INSERT INTO pos_transactions (uuid, user_id, shop_id, customer_name, customer_id, total_amount, discount, net_amount, payment_method, amount_received, change_amount, receipt_number)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uuid, req.user.id, req.user.shop_id, customer_name || null, customer_id || null, totalAmount, discountAmount, netAmount, payment_method || 'cash', amount_received || netAmount, changeAmount > 0 ? changeAmount : 0, receiptNumber]
       );
       const transactionId = txResult.insertId;
 
@@ -195,9 +274,26 @@ router.post('/checkout', authenticate, async (req, res, next) => {
 });
 
 /**
- * GET /api/pos/transactions - Get POS transaction history
+ * @swagger
+ * /api/pos/transactions:
+ *   get:
+ *     tags: [POS]
+ *     summary: Get POS transaction history
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 20 }
+ *       - in: query
+ *         name: date
+ *         schema: { type: string, format: date }
+ *     responses:
+ *       200: { description: Paginated transaction history }
  */
-router.get('/transactions', authenticate, async (req, res, next) => {
+router.get('/transactions', authenticate, permit('pos:read'), async (req, res, next) => {
   try {
     const pool = getPool();
     const { page, limit, offset } = parsePagination(req.query);
@@ -228,9 +324,22 @@ router.get('/transactions', authenticate, async (req, res, next) => {
 });
 
 /**
- * GET /api/pos/transactions/:id - Get transaction detail with items
+ * @swagger
+ * /api/pos/transactions/{id}:
+ *   get:
+ *     tags: [POS]
+ *     summary: Get transaction detail with items
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     responses:
+ *       200: { description: Transaction with items }
+ *       404: { description: Transaction not found }
  */
-router.get('/transactions/:id', authenticate, async (req, res, next) => {
+router.get('/transactions/:id', authenticate, permit('pos:read'), async (req, res, next) => {
   try {
     const pool = getPool();
     const [rows] = await pool.query(
@@ -251,9 +360,16 @@ router.get('/transactions/:id', authenticate, async (req, res, next) => {
 });
 
 /**
- * GET /api/pos/today-summary - Get today's POS summary
+ * @swagger
+ * /api/pos/today-summary:
+ *   get:
+ *     tags: [POS]
+ *     summary: Get today's POS summary (revenue, expenses, net)
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: Today's financial summary }
  */
-router.get('/today-summary', authenticate, async (req, res, next) => {
+router.get('/today-summary', authenticate, permit('pos:read'), async (req, res, next) => {
   try {
     const pool = getPool();
     const today = new Date().toISOString().split('T')[0];

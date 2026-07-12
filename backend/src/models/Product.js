@@ -1,24 +1,32 @@
-/**
- * Product Model Schema
- */
-module.exports = {
-  tableName: 'products',
-  schema: {
-    id: 'INT AUTO_INCREMENT PRIMARY KEY',
-    uuid: 'VARCHAR(36) NOT NULL UNIQUE',
-    user_id: 'INT NOT NULL',
-    category_id: 'INT',
-    name: 'VARCHAR(200) NOT NULL',
-    sku: 'VARCHAR(50) UNIQUE',
-    barcode: 'VARCHAR(50)',
-    description: 'TEXT',
-    purchase_price: 'DECIMAL(10,2) NOT NULL DEFAULT 0',
-    selling_price: 'DECIMAL(10,2) NOT NULL DEFAULT 0',
-    unit: "VARCHAR(20) DEFAULT 'piece'",
-    tax_rate: 'DECIMAL(5,2) DEFAULT 0',
-    image_url: 'VARCHAR(500)',
-    is_active: 'BOOLEAN DEFAULT TRUE',
-    created_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
-    updated_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
-  },
+const { DataTypes } = require('sequelize');
+
+module.exports = (sequelize) => {
+  return sequelize.define('Product', {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    uuid: { type: DataTypes.STRING(36), unique: true, allowNull: false },
+    user_id: { type: DataTypes.INTEGER, allowNull: false },
+    shop_id: { type: DataTypes.INTEGER },
+    category_id: { type: DataTypes.INTEGER },
+    name: { type: DataTypes.STRING(200), allowNull: false },
+    sku: { type: DataTypes.STRING(50), unique: true },
+    barcode: { type: DataTypes.STRING(50) },
+    description: { type: DataTypes.TEXT },
+    brand: { type: DataTypes.STRING(100) },
+    hsn_code: { type: DataTypes.STRING(20) },
+    purchase_price: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    selling_price: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    mrp: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    unit: { type: DataTypes.STRING(20), defaultValue: 'piece' },
+    weight: { type: DataTypes.STRING(50) },
+    min_stock_level: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    max_stock_level: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    expiry_date: { type: DataTypes.DATEONLY },
+    is_featured: { type: DataTypes.BOOLEAN, defaultValue: false },
+    tax_rate: { type: DataTypes.DECIMAL(5, 2), defaultValue: 0 },
+    image_url: { type: DataTypes.STRING(500) },
+    is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
+  }, {
+    tableName: 'products',
+    timestamps: true,
+  });
 };

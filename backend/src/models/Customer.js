@@ -1,20 +1,20 @@
-/**
- * Customer Model Schema
- */
-module.exports = {
-  tableName: 'customers',
-  schema: {
-    id: 'INT AUTO_INCREMENT PRIMARY KEY',
-    uuid: 'VARCHAR(36) NOT NULL UNIQUE',
-    user_id: 'INT NOT NULL',
-    name: 'VARCHAR(100) NOT NULL',
-    email: 'VARCHAR(150)',
-    phone: 'VARCHAR(15)',
-    address: 'TEXT',
-    balance: 'DECIMAL(10,2) DEFAULT 0',
-    notes: 'TEXT',
-    is_active: 'BOOLEAN DEFAULT TRUE',
-    created_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
-    updated_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
-  },
+const { DataTypes } = require('sequelize');
+
+module.exports = (sequelize) => {
+  return sequelize.define('Customer', {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    uuid: { type: DataTypes.STRING(36), unique: true, allowNull: false },
+    user_id: { type: DataTypes.INTEGER, allowNull: false },
+    shop_id: { type: DataTypes.INTEGER },
+    name: { type: DataTypes.STRING(100), allowNull: false },
+    email: { type: DataTypes.STRING(150) },
+    phone: { type: DataTypes.STRING(15) },
+    address: { type: DataTypes.TEXT },
+    balance: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0 },
+    notes: { type: DataTypes.TEXT },
+    is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
+  }, {
+    tableName: 'customers',
+    timestamps: true,
+  });
 };

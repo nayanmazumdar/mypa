@@ -5,8 +5,10 @@ import toast from 'react-hot-toast';
 import { HiOutlineBuildingStorefront } from 'react-icons/hi2';
 import api from '../api/axios';
 import { loadUser } from '../store/authSlice';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 export default function ShopSetup() {
+  usePageTitle('Shop Setup');
   const { user } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -45,7 +47,7 @@ export default function ShopSetup() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: '#e8edf5' }}>
       <div className="w-full max-w-lg">
         <div className="card">
           {/* Progress indicator */}

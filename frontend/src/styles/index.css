@@ -1,38 +1,194 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary-50: #eff6ff;
-  --color-primary-100: #dbeafe;
-  --color-primary-200: #bfdbfe;
-  --color-primary-300: #93c5fd;
-  --color-primary-400: #60a5fa;
-  --color-primary-500: #3b82f6;
-  --color-primary-600: #2563eb;
-  --color-primary-700: #1d4ed8;
-  --color-primary-800: #1e40af;
-  --color-primary-900: #1e3a8a;
+  --color-primary-50: #eef2ff;
+  --color-primary-100: #e0e7ff;
+  --color-primary-200: #c7d2fe;
+  --color-primary-300: #a5b4fc;
+  --color-primary-400: #818cf8;
+  --color-primary-500: #6366f1;
+  --color-primary-600: #4f46e5;
+  --color-primary-700: #4338ca;
+  --color-primary-800: #3730a3;
+  --color-primary-900: #312e81;
 }
+
+/* ═══ NEOMORPHISM DESIGN SYSTEM ═══════════════════════════════════ */
 
 @layer base {
   body {
-    @apply bg-gray-50 text-gray-900 antialiased;
+    @apply text-gray-800 antialiased;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #e8edf5;
   }
+
+  /* Smooth scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #c5cdd8; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
 }
 
 @layer components {
+  /* ─── Neomorphic Shadows ──────────────────────────────────── */
+  /* Raised (convex) element */
+  .neo-raised {
+    box-shadow:
+      6px 6px 12px #c8cfd8,
+      -6px -6px 12px #ffffff;
+  }
+  /* Pressed (concave) element */
+  .neo-pressed {
+    box-shadow:
+      inset 4px 4px 8px #c8cfd8,
+      inset -4px -4px 8px #ffffff;
+  }
+  /* Subtle raised */
+  .neo-sm {
+    box-shadow:
+      3px 3px 6px #c8cfd8,
+      -3px -3px 6px #ffffff;
+  }
+  /* Flat with slight depth */
+  .neo-flat {
+    box-shadow:
+      2px 2px 5px #c8cfd8,
+      -2px -2px 5px #ffffff;
+  }
+
+  /* ─── Buttons ────────────────────────────────────────────── */
   .btn-primary {
-    @apply bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+    @apply text-white font-semibold py-3 px-6 rounded-2xl transition-all duration-200 focus:outline-none;
+    background: linear-gradient(145deg, #5a4dd4, #4f46e5);
+    box-shadow:
+      5px 5px 10px #c8cfd8,
+      -5px -5px 10px #ffffff;
   }
+  .btn-primary:hover {
+    box-shadow:
+      3px 3px 6px #c8cfd8,
+      -3px -3px 6px #ffffff;
+    transform: translateY(1px);
+  }
+  .btn-primary:active {
+    box-shadow:
+      inset 3px 3px 6px rgba(0,0,0,0.2),
+      inset -2px -2px 4px rgba(255,255,255,0.1);
+    transform: translateY(0);
+  }
+
   .btn-secondary {
-    @apply bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-lg transition-colors duration-200;
+    @apply text-gray-700 font-semibold py-3 px-6 rounded-2xl transition-all duration-200 focus:outline-none;
+    background: #e8edf5;
+    box-shadow:
+      5px 5px 10px #c8cfd8,
+      -5px -5px 10px #ffffff;
   }
+  .btn-secondary:hover {
+    box-shadow:
+      3px 3px 6px #c8cfd8,
+      -3px -3px 6px #ffffff;
+  }
+  .btn-secondary:active {
+    box-shadow:
+      inset 3px 3px 6px #c8cfd8,
+      inset -3px -3px 6px #ffffff;
+  }
+
   .btn-danger {
-    @apply bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200;
+    @apply text-white font-semibold py-3 px-6 rounded-2xl transition-all duration-200 focus:outline-none;
+    background: linear-gradient(145deg, #ef4444, #dc2626);
+    box-shadow:
+      5px 5px 10px #c8cfd8,
+      -5px -5px 10px #ffffff;
   }
+  .btn-danger:hover {
+    box-shadow: 3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff;
+    transform: translateY(1px);
+  }
+  .btn-danger:active {
+    box-shadow: inset 3px 3px 6px rgba(0,0,0,0.2), inset -2px -2px 4px rgba(255,255,255,0.1);
+  }
+
+  .btn-ghost {
+    @apply text-gray-600 hover:text-gray-900 font-semibold py-3 px-6 rounded-2xl transition-all duration-200;
+  }
+  .btn-ghost:hover {
+    background: #e8edf5;
+    box-shadow: inset 2px 2px 4px #c8cfd8, inset -2px -2px 4px #ffffff;
+  }
+
+  /* ─── Inputs ─────────────────────────────────────────────── */
   .input-field {
-    @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200;
+    @apply w-full px-4 py-3 rounded-2xl text-sm placeholder-gray-400 transition-all duration-200 border-none focus:outline-none;
+    background: #e8edf5;
+    box-shadow:
+      inset 3px 3px 6px #c8cfd8,
+      inset -3px -3px 6px #ffffff;
   }
+  .input-field:focus {
+    box-shadow:
+      inset 3px 3px 6px #c8cfd8,
+      inset -3px -3px 6px #ffffff,
+      0 0 0 3px rgba(99, 102, 241, 0.15);
+  }
+
+  .input {
+    @apply px-4 py-3 rounded-2xl text-sm placeholder-gray-400 transition-all duration-200 border-none focus:outline-none;
+    background: #e8edf5;
+    box-shadow:
+      inset 3px 3px 6px #c8cfd8,
+      inset -3px -3px 6px #ffffff;
+  }
+  .input:focus {
+    box-shadow:
+      inset 3px 3px 6px #c8cfd8,
+      inset -3px -3px 6px #ffffff,
+      0 0 0 3px rgba(99, 102, 241, 0.15);
+  }
+
+  /* ─── Cards ──────────────────────────────────────────────── */
   .card {
-    @apply bg-white rounded-xl shadow-sm border border-gray-100 p-6;
+    @apply rounded-3xl p-7 border-none;
+    background: #e8edf5;
+    box-shadow:
+      6px 6px 12px #c8cfd8,
+      -6px -6px 12px #ffffff;
+  }
+
+  /* Tables inside cards */
+  .card table thead {
+    background: rgba(200, 207, 216, 0.2);
+  }
+  .card table th {
+    @apply text-[11px] font-semibold uppercase tracking-wider text-gray-500 px-5 py-4;
+  }
+  .card table tbody tr {
+    border-bottom: 1px solid rgba(200, 207, 216, 0.15);
+    transition: all 0.15s ease;
+  }
+  .card table tbody tr:last-child {
+    border-bottom: none;
+  }
+  .card table tbody tr:hover {
+    background: rgba(200, 207, 216, 0.1);
+  }
+  .card table td {
+    @apply px-5 py-4;
+  }
+
+  /* ─── Page Layout ────────────────────────────────────────── */
+  .page-header {
+    @apply flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8;
+  }
+  .page-title {
+    @apply text-2xl font-bold text-gray-800 tracking-tight;
+  }
+  .page-subtitle {
+    @apply text-sm text-gray-500 mt-1;
   }
 }
+
+/* ─── Scrollbar hide ───────────────────────────────────────── */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }

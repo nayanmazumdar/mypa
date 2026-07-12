@@ -1,21 +1,23 @@
-/**
- * User Model Schema
- * Used for MySQL table creation and validation reference
- */
-module.exports = {
-  tableName: 'users',
-  schema: {
-    id: 'INT AUTO_INCREMENT PRIMARY KEY',
-    uuid: 'VARCHAR(36) NOT NULL UNIQUE',
-    name: 'VARCHAR(100) NOT NULL',
-    email: 'VARCHAR(150) NOT NULL UNIQUE',
-    phone: 'VARCHAR(15)',
-    password: 'VARCHAR(255) NOT NULL',
-    role: "ENUM('admin', 'shopkeeper', 'staff') DEFAULT 'shopkeeper'",
-    shop_name: 'VARCHAR(200)',
-    address: 'TEXT',
-    is_active: 'BOOLEAN DEFAULT TRUE',
-    created_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
-    updated_at: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
-  },
+const { DataTypes } = require('sequelize');
+
+module.exports = (sequelize) => {
+  const User = sequelize.define('User', {
+    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+    uuid: { type: DataTypes.STRING(36), unique: true, allowNull: false },
+    name: { type: DataTypes.STRING(100), allowNull: false },
+    email: { type: DataTypes.STRING(150), unique: true, allowNull: false },
+    phone: { type: DataTypes.STRING(15) },
+    password: { type: DataTypes.STRING(255), allowNull: false },
+    passcode: { type: DataTypes.STRING(255) },
+    role: { type: DataTypes.ENUM('admin', 'shopkeeper', 'staff'), defaultValue: 'shopkeeper' },
+    shop_id: { type: DataTypes.INTEGER },
+    shop_name: { type: DataTypes.STRING(200) },
+    address: { type: DataTypes.TEXT },
+    is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
+  }, {
+    tableName: 'users',
+    timestamps: true,
+  });
+
+  return User;
 };

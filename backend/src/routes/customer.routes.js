@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { getPool } = require('../config/db');
-const { authenticate } = require('../middlewares/auth.middleware');
+const { Op } = require('sequelize');
+const { Customer, CustomerLedger } = require('../models');
+const { authenticate, permit } = require('../middlewares/auth.middleware');
 const ApiResponse = require('../utils/response');
 const { generateId } = require('../utils/helper');
 const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
@@ -13,33 +14,42 @@ const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
  *     tags: [Customers]
  *     summary: Get all customers
  *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, default: 1 }
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 20 }
+ *       - in: query
+ *         name: search
+ *         schema: { type: string }
+ *         description: Search by name, phone, or email
  *     responses:
- *       200: { description: List of customers }
+ *       200: { description: Paginated list of customers }
  */
-router.get('/', authenticate, async (req, res, next) => {
+router.get('/', authenticate, permit('customers:read'), async (req, res, next) => {
   try {
-    const pool = getPool();
     const { page, limit, offset } = parsePagination(req.query);
-    const search = req.query.search;
+    const { search } = req.query;
 
-    let query = 'SELECT * FROM customers WHERE shop_id = ?';
-    let countQuery = 'SELECT COUNT(*) as total FROM customers WHERE shop_id = ?';
-    const params = [req.user.shop_id];
-
+    const where = { shop_id: req.user.shop_id };
     if (search) {
-      query += ' AND (name LIKE ? OR phone LIKE ? OR email LIKE ?)';
-      countQuery += ' AND (name LIKE ? OR phone LIKE ? OR email LIKE ?)';
-      const searchTerm = `%${search}%`;
-      params.push(searchTerm, searchTerm, searchTerm);
+      where[Op.or] = [
+        { name: { [Op.like]: `%${search}%` } },
+        { phone: { [Op.like]: `%${search}%` } },
+        { email: { [Op.like]: `%${search}%` } },
+      ];
     }
 
-    const countParams = [...params];
-    query += ' ORDER BY name ASC LIMIT ? OFFSET ?';
-    params.push(limit, offset);
+    const { rows, count } = await Customer.findAndCountAll({
+      where,
+      order: [['name', 'ASC']],
+      limit,
+      offset,
+    });
 
-    const [rows] = await pool.query(query, params);
-    const [countResult] = await pool.query(countQuery, countParams);
-    const pagination = buildPaginationMeta(countResult[0].total, page, limit);
+    const pagination = buildPaginationMeta(count, page, limit);
     return ApiResponse.paginated(res, rows, pagination);
   } catch (error) {
     next(error);
@@ -47,20 +57,39 @@ router.get('/', authenticate, async (req, res, next) => {
 });
 
 /**
- * GET /api/customers/search/quick - Quick search for POS (returns top 10 by name/phone)
+ * @swagger
+ * /api/customers/search/quick:
+ *   get:
+ *     tags: [Customers]
+ *     summary: Quick search customers (for POS autocomplete)
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         required: true
+ *         schema: { type: string, minLength: 2 }
+ *         description: Search query (min 2 chars)
+ *     responses:
+ *       200: { description: Matching customers (max 10) }
  */
-router.get('/search/quick', authenticate, async (req, res, next) => {
+router.get('/search/quick', authenticate, permit('customers:read'), async (req, res, next) => {
   try {
-    const pool = getPool();
     const { q } = req.query;
     if (!q || q.length < 2) return ApiResponse.success(res, []);
 
-    const [rows] = await pool.query(
-      `SELECT id, name, phone, email, balance FROM customers
-       WHERE shop_id = ? AND (name LIKE ? OR phone LIKE ?) AND is_active = 1
-       ORDER BY name ASC LIMIT 10`,
-      [req.user.shop_id, `%${q}%`, `%${q}%`]
-    );
+    const rows = await Customer.findAll({
+      attributes: ['id', 'name', 'phone', 'email', 'balance'],
+      where: {
+        shop_id: req.user.shop_id,
+        is_active: true,
+        [Op.or]: [
+          { name: { [Op.like]: `%${q}%` } },
+          { phone: { [Op.like]: `%${q}%` } },
+        ],
+      },
+      order: [['name', 'ASC']],
+      limit: 10,
+    });
     return ApiResponse.success(res, rows);
   } catch (error) {
     next(error);
@@ -74,18 +103,22 @@ router.get('/search/quick', authenticate, async (req, res, next) => {
  *     tags: [Customers]
  *     summary: Get customer by ID
  *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
  *     responses:
  *       200: { description: Customer details }
+ *       404: { description: Customer not found }
  */
-router.get('/:id', authenticate, async (req, res, next) => {
+router.get('/:id', authenticate, permit('customers:read'), async (req, res, next) => {
   try {
-    const pool = getPool();
-    const [rows] = await pool.query(
-      'SELECT * FROM customers WHERE id = ? AND shop_id = ?',
-      [req.params.id, req.user.shop_id]
-    );
-    if (rows.length === 0) return ApiResponse.notFound(res, 'Customer not found');
-    return ApiResponse.success(res, rows[0]);
+    const customer = await Customer.findOne({
+      where: { id: req.params.id, shop_id: req.user.shop_id },
+    });
+    if (!customer) return ApiResponse.notFound(res, 'Customer not found');
+    return ApiResponse.success(res, customer);
   } catch (error) {
     next(error);
   }
@@ -96,21 +129,38 @@ router.get('/:id', authenticate, async (req, res, next) => {
  * /api/customers:
  *   post:
  *     tags: [Customers]
- *     summary: Create a customer
+ *     summary: Create a new customer
  *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name]
+ *             properties:
+ *               name: { type: string, example: "Rahul Sharma" }
+ *               phone: { type: string }
+ *               email: { type: string, format: email }
+ *               address: { type: string }
+ *               notes: { type: string }
  *     responses:
  *       201: { description: Customer created }
  */
-router.post('/', authenticate, async (req, res, next) => {
+router.post('/', authenticate, permit('customers:create'), async (req, res, next) => {
   try {
-    const pool = getPool();
     const { name, email, phone, address, notes } = req.body;
-    const uuid = generateId();
-    const [result] = await pool.query(
-      'INSERT INTO customers (uuid, shop_id, name, email, phone, address, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [uuid, req.user.shop_id, name, email || null, phone || null, address || null, notes || null]
-    );
-    return ApiResponse.created(res, { id: result.insertId, uuid, name });
+    const customer = await Customer.create({
+      uuid: generateId(),
+      user_id: req.user.id,
+      shop_id: req.user.shop_id,
+      name,
+      email: email || null,
+      phone: phone || null,
+      address: address || null,
+      notes: notes || null,
+    });
+    return ApiResponse.created(res, customer);
   } catch (error) {
     next(error);
   }
@@ -123,17 +173,34 @@ router.post('/', authenticate, async (req, res, next) => {
  *     tags: [Customers]
  *     summary: Update a customer
  *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name: { type: string }
+ *               phone: { type: string }
+ *               email: { type: string }
+ *               address: { type: string }
+ *               notes: { type: string }
  *     responses:
  *       200: { description: Customer updated }
+ *       404: { description: Customer not found }
  */
-router.put('/:id', authenticate, async (req, res, next) => {
+router.put('/:id', authenticate, permit('customers:update'), async (req, res, next) => {
   try {
-    const pool = getPool();
     const { name, email, phone, address, notes } = req.body;
-    await pool.query(
-      'UPDATE customers SET name = ?, email = ?, phone = ?, address = ?, notes = ? WHERE id = ? AND shop_id = ?',
-      [name, email || null, phone || null, address || null, notes || null, req.params.id, req.user.shop_id]
+    const [updated] = await Customer.update(
+      { name, email: email || null, phone: phone || null, address: address || null, notes: notes || null },
+      { where: { id: req.params.id, shop_id: req.user.shop_id } }
     );
+    if (!updated) return ApiResponse.notFound(res, 'Customer not found');
     return ApiResponse.success(res, null, 'Customer updated');
   } catch (error) {
     next(error);
@@ -147,13 +214,21 @@ router.put('/:id', authenticate, async (req, res, next) => {
  *     tags: [Customers]
  *     summary: Delete a customer
  *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
  *     responses:
  *       200: { description: Customer deleted }
+ *       404: { description: Customer not found }
  */
-router.delete('/:id', authenticate, async (req, res, next) => {
+router.delete('/:id', authenticate, permit('customers:delete'), async (req, res, next) => {
   try {
-    const pool = getPool();
-    await pool.query('DELETE FROM customers WHERE id = ? AND shop_id = ?', [req.params.id, req.user.shop_id]);
+    const deleted = await Customer.destroy({
+      where: { id: req.params.id, shop_id: req.user.shop_id },
+    });
+    if (!deleted) return ApiResponse.notFound(res, 'Customer not found');
     return ApiResponse.success(res, null, 'Customer deleted');
   } catch (error) {
     next(error);
@@ -161,26 +236,51 @@ router.delete('/:id', authenticate, async (req, res, next) => {
 });
 
 /**
- * POST /api/customers/:id/credit - Add credit (increase balance) after a credit sale
+ * @swagger
+ * /api/customers/{id}/credit:
+ *   post:
+ *     tags: [Customers]
+ *     summary: Add credit to customer balance
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [amount]
+ *             properties:
+ *               amount: { type: number, minimum: 0.01 }
+ *               reference: { type: string }
+ *               notes: { type: string }
+ *     responses:
+ *       200: { description: Credit added }
  */
-router.post('/:id/credit', authenticate, async (req, res, next) => {
+router.post('/:id/credit', authenticate, permit('customers:ledger'), async (req, res, next) => {
   try {
-    const pool = getPool();
     const { amount, reference, notes } = req.body;
     if (!amount || amount <= 0) return ApiResponse.error(res, 'Amount must be positive', 400);
 
-    await pool.query(
-      'UPDATE customers SET balance = balance + ? WHERE id = ? AND shop_id = ?',
-      [amount, req.params.id, req.user.shop_id]
-    );
+    await Customer.increment('balance', {
+      by: amount,
+      where: { id: req.params.id, shop_id: req.user.shop_id },
+    });
 
-    // Log the credit transaction
-    await pool.query(
-      'INSERT INTO customer_ledger (customer_id, shop_id, type, amount, reference, notes) VALUES (?, ?, ?, ?, ?, ?)',
-      [req.params.id, req.user.shop_id, 'credit', amount, reference || null, notes || null]
-    );
+    await CustomerLedger.create({
+      customer_id: req.params.id,
+      shop_id: req.user.shop_id,
+      type: 'credit',
+      amount,
+      reference: reference || null,
+      notes: notes || null,
+    });
 
-    const [[customer]] = await pool.query('SELECT id, name, balance FROM customers WHERE id = ?', [req.params.id]);
+    const customer = await Customer.findByPk(req.params.id, { attributes: ['id', 'name', 'balance'] });
     return ApiResponse.success(res, customer, 'Credit added');
   } catch (error) {
     next(error);
@@ -188,25 +288,51 @@ router.post('/:id/credit', authenticate, async (req, res, next) => {
 });
 
 /**
- * POST /api/customers/:id/payment - Record payment (reduce balance)
+ * @swagger
+ * /api/customers/{id}/payment:
+ *   post:
+ *     tags: [Customers]
+ *     summary: Record payment from customer (reduces balance)
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [amount]
+ *             properties:
+ *               amount: { type: number, minimum: 0.01 }
+ *               payment_method: { type: string, enum: [cash, upi, card, bank_transfer], default: cash }
+ *               notes: { type: string }
+ *     responses:
+ *       200: { description: Payment recorded }
  */
-router.post('/:id/payment', authenticate, async (req, res, next) => {
+router.post('/:id/payment', authenticate, permit('customers:ledger'), async (req, res, next) => {
   try {
-    const pool = getPool();
     const { amount, payment_method, notes } = req.body;
     if (!amount || amount <= 0) return ApiResponse.error(res, 'Amount must be positive', 400);
 
-    await pool.query(
-      'UPDATE customers SET balance = GREATEST(0, balance - ?) WHERE id = ? AND shop_id = ?',
-      [amount, req.params.id, req.user.shop_id]
-    );
+    await Customer.decrement('balance', {
+      by: amount,
+      where: { id: req.params.id, shop_id: req.user.shop_id },
+    });
 
-    await pool.query(
-      'INSERT INTO customer_ledger (customer_id, shop_id, type, amount, payment_method, notes) VALUES (?, ?, ?, ?, ?, ?)',
-      [req.params.id, req.user.shop_id, 'payment', amount, payment_method || 'cash', notes || null]
-    );
+    await CustomerLedger.create({
+      customer_id: req.params.id,
+      shop_id: req.user.shop_id,
+      type: 'payment',
+      amount,
+      payment_method: payment_method || 'cash',
+      notes: notes || null,
+    });
 
-    const [[customer]] = await pool.query('SELECT id, name, balance FROM customers WHERE id = ?', [req.params.id]);
+    const customer = await Customer.findByPk(req.params.id, { attributes: ['id', 'name', 'balance'] });
     return ApiResponse.success(res, customer, 'Payment recorded');
   } catch (error) {
     next(error);
@@ -214,15 +340,27 @@ router.post('/:id/payment', authenticate, async (req, res, next) => {
 });
 
 /**
- * GET /api/customers/:id/ledger - Get credit/payment history
+ * @swagger
+ * /api/customers/{id}/ledger:
+ *   get:
+ *     tags: [Customers]
+ *     summary: Get customer ledger entries
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     responses:
+ *       200: { description: Ledger entries (max 50) }
  */
-router.get('/:id/ledger', authenticate, async (req, res, next) => {
+router.get('/:id/ledger', authenticate, permit('customers:ledger'), async (req, res, next) => {
   try {
-    const pool = getPool();
-    const [rows] = await pool.query(
-      'SELECT * FROM customer_ledger WHERE customer_id = ? AND shop_id = ? ORDER BY created_at DESC LIMIT 50',
-      [req.params.id, req.user.shop_id]
-    );
+    const rows = await CustomerLedger.findAll({
+      where: { customer_id: req.params.id, shop_id: req.user.shop_id },
+      order: [['created_at', 'DESC']],
+      limit: 50,
+    });
     return ApiResponse.success(res, rows);
   } catch (error) {
     next(error);

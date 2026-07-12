@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const salesController = require('../controllers/sales.controller');
-const { authenticate } = require('../middlewares/auth.middleware');
+const { authenticate, permit } = require('../middlewares/auth.middleware');
 const { validate } = require('../middlewares/validate.middleware');
 const { createSaleValidator } = require('../validators/sale.validator');
 
@@ -31,7 +31,7 @@ const { createSaleValidator } = require('../validators/sale.validator');
  *     responses:
  *       200: { description: List of sales }
  */
-router.get('/', authenticate, salesController.getAll);
+router.get('/', authenticate, permit('sales:read'), salesController.getAll);
 
 /**
  * @swagger
@@ -48,7 +48,7 @@ router.get('/', authenticate, salesController.getAll);
  *     responses:
  *       200: { description: Sale details }
  */
-router.get('/:id', authenticate, salesController.getById);
+router.get('/:id', authenticate, permit('sales:read'), salesController.getById);
 
 /**
  * @swagger
@@ -60,7 +60,7 @@ router.get('/:id', authenticate, salesController.getById);
  *     responses:
  *       201: { description: Sale created }
  */
-router.post('/', authenticate, validate(createSaleValidator), salesController.create);
+router.post('/', authenticate, permit('sales:create'), validate(createSaleValidator), salesController.create);
 
 /**
  * @swagger
@@ -72,6 +72,6 @@ router.post('/', authenticate, validate(createSaleValidator), salesController.cr
  *     responses:
  *       200: { description: Status updated }
  */
-router.patch('/:id/status', authenticate, salesController.updateStatus);
+router.patch('/:id/status', authenticate, permit('sales:update'), salesController.updateStatus);
 
 module.exports = router;

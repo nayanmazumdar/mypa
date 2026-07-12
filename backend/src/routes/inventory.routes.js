@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const inventoryController = require('../controllers/inventory.controller');
-const { authenticate } = require('../middlewares/auth.middleware');
+const { authenticate, permit } = require('../middlewares/auth.middleware');
 
 /**
  * @swagger
@@ -13,7 +13,7 @@ const { authenticate } = require('../middlewares/auth.middleware');
  *     responses:
  *       200: { description: List of inventory items }
  */
-router.get('/', authenticate, inventoryController.getAll);
+router.get('/', authenticate, permit('inventory:read'), inventoryController.getAll);
 
 /**
  * @swagger
@@ -25,7 +25,7 @@ router.get('/', authenticate, inventoryController.getAll);
  *     responses:
  *       200: { description: Low stock items }
  */
-router.get('/low-stock', authenticate, inventoryController.getLowStock);
+router.get('/low-stock', authenticate, permit('inventory:read'), inventoryController.getLowStock);
 
 /**
  * @swagger
@@ -49,6 +49,49 @@ router.get('/low-stock', authenticate, inventoryController.getLowStock);
  *     responses:
  *       200: { description: Stock updated }
  */
-router.post('/add', authenticate, inventoryController.addStock);
+router.post('/add', authenticate, permit('inventory:adjust'), inventoryController.addStock);
+
+/**
+ * @swagger
+ * /api/inventory/{productId}/history:
+ *   get:
+ *     tags: [Inventory]
+ *     summary: Get stock movement history for a product
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: productId
+ *         required: true
+ *         schema: { type: integer }
+ *     responses:
+ *       200: { description: Stock movement history }
+ */
+router.get('/:productId/history', authenticate, permit('inventory:read'), inventoryController.getHistory);
+
+/**
+ * @swagger
+ * /api/inventory/{productId}/settings:
+ *   put:
+ *     tags: [Inventory]
+ *     summary: Update min/max stock levels and location
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: productId
+ *         required: true
+ *         schema: { type: integer }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               min_stock_level: { type: number }
+ *               max_stock_level: { type: number }
+ *               location: { type: string }
+ *     responses:
+ *       200: { description: Settings updated }
+ */
+router.put('/:productId/settings', authenticate, permit('inventory:adjust'), inventoryController.updateSettings);
 
 module.exports = router;

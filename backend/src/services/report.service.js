@@ -1,102 +1,96 @@
-const { getPool } = require('../config/db');
-const logger = require('../config/logger');
+const { Sale, SaleItem, Product, Customer, Inventory } = require('../models');
+const { Op, fn, col, literal } = require('sequelize');
 
 class ReportService {
-  async getDailySales(userId, date) {
-    const pool = getPool();
-    const [rows] = await pool.query(
-      `SELECT 
-        COUNT(*) as total_sales,
-        COALESCE(SUM(net_amount), 0) as total_revenue,
-        COALESCE(SUM(discount), 0) as total_discount
-       FROM sales
-       WHERE shop_id = ? AND sale_date = ? AND status = 'completed'`,
-      [userId, date]
-    );
-    return rows[0];
+  async getDailySales(shopId, date) {
+    const result = await Sale.findOne({
+      attributes: [
+        [fn('COUNT', col('id')), 'total_sales'],
+        [fn('COALESCE', fn('SUM', col('net_amount')), 0), 'total_revenue'],
+        [fn('COALESCE', fn('SUM', col('discount')), 0), 'total_discount'],
+      ],
+      where: { shop_id: shopId, sale_date: date, status: 'completed' },
+      raw: true,
+    });
+    return result;
   }
 
-  async getMonthlySales(userId, year, month) {
-    const pool = getPool();
-    const [rows] = await pool.query(
-      `SELECT 
-        DATE(sale_date) as date,
-        COUNT(*) as total_sales,
-        COALESCE(SUM(net_amount), 0) as total_revenue
-       FROM sales
-       WHERE shop_id = ? AND YEAR(sale_date) = ? AND MONTH(sale_date) = ? AND status = 'completed'
-       GROUP BY DATE(sale_date)
-       ORDER BY date`,
-      [userId, year, month]
-    );
-    return rows;
+  async getMonthlySales(shopId, year, month) {
+    return Sale.findAll({
+      attributes: [
+        [fn('DATE', col('sale_date')), 'date'],
+        [fn('COUNT', col('id')), 'total_sales'],
+        [fn('COALESCE', fn('SUM', col('net_amount')), 0), 'total_revenue'],
+      ],
+      where: {
+        shop_id: shopId,
+        status: 'completed',
+        [Op.and]: [
+          literal(`YEAR(sale_date) = ${year}`),
+          literal(`MONTH(sale_date) = ${month}`),
+        ],
+      },
+      group: [fn('DATE', col('sale_date'))],
+      order: [[fn('DATE', col('sale_date')), 'ASC']],
+      raw: true,
+    });
   }
 
-  async getTopProducts(userId, startDate, endDate, limit = 10) {
-    const pool = getPool();
-    const [rows] = await pool.query(
-      `SELECT 
-        p.id, p.name, p.sku,
-        SUM(si.quantity) as total_quantity,
-        SUM(si.total) as total_revenue
-       FROM sale_items si
-       JOIN sales s ON si.sale_id = s.id
-       JOIN products p ON si.product_id = p.id
-       WHERE s.shop_id = ? AND s.sale_date BETWEEN ? AND ? AND s.status = 'completed'
-       GROUP BY p.id, p.name, p.sku
-       ORDER BY total_revenue DESC
-       LIMIT ?`,
-      [userId, startDate, endDate, limit]
-    );
-    return rows;
+  async getTopProducts(shopId, startDate, endDate, limit = 10) {
+    return SaleItem.findAll({
+      attributes: [
+        [fn('SUM', col('SaleItem.quantity')), 'total_quantity'],
+        [fn('SUM', col('SaleItem.total')), 'total_revenue'],
+      ],
+      include: [
+        { model: Sale, attributes: [], where: { shop_id: shopId, status: 'completed', sale_date: { [Op.between]: [startDate, endDate] } } },
+        { model: Product, attributes: ['id', 'name', 'sku'] },
+      ],
+      group: ['Product.id'],
+      order: [[fn('SUM', col('SaleItem.total')), 'DESC']],
+      limit,
+      raw: true,
+      nest: true,
+    });
   }
 
-  async getProfitReport(userId, startDate, endDate) {
-    const pool = getPool();
-    const [rows] = await pool.query(
-      `SELECT 
-        COALESCE(SUM(s.net_amount), 0) as total_sales,
-        COALESCE(SUM(si.quantity * p.purchase_price), 0) as total_cost,
-        COALESCE(SUM(s.net_amount), 0) - COALESCE(SUM(si.quantity * p.purchase_price), 0) as profit
-       FROM sales s
-       JOIN sale_items si ON s.id = si.sale_id
-       JOIN products p ON si.product_id = p.id
-       WHERE s.shop_id = ? AND s.sale_date BETWEEN ? AND ? AND s.status = 'completed'`,
-      [userId, startDate, endDate]
-    );
-    return rows[0];
+  async getProfitReport(shopId, startDate, endDate) {
+    const result = await SaleItem.findOne({
+      attributes: [
+        [fn('COALESCE', fn('SUM', col('Sale.net_amount')), 0), 'total_sales'],
+        [fn('COALESCE', fn('SUM', literal('`SaleItem`.`quantity` * `Product`.`purchase_price`')), 0), 'total_cost'],
+      ],
+      include: [
+        { model: Sale, attributes: [], where: { shop_id: shopId, status: 'completed', sale_date: { [Op.between]: [startDate, endDate] } } },
+        { model: Product, attributes: [] },
+      ],
+      raw: true,
+    });
+
+    const totalSales = parseFloat(result?.total_sales || 0);
+    const totalCost = parseFloat(result?.total_cost || 0);
+    return { total_sales: totalSales, total_cost: totalCost, profit: totalSales - totalCost };
   }
 
-  async getDashboardSummary(userId) {
-    const pool = getPool();
+  async getDashboardSummary(shopId) {
     const today = new Date().toISOString().split('T')[0];
 
-    const [[todaySales]] = await pool.query(
-      `SELECT COUNT(*) as count, COALESCE(SUM(net_amount), 0) as revenue
-       FROM sales WHERE shop_id = ? AND sale_date = ? AND status = 'completed'`,
-      [userId, today]
-    );
-
-    const [[totalProducts]] = await pool.query(
-      'SELECT COUNT(*) as count FROM products WHERE shop_id = ? AND is_active = 1',
-      [userId]
-    );
-
-    const [[totalCustomers]] = await pool.query(
-      'SELECT COUNT(*) as count FROM customers WHERE shop_id = ? AND is_active = 1',
-      [userId]
-    );
-
-    const [[lowStock]] = await pool.query(
-      'SELECT COUNT(*) as count FROM inventory WHERE shop_id = ? AND quantity <= min_stock_level',
-      [userId]
-    );
+    const [todaySales, totalProducts, totalCustomers, lowStock] = await Promise.all([
+      Sale.findOne({
+        attributes: [[fn('COUNT', col('id')), 'count'], [fn('COALESCE', fn('SUM', col('net_amount')), 0), 'revenue']],
+        where: { shop_id: shopId, sale_date: today, status: 'completed' },
+        raw: true,
+      }),
+      Product.count({ where: { shop_id: shopId, is_active: true } }),
+      Customer.count({ where: { shop_id: shopId, is_active: true } }),
+      Inventory.count({ where: { shop_id: shopId, quantity: { [Op.lte]: col('Inventory.min_stock_level') } } }),
+    ]);
 
     return {
       today_sales: todaySales,
-      total_products: totalProducts.count,
-      total_customers: totalCustomers.count,
-      low_stock_items: lowStock.count,
+      total_products: totalProducts,
+      total_customers: totalCustomers,
+      low_stock_items: lowStock,
     };
   }
 }

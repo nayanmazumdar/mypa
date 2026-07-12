@@ -3,8 +3,10 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { registerUser } from '../store/authSlice';
+import { usePageTitle } from '../hooks/usePageTitle';
 
 export default function Register() {
+  usePageTitle('Create Account');
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { loading } = useSelector((state) => state.auth);
@@ -38,50 +40,52 @@ export default function Register() {
   return (
     <div className="card">
       <div className="text-center mb-8">
-        <img src="/logo.png" alt="Logo" className="w-14 h-14 rounded-xl mx-auto mb-4" />
+        <div className="w-14 h-14 bg-primary-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <span className="text-primary-700 text-xl font-bold">M</span>
+        </div>
         <h2 className="text-2xl font-bold text-gray-900">Create your account</h2>
-        <p className="text-gray-500 mt-1">Get started with your shop in minutes</p>
+        <p className="text-gray-500 mt-1 text-sm">Get started with your shop in minutes</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label>
           <input
             type="text" required value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
-            className={`input-field ${errors.name ? 'border-red-300' : ''}`}
+            className={`input-field ${errors.name ? 'border-red-300 focus:ring-red-200' : ''}`}
             placeholder="Your full name"
           />
           {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
           <input
             type="email" required value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
-            className={`input-field ${errors.email ? 'border-red-300' : ''}`}
+            className={`input-field ${errors.email ? 'border-red-300 focus:ring-red-200' : ''}`}
             placeholder="you@example.com"
           />
           {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone</label>
           <input
             type="tel" value={form.phone}
             onChange={(e) => setForm({ ...form, phone: e.target.value })}
             className="input-field"
-            placeholder="9876543210"
+            placeholder="9876543210 (optional)"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
           <input
             type="password" required value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
-            className={`input-field ${errors.password ? 'border-red-300' : ''}`}
+            className={`input-field ${errors.password ? 'border-red-300 focus:ring-red-200' : ''}`}
             placeholder="Min 8 chars, 1 uppercase, 1 number"
           />
           {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password}</p>}
