@@ -15,7 +15,7 @@ const registerValidator = [
     .matches(/[a-z]/).withMessage('Password must contain a lowercase letter')
     .matches(/\d/).withMessage('Password must contain a number'),
   body('phone')
-    .optional()
+    .optional({ values: 'falsy' })
     .trim()
     .matches(/^[0-9]{10,15}$/).withMessage('Phone must be 10-15 digits'),
   body('shop_name')

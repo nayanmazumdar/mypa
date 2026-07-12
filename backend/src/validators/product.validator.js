@@ -8,11 +8,11 @@ const createProductValidator = [
   body('purchase_price')
     .isFloat({ min: 0 })
     .withMessage('Purchase price must be a positive number'),
-  body('sku').optional().trim(),
-  body('barcode').optional().trim(),
-  body('category_id').optional().isInt().withMessage('Category ID must be an integer'),
-  body('unit').optional().trim(),
-  body('tax_rate').optional().isFloat({ min: 0, max: 100 }).withMessage('Tax rate must be 0-100'),
+  body('sku').optional({ values: 'falsy' }).trim(),
+  body('barcode').optional({ values: 'falsy' }).trim(),
+  body('category_id').optional({ nullable: true, values: 'falsy' }).isInt().withMessage('Category ID must be an integer'),
+  body('unit').optional({ values: 'falsy' }).trim(),
+  body('tax_rate').optional({ nullable: true, values: 'falsy' }).isFloat({ min: 0, max: 100 }).withMessage('Tax rate must be 0-100'),
 ];
 
 const updateProductValidator = [
@@ -25,11 +25,11 @@ const updateProductValidator = [
     .optional()
     .isFloat({ min: 0 })
     .withMessage('Purchase price must be a positive number'),
-  body('sku').optional().trim(),
-  body('barcode').optional().trim(),
-  body('category_id').optional().isInt().withMessage('Category ID must be an integer'),
-  body('unit').optional().trim(),
-  body('tax_rate').optional().isFloat({ min: 0, max: 100 }).withMessage('Tax rate must be 0-100'),
+  body('sku').optional({ values: 'falsy' }).trim(),
+  body('barcode').optional({ values: 'falsy' }).trim(),
+  body('category_id').optional({ nullable: true, values: 'falsy' }).isInt().withMessage('Category ID must be an integer'),
+  body('unit').optional({ values: 'falsy' }).trim(),
+  body('tax_rate').optional({ nullable: true, values: 'falsy' }).isFloat({ min: 0, max: 100 }).withMessage('Tax rate must be 0-100'),
 ];
 
 module.exports = { createProductValidator, updateProductValidator };

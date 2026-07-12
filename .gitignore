@@ -8,3 +8,4 @@ shopkeeper-backend/src/database/sqlite/*.db
 .DS_Store
 # Added by code-review-graph
 .code-review-graph/
+.env

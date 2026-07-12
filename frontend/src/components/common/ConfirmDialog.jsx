@@ -9,8 +9,14 @@ export default function ConfirmDialog({ open, title, message, onConfirm, onCance
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-gray-900/30 backdrop-blur-sm" onClick={onCancel} aria-hidden="true" />
-      <div className="relative w-full max-w-sm p-6 rounded-3xl" style={{ background: '#e8edf5', boxShadow: '10px 10px 20px #c8cfd8, -10px -10px 20px #ffffff' }}>
+      <div className="absolute inset-0 bg-gray-900/25 backdrop-blur-[2px]" onClick={onCancel} aria-hidden="true" />
+      <div
+        className="relative w-full max-w-sm p-7 rounded-3xl"
+        style={{
+          background: '#e8edf5',
+          boxShadow: '0 25px 60px rgba(0,0,0,0.15), 0 10px 25px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.6)',
+        }}
+      >
         <div className="flex items-start gap-4">
           <div
             className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0"
