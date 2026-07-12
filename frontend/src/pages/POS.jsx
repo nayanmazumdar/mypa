@@ -137,15 +137,16 @@ export default function POS() {
     if (selectedCustomer) setSelectedCustomer(null);
     clearTimeout(customerSearchTimer.current);
     if (value.length < 2) { setCustomerResults([]); setShowCustomerDropdown(false); return; }
+    setShowCustomerDropdown(true); // keep dropdown open while searching
     customerSearchTimer.current = setTimeout(async () => {
       try {
         const res = await api.get('/customers/search/quick', { params: { q: value } });
         const data = res.data || res || [];
         const results = Array.isArray(data) ? data : [];
         setCustomerResults(results);
-        setShowCustomerDropdown(results.length > 0);
+        if (results.length === 0) setShowCustomerDropdown(false);
       } catch { setCustomerResults([]); setShowCustomerDropdown(false); }
-    }, 250);
+    }, 350);
   };
 
   const selectCustomer = (customer) => {
@@ -821,17 +822,21 @@ ${data.customer_name && data.customer_phone ? `<div class="row meta"><span>Phone
                     </button>
                   </div>
                 ) : customerSearch.length >= 2 && !showCustomerDropdown && customerResults.length === 0 ? (
-                  /* ── Typed name (new/unsaved customer) ── */
-                  <div className="flex items-center gap-2.5 p-2.5 bg-amber-50 border border-amber-200 rounded-xl">
+                  /* ── Typed name (new/unsaved customer) — click to edit ── */
+                  <div className="flex items-center gap-2.5 p-2.5 bg-amber-50 border border-amber-200 rounded-xl cursor-text" onClick={() => { /* Allow clicking back to edit mode by clearing results state */ setShowCustomerDropdown(false); setCustomerResults([]); }}>
                     <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
                       <HiOutlineUser className="w-4 h-4 text-amber-600" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <p className="text-sm font-medium text-gray-900 truncate">{customerSearch}</p>
-                        <span className="text-[9px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">New</span>
-                      </div>
-                      <p className="text-[11px] text-amber-600">Not in contacts — <button type="button" onClick={handleAddNewCustomer} className="underline font-semibold hover:text-amber-800">save as customer</button></p>
+                      <input
+                        type="text"
+                        value={customerSearch}
+                        onChange={(e) => handleCustomerSearch(e.target.value)}
+                        className="w-full bg-transparent text-sm font-medium text-gray-900 outline-none placeholder-gray-400"
+                        placeholder="Continue typing..."
+                        autoComplete="off"
+                      />
+                      <p className="text-[11px] text-amber-600 mt-0.5">Not in contacts — <button type="button" onClick={handleAddNewCustomer} className="underline font-semibold hover:text-amber-800">save as customer</button></p>
                     </div>
                     <button onClick={() => { setCustomerSearch(''); setCustomerResults([]); }} className="p-1 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 flex-shrink-0 transition-colors">
                       <HiOutlineXMark className="w-4 h-4" />
