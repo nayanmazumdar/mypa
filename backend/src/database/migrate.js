@@ -152,6 +152,26 @@ async function migrate() {
       'Migration 9'
     );
 
+    // Migration 10: staff designation
+    await runMigrationFile(
+      path.join(__dirname, 'migrations', '010_staff_designation.sql'),
+      'Migration 10'
+    );
+
+    // Migration 11: personal notes
+    await runMigrationFile(
+      path.join(__dirname, 'migrations', '011_personal_notes.sql'),
+      'Migration 11'
+    );
+
+    // Extra columns for personal_notes (category, visible)
+    try {
+      await connection.query(`ALTER TABLE personal_notes ADD COLUMN category VARCHAR(50) DEFAULT 'General'`);
+    } catch (e) { /* already exists */ }
+    try {
+      await connection.query(`ALTER TABLE personal_notes ADD COLUMN visible BOOLEAN DEFAULT TRUE`);
+    } catch (e) { /* already exists */ }
+
     console.log('✓ All tables created successfully');
 
     // Show created tables

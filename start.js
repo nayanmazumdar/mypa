@@ -8,6 +8,7 @@ const path = require('path');
 
 const BACKEND_DIR = path.join(__dirname, 'backend');
 const FRONTEND_DIR = path.join(__dirname, 'frontend');
+const INDIVIDUAL_DIR = path.join(__dirname, 'individual');
 
 function startProcess(name, command, args, cwd) {
   // On Windows, npx/npm are .cmd files and require shell: true to be found by spawn
@@ -42,21 +43,24 @@ function startProcess(name, command, args, cwd) {
   return proc;
 }
 
-console.log('Starting Shopkeeper App...\n');
+console.log('Starting MyPA App...\n');
 
 const backend = startProcess('backend', 'node', ['src/server.js'], BACKEND_DIR);
 const frontend = startProcess('frontend', 'npx', ['vite'], FRONTEND_DIR);
+const individual = startProcess('individual', 'npx', ['vite'], INDIVIDUAL_DIR);
 
 // Handle graceful shutdown
 process.on('SIGINT', () => {
   console.log('\nShutting down...');
   backend.kill();
   frontend.kill();
+  individual.kill();
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
   backend.kill();
   frontend.kill();
+  individual.kill();
   process.exit(0);
 });

@@ -1,5 +1,6 @@
 node_modules/
 frontend/dist/
+individual/dist/
 shopkeeper-backend/logs/
 shopkeeper-backend/uploads/
 shopkeeper-backend/src/database/sqlite/*.db
