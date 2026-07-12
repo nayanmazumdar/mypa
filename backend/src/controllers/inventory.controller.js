@@ -57,6 +57,18 @@ class InventoryController {
       return ApiResponse.error(res, error.message, error.statusCode || 500);
     }
   }
+
+  async updateLevels(req, res) {
+    try {
+      const { product_id, min_stock_level, max_stock_level, location } = req.body;
+      if (!product_id) return ApiResponse.error(res, 'product_id is required', 400);
+      await inventoryService.updateSettings(req.user.shop_id, product_id, { min_stock_level, max_stock_level, location });
+      return ApiResponse.success(res, null, 'Stock levels updated');
+    } catch (error) {
+      logger.error('Update levels error:', error.message);
+      return ApiResponse.error(res, error.message, error.statusCode || 500);
+    }
+  }
 }
 
 module.exports = new InventoryController();
