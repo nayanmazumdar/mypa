@@ -194,53 +194,55 @@ export default function PersonalExpenses() {
       </div>
 
       {/* ── Summary cards ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4 shadow-sm">
-          <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
-            <HiOutlineBanknotes className="w-5 h-5 text-red-600" />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        <div className="rounded-2xl p-5 flex items-center gap-4" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }}>
+            <HiOutlineBanknotes className="w-5 h-5 text-red-500" />
           </div>
           <div>
-            <p className="text-xs text-gray-500">Total Expenses</p>
+            <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">Total Expenses</p>
             <p className="text-xl font-bold text-red-600">{fmt(total)}</p>
-            <p className="text-xs text-gray-400">{expenses.length} record{expenses.length !== 1 ? 's' : ''}</p>
+            <p className="text-[10px] text-gray-400">{expenses.length} record{expenses.length !== 1 ? 's' : ''}</p>
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4 shadow-sm">
-          <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center flex-shrink-0">
-            <HiOutlineArrowTrendingDown className="w-5 h-5 text-orange-600" />
+        <div className="rounded-2xl p-5 flex items-center gap-4" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }}>
+            <HiOutlineArrowTrendingDown className="w-5 h-5 text-orange-500" />
           </div>
           <div>
-            <p className="text-xs text-gray-500">Highest Entry</p>
+            <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">Highest Entry</p>
             <p className="text-xl font-bold text-gray-800">{fmt(highest)}</p>
-            <p className="text-xs text-gray-400">Single transaction</p>
+            <p className="text-[10px] text-gray-400">Single transaction</p>
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4 shadow-sm">
-          <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
-            <HiOutlineCalendarDays className="w-5 h-5 text-purple-600" />
+        <div className="rounded-2xl p-5 flex items-center gap-4" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }}>
+            <HiOutlineCalendarDays className="w-5 h-5 text-purple-500" />
           </div>
           <div>
-            <p className="text-xs text-gray-500">Avg per Entry</p>
+            <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">Avg per Entry</p>
             <p className="text-xl font-bold text-gray-800">{fmt(avgPerEntry)}</p>
-            <p className="text-xs text-gray-400">Based on filtered view</p>
+            <p className="text-[10px] text-gray-400">Based on filtered view</p>
           </div>
         </div>
       </div>
 
       {/* ── Filters ── */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+      <div className="rounded-2xl overflow-hidden" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
         {/* Quick presets */}
-        <div className="flex items-center gap-2 px-4 pt-4 pb-3 border-b border-gray-100 flex-wrap">
+        <div className="flex items-center gap-2 px-5 pt-4 pb-3 flex-wrap" style={{ borderBottom: '1px solid rgba(200,207,216,0.3)' }}>
           <HiOutlineFunnel className="w-4 h-4 text-gray-400 flex-shrink-0" />
           {PRESETS.map((p) => (
             <button
               key={p.label}
               onClick={() => applyPreset(p)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                activePreset === p.label
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                activePreset === p.label ? 'text-primary-700' : 'text-gray-500 hover:text-gray-800'
               }`}
+              style={activePreset === p.label
+                ? { background: '#e8edf5', boxShadow: 'inset 2px 2px 4px #c8cfd8, inset -2px -2px 4px #ffffff' }
+                : {}
+              }
             >
               {p.label}
             </button>
@@ -248,29 +250,29 @@ export default function PersonalExpenses() {
         </div>
 
         {/* Date + category row */}
-        <div className="flex flex-wrap gap-3 items-end px-4 py-3">
+        <div className="flex flex-wrap gap-3 items-end px-5 py-4">
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">From</label>
+            <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">From</label>
             <input
               type="date" value={filters.from}
               onChange={(e) => { setActivePreset(''); setFilters({ ...filters, from: e.target.value }); }}
-              className="input-field text-sm py-1.5"
+              className="input-field text-sm py-2"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">To</label>
+            <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">To</label>
             <input
               type="date" value={filters.to}
               onChange={(e) => { setActivePreset(''); setFilters({ ...filters, to: e.target.value }); }}
-              className="input-field text-sm py-1.5"
+              className="input-field text-sm py-2"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Category</label>
+            <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Category</label>
             <select
               value={filters.category}
               onChange={(e) => setFilters({ ...filters, category: e.target.value })}
-              className="input-field text-sm py-1.5"
+              className="input-field text-sm py-2"
             >
               <option value="">All categories</option>
               {EXPENSE_CATEGORIES.map((group) => (
@@ -283,7 +285,8 @@ export default function PersonalExpenses() {
           {(filters.from || filters.to || filters.category) && (
             <button
               onClick={() => { setActivePreset('This Month'); setFilters({ from: firstOfMonth(), to: today(), category: '' }); }}
-              className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-500 py-1.5 px-2.5 border border-gray-200 rounded-lg"
+              className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-500 py-2 px-3 rounded-xl transition-all"
+              style={{ background: '#e8edf5', boxShadow: '2px 2px 4px #c8cfd8, -2px -2px 4px #ffffff' }}
             >
               <HiOutlineXMark className="w-3.5 h-3.5" /> Clear
             </button>
@@ -292,14 +295,16 @@ export default function PersonalExpenses() {
       </div>
 
       {/* ── Table ── */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+      <div className="rounded-3xl overflow-hidden" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
         {loading ? (
           <div className="flex justify-center py-14">
-            <span className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+            <span className="w-6 h-6 border-2 border-primary-600 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : expenses.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-            <HiOutlineArrowTrendingDown className="w-12 h-12 mb-3 text-gray-200" />
+            <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }}>
+              <HiOutlineArrowTrendingDown className="w-6 h-6 text-gray-400" />
+            </div>
             <p className="text-sm font-medium text-gray-500">No expenses for this period</p>
             <p className="text-xs text-gray-400 mt-1">Try changing the date range or add a new entry</p>
             <button onClick={openCreate} className="mt-4 btn-primary text-sm flex items-center gap-1.5">
@@ -309,17 +314,17 @@ export default function PersonalExpenses() {
         ) : (
           <>
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="border-b" style={{ borderColor: 'rgba(200,207,216,0.4)' }}>
                 <tr>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-600">Category</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">Description</th>
-                  <th className="text-right px-4 py-3 font-semibold text-gray-600">Amount</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-600 hidden md:table-cell">Method</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-600">Date</th>
-                  <th className="text-center px-4 py-3 font-semibold text-gray-600">Actions</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-600 text-[11px] uppercase tracking-wider">Category</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-600 text-[11px] uppercase tracking-wider hidden sm:table-cell">Description</th>
+                  <th className="text-right px-4 py-3 font-semibold text-gray-600 text-[11px] uppercase tracking-wider">Amount</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-600 text-[11px] uppercase tracking-wider hidden md:table-cell">Method</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-600 text-[11px] uppercase tracking-wider">Date</th>
+                  <th className="text-center px-4 py-3 font-semibold text-gray-600 text-[11px] uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y" style={{ borderColor: 'rgba(200,207,216,0.2)' }}>
                 {expenses.map((exp) => (
                   <tr key={exp.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3">
@@ -365,11 +370,11 @@ export default function PersonalExpenses() {
             </table>
 
             {/* Footer total */}
-            <div className="flex items-center justify-between px-4 py-3 bg-red-50 border-t border-red-100">
-              <span className="text-sm text-red-700">
+            <div className="flex items-center justify-between px-5 py-3" style={{ borderTop: '1px solid rgba(200,207,216,0.3)' }}>
+              <span className="text-xs text-gray-600">
                 <strong>{expenses.length}</strong> record{expenses.length !== 1 ? 's' : ''}
               </span>
-              <span className="text-sm font-bold text-red-700">Total: {fmt(total)}</span>
+              <span className="text-sm font-bold text-red-600">Total: {fmt(total)}</span>
             </div>
           </>
         )}

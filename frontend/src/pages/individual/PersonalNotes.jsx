@@ -164,7 +164,7 @@ export default function PersonalNotes() {
           className="input-field flex-1 min-w-48 text-sm py-1.5"
         />
         {/* Date range */}
-        <div className="flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg px-3 py-1.5 shadow-sm">
+        <div className="flex items-center gap-1.5 rounded-2xl px-3 py-1.5" style={{ background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }}>
           <span className="text-xs text-gray-400 shrink-0">From</span>
           <input
             type="date" value={dateFrom}
@@ -197,11 +197,15 @@ export default function PersonalNotes() {
           ].map(p => (
             <button key={p.label}
               onClick={() => { setDateFrom(p.from); setDateTo(p.to); }}
-              className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+              className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
                 dateFrom === p.from && dateTo === p.to
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}>
+                  ? 'text-indigo-700 font-semibold'
+                  : 'text-gray-600'
+              }`}
+              style={dateFrom === p.from && dateTo === p.to
+                ? { background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }
+                : { background: '#e8edf5', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }
+              }>
               {p.label}
             </button>
           ))}
@@ -210,9 +214,13 @@ export default function PersonalNotes() {
         <div className="flex flex-wrap gap-1.5">
           {usedCats.map(cat => (
             <button key={cat} onClick={() => setFilterCat(cat)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                filterCat === cat ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}>
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                filterCat === cat ? 'text-indigo-700 font-semibold' : 'text-gray-600'
+              }`}
+              style={filterCat === cat
+                ? { background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }
+                : { background: '#e8edf5', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }
+              }>
               {cat}
             </button>
           ))}
@@ -294,11 +302,15 @@ export default function PersonalNotes() {
                     <button
                       key={cat} type="button"
                       onClick={() => setForm({ ...form, category: cat })}
-                      className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
                         form.category === cat
-                          ? 'bg-indigo-600 text-white border-indigo-600'
-                          : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                      }`}>
+                          ? 'text-indigo-700 font-semibold'
+                          : 'text-gray-600'
+                      }`}
+                      style={form.category === cat
+                        ? { background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }
+                        : { background: '#e8edf5', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }
+                      }>
                       {cat}
                     </button>
                   ))}
@@ -411,7 +423,7 @@ function NoteCard({ note, onEdit, onDelete, onPin, onToggleVisible }) {
   const isHidden = note.visible === false;
 
   return (
-    <div className={`rounded-xl border flex flex-col overflow-hidden shadow-sm hover:shadow-md transition-shadow ${c.bg} ${c.border}`}>
+    <div className={`rounded-2xl flex flex-col overflow-hidden transition-shadow ${c.bg} ${c.border}`} style={{ boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
 
       {/* Card header */}
       <div className={`flex items-center justify-between px-3 py-2 ${c.header}`}>

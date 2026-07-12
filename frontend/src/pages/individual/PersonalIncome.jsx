@@ -202,32 +202,32 @@ export default function PersonalIncome() {
 
       {/* ── Summary cards ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4 shadow-sm">
-          <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
+        <div className="rounded-2xl p-5 flex items-center gap-4" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }}>
             <HiOutlineBanknotes className="w-5 h-5 text-green-600" />
           </div>
           <div>
-            <p className="text-xs text-gray-500">Total Income</p>
+            <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">Total Income</p>
             <p className="text-xl font-bold text-green-600">{fmt(total)}</p>
             <p className="text-xs text-gray-400">{incomes.length} record{incomes.length !== 1 ? 's' : ''}</p>
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4 shadow-sm">
-          <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
+        <div className="rounded-2xl p-5 flex items-center gap-4" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }}>
             <HiOutlineArrowTrendingUp className="w-5 h-5 text-indigo-600" />
           </div>
           <div>
-            <p className="text-xs text-gray-500">Highest Entry</p>
+            <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">Highest Entry</p>
             <p className="text-xl font-bold text-gray-800">{fmt(highest)}</p>
             <p className="text-xs text-gray-400">Single transaction</p>
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4 shadow-sm">
-          <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center flex-shrink-0">
+        <div className="rounded-2xl p-5 flex items-center gap-4" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }}>
             <HiOutlineCalendarDays className="w-5 h-5 text-purple-600" />
           </div>
           <div>
-            <p className="text-xs text-gray-500">Avg per Entry</p>
+            <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">Avg per Entry</p>
             <p className="text-xl font-bold text-gray-800">{fmt(avgPerEntry)}</p>
             <p className="text-xs text-gray-400">Based on filtered view</p>
           </div>
@@ -235,19 +235,23 @@ export default function PersonalIncome() {
       </div>
 
       {/* ── Filters ── */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+      <div className="rounded-2xl" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
         {/* Quick presets */}
-        <div className="flex items-center gap-2 px-4 pt-4 pb-3 border-b border-gray-100 flex-wrap">
+        <div className="flex items-center gap-2 px-4 pt-4 pb-3 border-b border-gray-200/60 flex-wrap">
           <HiOutlineFunnel className="w-4 h-4 text-gray-400 flex-shrink-0" />
           {PRESETS.map((p) => (
             <button
               key={p.label}
               onClick={() => applyPreset(p)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
                 activePreset === p.label
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  ? 'text-indigo-700 font-semibold'
+                  : 'text-gray-600'
               }`}
+              style={activePreset === p.label
+                ? { background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }
+                : { background: '#e8edf5', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }
+              }
             >
               {p.label}
             </button>
@@ -301,7 +305,7 @@ export default function PersonalIncome() {
       </div>
 
       {/* ── Table ── */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+      <div className="rounded-3xl overflow-hidden" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
         {loading ? (
           <div className="flex justify-center py-14">
             <span className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
@@ -318,7 +322,7 @@ export default function PersonalIncome() {
         ) : (
           <>
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="border-b" style={{ borderColor: '#c8cfd8' }}>
                 <tr>
                   <th className="text-left px-4 py-3 font-semibold text-gray-600">Income Head</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">Description</th>
@@ -328,7 +332,7 @@ export default function PersonalIncome() {
                   <th className="text-center px-4 py-3 font-semibold text-gray-600">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-gray-200/50">
                 {incomes.map((inc) => (
                   <tr key={inc.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3">

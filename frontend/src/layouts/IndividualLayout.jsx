@@ -7,7 +7,7 @@ export default function IndividualLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
+    <div className="flex h-screen overflow-hidden" style={{ background: '#e8edf5' }}>
       <IndividualSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <IndividualHeader onMenuClick={() => setSidebarOpen(true)} />

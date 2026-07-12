@@ -186,15 +186,15 @@ export default function PersonalTasks() {
           { label: 'Overdue',     value: overdue,  color: 'bg-red-50 text-red-700',        border: 'border-red-100' },
           { label: 'Due Today',   value: dueToday, color: 'bg-orange-50 text-orange-700',  border: 'border-orange-100' },
         ].map((s) => (
-          <div key={s.label} className={`bg-white rounded-xl border ${s.border} p-3 text-center shadow-sm`}>
+          <div key={s.label} className="rounded-2xl p-3 text-center" style={{ background: '#e8edf5', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}>
             <p className={`text-2xl font-bold ${s.color.split(' ')[1]}`}>{s.value}</p>
-            <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
+            <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wide mt-0.5">{s.label}</p>
           </div>
         ))}
       </div>
 
       {/* ── Filters + view toggle ── */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+      <div className="rounded-2xl" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
         <div className="flex flex-wrap items-center gap-3 px-4 py-3">
           <HiOutlineFunnel className="w-4 h-4 text-gray-400 flex-shrink-0" />
 
@@ -233,20 +233,22 @@ export default function PersonalTasks() {
           )}
 
           {/* View toggle */}
-          <div className="ml-auto flex rounded-lg border border-gray-200 overflow-hidden">
+          <div className="ml-auto flex rounded-lg overflow-hidden" style={{ background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }}>
             <button
               onClick={() => setView('priority')}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                view === 'priority' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
+              className={`px-3 py-1.5 text-xs font-medium transition-all ${
+                view === 'priority' ? 'text-indigo-700 font-semibold' : 'text-gray-500 hover:text-gray-700'
               }`}
+              style={view === 'priority' ? { background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' } : {}}
             >
               By Priority
             </button>
             <button
               onClick={() => setView('list')}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                view === 'list' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
+              className={`px-3 py-1.5 text-xs font-medium transition-all ${
+                view === 'list' ? 'text-indigo-700 font-semibold' : 'text-gray-500 hover:text-gray-700'
               }`}
+              style={view === 'list' ? { background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' } : {}}
             >
               All Tasks
             </button>
@@ -260,7 +262,7 @@ export default function PersonalTasks() {
           <span className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : tasks.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 flex flex-col items-center justify-center py-16">
+        <div className="rounded-2xl flex flex-col items-center justify-center py-16" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
           <HiOutlineClipboardDocumentList className="w-12 h-12 mb-3 text-gray-200" />
           <p className="text-sm font-medium text-gray-500">No tasks yet</p>
           <p className="text-xs text-gray-400 mt-1">Add your first task to get started</p>
@@ -398,15 +400,11 @@ function TaskCard({ task, onEdit, onDelete, onCycle }) {
   const cancelled   = task.status === 'cancelled';
 
   return (
-    <div className={`bg-white rounded-xl border p-4 flex items-start gap-3 transition-all ${
+    <div className={`rounded-2xl p-4 flex items-start gap-3 transition-all ${
       done || cancelled
-        ? 'border-gray-100 opacity-60'
-        : dueStatus === 'overdue'
-        ? 'border-red-200 bg-red-50/20'
-        : dueStatus === 'today'
-        ? 'border-orange-200 bg-orange-50/20'
-        : 'border-gray-200 hover:border-indigo-200 hover:shadow-sm'
-    }`}>
+        ? 'opacity-60'
+        : ''
+    }`} style={{ background: '#e8edf5', boxShadow: dueStatus === 'overdue' ? 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' : '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
 
       {/* Status cycle button */}
       <button

@@ -127,8 +127,8 @@ function AvatarUpload({ current, name, onUploaded }) {
 // ─── Editable field row ───────────────────────────────────────────────────
 function InfoRow({ label, value, icon: Icon }) {
   return (
-    <div className="flex items-start gap-3 py-3 border-b border-gray-50 last:border-0">
-      <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0 mt-0.5">
+    <div className="flex items-start gap-3 py-3 border-b border-gray-100/60 last:border-0">
+      <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5" style={{ background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }}>
         <Icon className="w-4 h-4 text-indigo-500" />
       </div>
       <div>
@@ -238,7 +238,7 @@ export default function IndividualSettings() {
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-1 border-b border-gray-200">
+      <div className="flex gap-1 border-b" style={{ borderColor: '#c8cfd8' }}>
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -260,7 +260,7 @@ export default function IndividualSettings() {
         <div className="space-y-5">
 
           {/* Avatar + name card */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+          <div className="rounded-2xl p-6" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
             <div className="flex flex-col sm:flex-row gap-6 items-start">
               {/* Left — avatar */}
               <AvatarUpload
@@ -367,7 +367,7 @@ export default function IndividualSettings() {
         <div className="space-y-5">
 
           {/* Quick login PIN */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+          <div className="rounded-2xl p-6" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
             <h3 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
               🔢 Quick Login PIN
             </h3>
@@ -421,7 +421,7 @@ export default function IndividualSettings() {
           </div>
 
           {/* Change password */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+          <div className="rounded-2xl p-6" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
             <h3 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
               🔒 Change Password
             </h3>

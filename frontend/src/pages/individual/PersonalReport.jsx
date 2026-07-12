@@ -552,18 +552,22 @@ export default function PersonalReport() {
       </div>
 
       {/* ── Date range picker ── */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+      <div className="rounded-2xl" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
         {/* Presets */}
-        <div className="flex flex-wrap gap-2 px-4 pt-4 pb-3 border-b border-gray-100">
+        <div className="flex flex-wrap gap-2 px-4 pt-4 pb-3 border-b border-gray-200/60">
           {PRESET_RANGES.map((preset) => (
             <button
               key={preset.label}
               onClick={() => applyPreset(preset)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
                 activePreset === preset.label
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  ? 'text-indigo-700 font-semibold'
+                  : 'text-gray-600'
               }`}
+              style={activePreset === preset.label
+                ? { background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }
+                : { background: '#e8edf5', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }
+              }
             >
               {preset.label}
             </button>
@@ -630,17 +634,17 @@ export default function PersonalReport() {
           {/* Summary cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { label: 'Total Income',  value: fmtCurUI(report.summary.total_income),  icon: HiOutlineArrowTrendingUp,   color: 'bg-green-100 text-green-600' },
-              { label: 'Total Expense', value: fmtCurUI(report.summary.total_expense), icon: HiOutlineArrowTrendingDown,  color: 'bg-red-100 text-red-600' },
-              { label: 'Net Balance',   value: fmtCurUI(net),                           icon: HiOutlineBanknotes,          color: net >= 0 ? 'bg-indigo-100 text-indigo-600' : 'bg-orange-100 text-orange-600' },
-              { label: 'Savings Rate',  value: `${report.summary.savings_rate}%`,       icon: HiOutlineCalculator,         color: 'bg-purple-100 text-purple-600' },
+              { label: 'Total Income',  value: fmtCurUI(report.summary.total_income),  icon: HiOutlineArrowTrendingUp,   color: 'text-green-600' },
+              { label: 'Total Expense', value: fmtCurUI(report.summary.total_expense), icon: HiOutlineArrowTrendingDown,  color: 'text-red-600' },
+              { label: 'Net Balance',   value: fmtCurUI(net),                           icon: HiOutlineBanknotes,          color: net >= 0 ? 'text-indigo-600' : 'text-orange-600' },
+              { label: 'Savings Rate',  value: `${report.summary.savings_rate}%`,       icon: HiOutlineCalculator,         color: 'text-purple-600' },
             ].map((card) => (
-              <div key={card.label} className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-3 shadow-sm">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${card.color}`}>
-                  <card.icon className="w-5 h-5" />
+              <div key={card.label} className="rounded-2xl p-5 flex items-center gap-3" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }}>
+                  <card.icon className={`w-5 h-5 ${card.color}`} />
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500">{card.label}</p>
+                  <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">{card.label}</p>
                   <p className="text-base font-bold text-gray-900">{card.value}</p>
                 </div>
               </div>
@@ -651,7 +655,7 @@ export default function PersonalReport() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
             {/* Income by source */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+            <div className="rounded-2xl p-5" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
               <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <HiOutlineArrowTrendingUp className="w-5 h-5 text-green-500" />
                 Income by Source
@@ -685,7 +689,7 @@ export default function PersonalReport() {
             </div>
 
             {/* Expense by category */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+            <div className="rounded-2xl p-5" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
               <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <HiOutlineArrowTrendingDown className="w-5 h-5 text-red-500" />
                 Expense by Category
@@ -720,7 +724,7 @@ export default function PersonalReport() {
           </div>
 
           {/* Period footer */}
-          <div className="flex items-center justify-between bg-gray-50 rounded-xl border border-gray-200 px-5 py-3">
+          <div className="flex items-center justify-between rounded-2xl px-5 py-3" style={{ background: '#e8edf5', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}>
             <p className="text-xs text-gray-500">
               Report period: <strong>{fmtDate(report.period.from)}</strong> to <strong>{fmtDate(report.period.to)}</strong>
             </p>

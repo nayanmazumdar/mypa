@@ -321,15 +321,18 @@ export default function RoleSelector() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50/30 flex flex-col items-center justify-start py-10 px-4">
+    <div className="min-h-screen flex flex-col items-center justify-start py-10 px-4" style={{ background: '#e8edf5' }}>
       <div className="w-full max-w-3xl">
 
         {/* ── Logo + title ── */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-white shadow-md border border-gray-100 mb-4">
+          <div
+            className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4"
+            style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}
+          >
             <img src="/logo.png" alt="myPA" className="w-9 h-9 rounded-lg" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Set up your workspace</h1>
+          <h1 className="text-2xl font-bold text-gray-800 tracking-tight">Set up your workspace</h1>
           <p className="text-sm text-gray-500 mt-2 max-w-sm mx-auto leading-relaxed">
             One-time setup — your role and default module are permanent once confirmed.
           </p>
@@ -338,7 +341,7 @@ export default function RoleSelector() {
         {/* ── Step indicator ── */}
         <div className="flex items-center justify-center gap-4 mb-8">
           <StepBadge n={1} label="Choose Role"   active={step === 1} done={step > 1} />
-          <div className={`w-16 h-px transition-colors ${step > 1 ? 'bg-gray-900' : 'bg-gray-200'}`} />
+          <div className={`w-16 h-px transition-colors ${step > 1 ? 'bg-gray-700' : 'bg-gray-300'}`} />
           <StepBadge n={2} label="Choose Module" active={step === 2} done={false} />
         </div>
 
@@ -346,9 +349,12 @@ export default function RoleSelector() {
         {step === 1 && (
           <div>
             {/* Warning banner */}
-            <div className="flex gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-6">
+            <div
+              className="flex gap-2.5 rounded-2xl px-4 py-3 mb-6"
+              style={{ background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }}
+            >
               <span className="text-amber-500 shrink-0 mt-0.5" aria-hidden="true">⚠️</span>
-              <p className="text-xs text-amber-700 leading-relaxed">
+              <p className="text-xs text-gray-600 leading-relaxed">
                 <span className="font-semibold">This is permanent.</span> Your role defines what you can access in myPA and cannot be changed after setup.
               </p>
             </div>
@@ -372,10 +378,14 @@ export default function RoleSelector() {
               className={`
                 w-full py-3.5 rounded-2xl text-sm font-semibold transition-all duration-200
                 ${selectedRole
-                  ? 'bg-gray-900 text-white hover:bg-gray-800 shadow-md hover:shadow-lg'
-                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  ? 'text-white'
+                  : 'text-gray-400 cursor-not-allowed'
                 }
               `}
+              style={selectedRole
+                ? { background: 'linear-gradient(145deg, #5a4dd4, #4f46e5)', boxShadow: '5px 5px 10px #c8cfd8, -5px -5px 10px #ffffff' }
+                : { background: '#e8edf5', boxShadow: 'inset 2px 2px 4px #c8cfd8, inset -2px -2px 4px #ffffff' }
+              }
             >
               {selectedRole
                 ? `Continue as ${activeRole?.title} →`
@@ -466,10 +476,14 @@ export default function RoleSelector() {
                 w-full py-3.5 rounded-2xl text-sm font-semibold transition-all duration-200
                 flex items-center justify-center gap-2
                 ${selectedModule && !loading
-                  ? 'bg-gray-900 text-white hover:bg-gray-800 shadow-md hover:shadow-lg'
-                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  ? 'text-white'
+                  : 'text-gray-400 cursor-not-allowed'
                 }
               `}
+              style={selectedModule && !loading
+                ? { background: 'linear-gradient(145deg, #5a4dd4, #4f46e5)', boxShadow: '5px 5px 10px #c8cfd8, -5px -5px 10px #ffffff' }
+                : { background: '#e8edf5', boxShadow: 'inset 2px 2px 4px #c8cfd8, inset -2px -2px 4px #ffffff' }
+              }
             >
               {loading ? (
                 <>
