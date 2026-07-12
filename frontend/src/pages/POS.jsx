@@ -787,29 +787,8 @@ ${data.customer_name && data.customer_phone ? `<div class="row meta"><span>Phone
                       <HiOutlineXMark className="w-4 h-4" />
                     </button>
                   </div>
-                ) : customerSearch.length >= 2 && !showCustomerDropdown && customerResults.length === 0 ? (
-                  /* ── Typed name (new/unsaved customer) — click to edit ── */
-                  <div className="flex items-center gap-2.5 p-2.5 bg-amber-50 border border-amber-200 rounded-xl cursor-text" onClick={() => { /* Allow clicking back to edit mode by clearing results state */ setShowCustomerDropdown(false); setCustomerResults([]); }}>
-                    <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
-                      <HiOutlineUser className="w-4 h-4 text-amber-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <input
-                        type="text"
-                        value={customerSearch}
-                        onChange={(e) => handleCustomerSearch(e.target.value)}
-                        className="w-full bg-transparent text-sm font-medium text-gray-900 outline-none placeholder-gray-400"
-                        placeholder="Continue typing..."
-                        autoComplete="off"
-                      />
-                      <p className="text-[11px] text-amber-600 mt-0.5">Not in contacts — <button type="button" onClick={handleAddNewCustomer} className="underline font-semibold hover:text-amber-800">save as customer</button></p>
-                    </div>
-                    <button onClick={() => { setCustomerSearch(''); setCustomerResults([]); }} className="p-1 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 flex-shrink-0 transition-colors">
-                      <HiOutlineXMark className="w-4 h-4" />
-                    </button>
-                  </div>
                 ) : (
-                  /* ── Search input ── */
+                  /* ── Search input (always visible when no customer selected) ── */
                   <div className="relative">
                     <HiOutlineUser className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
@@ -818,7 +797,7 @@ ${data.customer_name && data.customer_phone ? `<div class="row meta"><span>Phone
                       value={customerSearch}
                       onChange={(e) => handleCustomerSearch(e.target.value)}
                       onFocus={() => { if (customerResults.length > 0) setShowCustomerDropdown(true); }}
-                      onBlur={() => { setTimeout(() => setShowCustomerDropdown(false), 150); }}
+                      onBlur={() => { setTimeout(() => setShowCustomerDropdown(false), 200); }}
                       className="input-field text-sm pl-9 py-2.5"
                       autoComplete="off"
                     />
@@ -826,6 +805,15 @@ ${data.customer_name && data.customer_phone ? `<div class="row meta"><span>Phone
                       <button onClick={() => { setCustomerSearch(''); setCustomerResults([]); setShowCustomerDropdown(false); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                         <HiOutlineXMark className="w-3.5 h-3.5" />
                       </button>
+                    )}
+
+                    {/* "New customer" hint below input */}
+                    {customerSearch.length >= 2 && !showCustomerDropdown && customerResults.length === 0 && (
+                      <div className="flex items-center gap-2 mt-1.5 px-1">
+                        <span className="text-[9px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">New</span>
+                        <span className="text-[11px] text-amber-600">Not in contacts —</span>
+                        <button type="button" onClick={handleAddNewCustomer} className="text-[11px] text-amber-700 underline font-semibold hover:text-amber-800">save as customer</button>
+                      </div>
                     )}
 
                     {/* Dropdown results */}
