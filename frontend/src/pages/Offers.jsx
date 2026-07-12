@@ -5,6 +5,15 @@ import api from '../api/axios';
 import Modal from '../components/common/Modal';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 
+// Returns today's date as YYYY-MM-DD in LOCAL time — avoids UTC off-by-one in IST/UTC+ zones
+const localDateStr = () => {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm   = String(d.getMonth() + 1).padStart(2, '0');
+  const dd   = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
+
 export default function Offers() {
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -41,7 +50,15 @@ export default function Offers() {
 
   const openCreate = () => {
     setEditingId(null);
-    setForm({ name: '', description: '', discount_type: 'percentage', discount_value: '', min_purchase_amount: '', max_discount_amount: '', applicable_to: 'all', category_id: '', product_id: '', start_date: new Date().toISOString().split('T')[0], end_date: '', is_active: true });
+    setForm({
+      name: '', description: '',
+      discount_type: 'percentage',   // default to %
+      discount_value: '',
+      min_purchase_amount: '', max_discount_amount: '',
+      applicable_to: 'category',     // default to category
+      category_id: '', product_id: '',
+      start_date: localDateStr(), end_date: '', is_active: true,
+    });
     setShowModal(true);
   };
 
@@ -81,12 +98,23 @@ export default function Offers() {
   };
 
   const handleToggle = async (offer) => {
-    try { await api.put(`/offers/${offer.id}`, { ...offer, is_active: !offer.is_active }); loadOffers(); }
-    catch { toast.error('Failed to update'); }
+    // Only allow toggling offers within their valid date range
+    // Expired and scheduled offers are date-controlled — toggle is blocked
+    const today = localDateStr();
+    const expired = offer.end_date?.split('T')[0] < today;
+    const scheduled = offer.start_date?.split('T')[0] > today;
+    if (expired || scheduled) return;
+
+    const nowActive = !offer.is_active;
+    try {
+      await api.patch(`/offers/${offer.id}/toggle`, { is_active: nowActive });
+      toast.success(nowActive ? `"${offer.name}" resumed` : `"${offer.name}" paused`);
+      loadOffers();
+    } catch { toast.error('Failed to update offer'); }
   };
 
   const isActive = (offer) => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = localDateStr();
     return offer.is_active && offer.start_date <= today && offer.end_date >= today;
   };
 
@@ -113,111 +141,270 @@ export default function Offers() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {offers.map((offer) => (
-            <div key={offer.id} className={`card relative ${isActive(offer) ? 'border-green-200' : 'border-gray-200 opacity-60'}`}>
-              {isActive(offer) && <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-green-500 rounded-full"></span>}
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h3 className="font-semibold text-gray-900">{offer.name}</h3>
-                  {offer.description && <p className="text-xs text-gray-500 mt-0.5">{offer.description}</p>}
+          {offers.map((offer) => {
+            const live = isActive(offer);
+            const today = localDateStr();
+            const expired = offer.end_date?.split('T')[0] < today;
+            const scheduled = offer.start_date?.split('T')[0] > today;
+            return (
+              <div key={offer.id} className={`card relative flex flex-col transition-all ${
+                live ? 'border-green-300 shadow-green-100 shadow-sm' : 'border-gray-200'
+              }`}>
+                {/* Header row: name + toggle switch */}
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1 min-w-0 pr-3">
+                    <h3 className="font-semibold text-gray-900 truncate">{offer.name}</h3>
+                    {offer.description && (
+                      <p className="text-xs text-gray-500 mt-0.5 truncate">{offer.description}</p>
+                    )}
+                  </div>
+                  {/* Toggle switch — date-driven; only live offers can be manually paused */}
+                  <button
+                    onClick={() => handleToggle(offer)}
+                    disabled={expired || scheduled}
+                    title={
+                      expired   ? 'Expired — edit date range to re-activate' :
+                      scheduled ? 'Scheduled — will auto-activate on start date' :
+                      offer.is_active ? 'Click to pause' : 'Click to activate'
+                    }
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1 ${
+                      expired || scheduled
+                        ? 'bg-gray-200 cursor-not-allowed'
+                        : offer.is_active
+                          ? 'bg-green-500 cursor-pointer'
+                          : 'bg-gray-300 cursor-pointer'
+                    }`}
+                    role="switch"
+                    aria-checked={!expired && !scheduled && offer.is_active}
+                  >
+                    <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      !expired && !scheduled && offer.is_active ? 'translate-x-5' : 'translate-x-0'
+                    }`} />
+                  </button>
+                </div>
+
+                {/* Status badge */}
+                <div className="mb-3">
+                  {live ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium bg-green-50 text-green-700 border border-green-200 px-2 py-0.5 rounded-full">
+                      <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                      Live on POS
+                    </span>
+                  ) : expired ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+                      Expired
+                    </span>
+                  ) : scheduled ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium bg-blue-50 text-blue-600 border border-blue-200 px-2 py-0.5 rounded-full">
+                      Scheduled
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+                      Inactive
+                    </span>
+                  )}
+                </div>
+
+                {/* Discount badge */}
+                <div className={`rounded-lg p-3 mb-3 text-center ${live ? 'bg-green-50' : 'bg-gray-50'}`}>
+                  <span className={`text-2xl font-bold ${live ? 'text-green-700' : 'text-gray-400'}`}>
+                    {offer.discount_type === 'percentage' ? `${offer.discount_value}%` : `₹${offer.discount_value}`}
+                  </span>
+                  <span className={`text-sm ml-1 ${live ? 'text-green-600' : 'text-gray-400'}`}>OFF</span>
+                </div>
+
+                {/* Details */}
+                <div className="space-y-1 text-xs text-gray-500 flex-1">
+                  <p>Applies to: <span className="font-medium text-gray-700 capitalize">
+                    {offer.applicable_to}
+                    {offer.category_name ? ` — ${offer.category_name}` : ''}
+                    {offer.product_name  ? ` — ${offer.product_name}`  : ''}
+                  </span></p>
+                  <p>Valid: <span className="font-medium text-gray-700">
+                    {offer.start_date?.split('T')[0]} → {offer.end_date?.split('T')[0]}
+                  </span></p>
+                  {offer.min_purchase_amount > 0 && (
+                    <p>Min purchase: ₹{offer.min_purchase_amount}</p>
+                  )}
+                </div>
+
+                {/* Footer actions */}
+                <div className="flex items-center gap-2 mt-4 pt-3 border-t border-gray-100">
+                  <button
+                    onClick={() => openEdit(offer)}
+                    className="text-xs px-2.5 py-1 rounded-lg text-gray-600 hover:bg-gray-100 flex items-center gap-1"
+                  >
+                    <HiOutlinePencil className="w-3.5 h-3.5" /> Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(offer.id)}
+                    className="text-xs px-2.5 py-1 rounded-lg text-red-500 hover:bg-red-50 ml-auto"
+                  >
+                    <HiOutlineTrash className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
-              <div className="bg-primary-50 rounded-lg p-3 mb-3 text-center">
-                <span className="text-2xl font-bold text-primary-700">
-                  {offer.discount_type === 'percentage' ? `${offer.discount_value}%` : `₹${offer.discount_value}`}
-                </span>
-                <span className="text-sm text-primary-600 ml-1">OFF</span>
-              </div>
-              <div className="space-y-1 text-xs text-gray-500">
-                <p>Applies to: <span className="font-medium text-gray-700 capitalize">{offer.applicable_to}{offer.category_name ? ` (${offer.category_name})` : ''}{offer.product_name ? ` (${offer.product_name})` : ''}</span></p>
-                <p>Valid: {offer.start_date?.split('T')[0]} to {offer.end_date?.split('T')[0]}</p>
-                {offer.min_purchase_amount > 0 && <p>Min purchase: ₹{offer.min_purchase_amount}</p>}
-              </div>
-              <div className="flex items-center gap-2 mt-4 pt-3 border-t border-gray-100">
-                <button onClick={() => handleToggle(offer)} className={`text-xs px-2 py-1 rounded ${offer.is_active ? 'text-red-600 hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}`}>
-                  {offer.is_active ? 'Disable' : 'Enable'}
-                </button>
-                <button onClick={() => openEdit(offer)} className="text-xs px-2 py-1 rounded text-gray-600 hover:bg-gray-100"><HiOutlinePencil className="w-3.5 h-3.5 inline" /> Edit</button>
-                <button onClick={() => handleDelete(offer.id)} className="text-xs px-2 py-1 rounded text-red-500 hover:bg-red-50 ml-auto"><HiOutlineTrash className="w-3.5 h-3.5" /></button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
       {/* Create/Edit Offer Modal */}
       <Modal open={showModal} onClose={() => setShowModal(false)} title={editingId ? 'Edit Offer' : 'Create New Offer'}>
         <form onSubmit={handleSubmit} className="space-y-4">
+
+          {/* Offer name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Offer Name *</label>
-            <input type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input-field" placeholder="e.g. Summer Sale 20% Off" />
+            <input type="text" required value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              className="input-field" placeholder="e.g. Summer Sale 20% Off" />
           </div>
+
+          {/* Applies To — category first */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <input type="text" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="input-field" placeholder="Optional details" />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Applies To</label>
+            <select value={form.applicable_to}
+              onChange={(e) => setForm({ ...form, applicable_to: e.target.value, category_id: '', product_id: '' })}
+              className="input-field">
+              <option value="category">Specific Category</option>
+              <option value="all">All Products</option>
+              <option value="product">Specific Product</option>
+            </select>
           </div>
+
+          {/* Category selector */}
+          {form.applicable_to === 'category' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+              {categories.length === 0 ? (
+                <p className="text-xs text-amber-600 p-2 bg-amber-50 rounded-lg border border-amber-200">
+                  No categories found. Add categories from the Products page first.
+                </p>
+              ) : (
+                <select required value={form.category_id}
+                  onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+                  className="input-field">
+                  <option value="">— Select a category —</option>
+                  {categories.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
+          {/* Product selector */}
+          {form.applicable_to === 'product' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Product *</label>
+              <select required value={form.product_id}
+                onChange={(e) => setForm({ ...form, product_id: e.target.value })}
+                className="input-field">
+                <option value="">— Select a product —</option>
+                {products.map(p => (
+                  <option key={p.id} value={p.id}>{p.name} (₹{p.selling_price})</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Discount type + value */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Discount Type</label>
-              <select value={form.discount_type} onChange={(e) => setForm({ ...form, discount_type: e.target.value })} className="input-field">
+              <select value={form.discount_type}
+                onChange={(e) => setForm({ ...form, discount_type: e.target.value, discount_value: '' })}
+                className="input-field">
                 <option value="percentage">Percentage (%)</option>
                 <option value="flat">Flat Amount (₹)</option>
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Discount Value *</label>
-              <input type="number" step="0.01" required value={form.discount_value} onChange={(e) => setForm({ ...form, discount_value: e.target.value })} className="input-field" placeholder={form.discount_type === 'percentage' ? '10' : '50'} />
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {form.discount_type === 'percentage' ? 'Discount %' : 'Discount Amount'} *
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  required
+                  min="0.01"
+                  max={form.discount_type === 'percentage' ? 100 : undefined}
+                  step="0.01"
+                  value={form.discount_value}
+                  onChange={(e) => setForm({ ...form, discount_value: e.target.value })}
+                  className="input-field pr-10"
+                  placeholder={form.discount_type === 'percentage' ? '10' : '50'}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-400 pointer-events-none">
+                  {form.discount_type === 'percentage' ? '%' : '₹'}
+                </span>
+              </div>
+              {form.discount_type === 'percentage' && parseFloat(form.discount_value) > 100 && (
+                <p className="text-xs text-red-500 mt-1">Percentage cannot exceed 100%</p>
+              )}
             </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Applies To</label>
-            <select value={form.applicable_to} onChange={(e) => setForm({ ...form, applicable_to: e.target.value, category_id: '', product_id: '' })} className="input-field">
-              <option value="all">All Products</option>
-              <option value="category">Specific Category</option>
-              <option value="product">Specific Product</option>
-            </select>
-          </div>
-          {form.applicable_to === 'category' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-              <select value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })} className="input-field">
-                <option value="">Select category</option>
-                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-          )}
-          {form.applicable_to === 'product' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Product</label>
-              <select value={form.product_id} onChange={(e) => setForm({ ...form, product_id: e.target.value })} className="input-field">
-                <option value="">Select product</option>
-                {products.map(p => <option key={p.id} value={p.id}>{p.name} (₹{p.selling_price})</option>)}
-              </select>
-            </div>
-          )}
+
+          {/* Validity dates */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Start Date *</label>
-              <input type="date" required value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} className="input-field" />
+              <input type="date" required value={form.start_date}
+                onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+                className="input-field" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">End Date *</label>
-              <input type="date" required value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} className="input-field" />
+              <input type="date" required value={form.end_date}
+                min={form.start_date || undefined}
+                onChange={(e) => setForm({ ...form, end_date: e.target.value })}
+                className="input-field" />
             </div>
           </div>
+
+          {/* Optional description */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Description <span className="font-normal text-gray-400">(optional)</span></label>
+            <input type="text" value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              className="input-field" placeholder="Short note visible on receipt" />
+          </div>
+
+          {/* Optional limits */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Min Purchase (₹)</label>
-              <input type="number" step="0.01" value={form.min_purchase_amount} onChange={(e) => setForm({ ...form, min_purchase_amount: e.target.value })} className="input-field" placeholder="0" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Min Purchase (₹) <span className="font-normal text-gray-400">(optional)</span></label>
+              <input type="number" step="0.01" min="0" value={form.min_purchase_amount}
+                onChange={(e) => setForm({ ...form, min_purchase_amount: e.target.value })}
+                className="input-field" placeholder="0" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Max Discount (₹)</label>
-              <input type="number" step="0.01" value={form.max_discount_amount} onChange={(e) => setForm({ ...form, max_discount_amount: e.target.value })} className="input-field" placeholder="No limit" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Max Discount (₹) <span className="font-normal text-gray-400">(optional)</span></label>
+              <input type="number" step="0.01" min="0" value={form.max_discount_amount}
+                onChange={(e) => setForm({ ...form, max_discount_amount: e.target.value })}
+                className="input-field" placeholder="No limit" />
             </div>
           </div>
-          <div className="flex justify-end gap-3 pt-4">
+
+          {/* Date-driven activation note */}
+          <div className="flex items-start gap-2 p-3 rounded-lg border border-blue-100 bg-blue-50">
+            <span className="text-blue-500 mt-0.5 shrink-0">ℹ</span>
+            <p className="text-xs text-blue-700">
+              This offer activates and deactivates automatically based on the date range above.
+              {editingId ? ' Saving with a valid date range will re-enable it.' : ''}
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
             <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Cancel</button>
-            <button type="submit" className="btn-primary">{editingId ? 'Save Changes' : 'Create Offer'}</button>
+            <button
+              type="submit"
+              disabled={form.discount_type === 'percentage' && parseFloat(form.discount_value) > 100}
+              className="btn-primary disabled:opacity-50"
+            >
+              {editingId ? 'Save Changes' : 'Create Offer'}
+            </button>
           </div>
         </form>
       </Modal>

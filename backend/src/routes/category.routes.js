@@ -52,8 +52,8 @@ router.post('/', authenticate, async (req, res, next) => {
     const pool = getPool();
     const { name, description } = req.body;
     const [result] = await pool.query(
-      'INSERT INTO categories (shop_id, name, description) VALUES (?, ?, ?)',
-      [req.user.shop_id, name, description || null]
+      'INSERT INTO categories (user_id, shop_id, name, description) VALUES (?, ?, ?, ?)',
+      [req.user.id, req.user.shop_id, name, description || null]
     );
     return ApiResponse.created(res, { id: result.insertId, name, description });
   } catch (error) {

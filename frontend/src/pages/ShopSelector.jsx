@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { HiOutlineBuildingStorefront, HiOutlinePlus, HiOutlineArrowRightOnRectangle, HiOutlineChevronRight } from 'react-icons/hi2';
 import api from '../api/axios';
 import { logout, setActiveShop } from '../store/authSlice';
+import { resolveDefaultRoute } from './RoleSelector';
 
 export default function ShopSelector() {
   const { user } = useSelector((state) => state.auth);
@@ -21,9 +22,9 @@ export default function ShopSelector() {
       const updatedUser = { ...user, shop_id: selectedShop.id, shop_name: selectedShop.name, role };
       localStorage.setItem('user', JSON.stringify(updatedUser));
       dispatch(setActiveShop({ shop_id: selectedShop.id, shop_name: selectedShop.name, role }));
-
       toast.success(`Opened ${selectedShop.name}`);
-      navigate('/dashboard');
+      const destination = resolveDefaultRoute(updatedUser.default_module, 'shop');
+      navigate(destination);
     } catch (err) {
       toast.error(err.structured?.message || 'Failed to select shop');
     }

@@ -24,6 +24,8 @@ const reportRoutes = require('./routes/report.routes');
 const posRoutes = require('./routes/pos.routes');
 const expenseRoutes = require('./routes/expense.routes');
 const offerRoutes = require('./routes/offer.routes');
+const individualRoutes = require('./routes/individual.routes');
+const notesRoutes = require('./routes/notes.routes');
 
 const app = express();
 
@@ -103,6 +105,8 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/pos', posRoutes);
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/offers', offerRoutes);
+app.use('/api/individual', individualRoutes);
+app.use('/api/notes', notesRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

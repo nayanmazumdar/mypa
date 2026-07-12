@@ -76,8 +76,8 @@ router.post('/', authenticate, async (req, res, next) => {
     const { name, email, phone, company, address, gst_number } = req.body;
     const uuid = generateId();
     const [result] = await pool.query(
-      'INSERT INTO suppliers (uuid, shop_id, name, email, phone, company, address, gst_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [uuid, req.user.shop_id, name, email || null, phone || null, company || null, address || null, gst_number || null]
+      'INSERT INTO suppliers (uuid, user_id, shop_id, name, email, phone, company, address, gst_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [uuid, req.user.id, req.user.shop_id, name, email || null, phone || null, company || null, address || null, gst_number || null]
     );
     return ApiResponse.created(res, { id: result.insertId, uuid, name });
   } catch (error) {

@@ -48,10 +48,10 @@ export default function Sidebar({ open, onClose }) {
       >
         {/* Logo */}
         <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200">
-          <div className="flex items-center gap-2">
+          <NavLink to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
             <img src="/logo.png" alt="Logo" className="w-8 h-8 rounded-lg" />
             <span className="text-lg font-semibold text-gray-900">Shopkeeper</span>
-          </div>
+          </NavLink>
           <button
             onClick={onClose}
             className="md:hidden p-1 rounded-md text-gray-500 hover:text-gray-700"

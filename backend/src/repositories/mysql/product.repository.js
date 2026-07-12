@@ -3,20 +3,23 @@ const { getPool } = require('../../config/db');
 class ProductRepository {
   async findAll(userId, { limit, offset, search, categoryId }) {
     const pool = getPool();
-    let query = 'SELECT * FROM products WHERE shop_id = ?';
+    let query = `SELECT p.*, c.name AS category_name
+                 FROM products p
+                 LEFT JOIN categories c ON c.id = p.category_id
+                 WHERE p.shop_id = ?`;
     const params = [userId];
 
     if (search) {
-      query += ' AND (name LIKE ? OR sku LIKE ? OR barcode LIKE ?)';
+      query += ' AND (p.name LIKE ? OR p.sku LIKE ? OR p.barcode LIKE ?)';
       const searchTerm = `%${search}%`;
       params.push(searchTerm, searchTerm, searchTerm);
     }
     if (categoryId) {
-      query += ' AND category_id = ?';
+      query += ' AND p.category_id = ?';
       params.push(categoryId);
     }
 
-    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    query += ' ORDER BY c.name IS NULL, c.name ASC, p.name ASC LIMIT ? OFFSET ?';
     params.push(limit, offset);
 
     const [rows] = await pool.query(query, params);
@@ -45,7 +48,10 @@ class ProductRepository {
   async findById(id, userId) {
     const pool = getPool();
     const [rows] = await pool.query(
-      'SELECT * FROM products WHERE id = ? AND shop_id = ?',
+      `SELECT p.*, c.name AS category_name
+       FROM products p
+       LEFT JOIN categories c ON c.id = p.category_id
+       WHERE p.id = ? AND p.shop_id = ?`,
       [id, userId]
     );
     return rows[0] || null;

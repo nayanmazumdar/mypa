@@ -3,7 +3,7 @@ const router = express.Router();
 const { getPool } = require('../config/db');
 const { authenticate } = require('../middlewares/auth.middleware');
 const ApiResponse = require('../utils/response');
-const { generateId } = require('../utils/helper');
+const { generateId, localDateStr } = require('../utils/helper');
 const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 
 // Generate receipt number
@@ -22,7 +22,7 @@ router.get('/products', authenticate, async (req, res, next) => {
   try {
     const pool = getPool();
     const { category_id, search } = req.query;
-    const today = new Date().toISOString().split('T')[0];
+    const today = localDateStr();
 
     let query = `SELECT p.id, p.name, p.selling_price, p.mrp, p.unit, p.category_id, p.barcode, p.sku,
                  p.image_url, p.brand, p.weight, c.name as category_name,
@@ -45,9 +45,19 @@ router.get('/products', authenticate, async (req, res, next) => {
     query += ' ORDER BY p.name ASC';
     const [rows] = await pool.query(query, params);
 
-    // Get active offers for the shop
+    // Sync offer states before fetching — ensures paused/expired offers never apply
+    await pool.query(
+      `UPDATE offers SET is_active = 0 WHERE shop_id = ? AND end_date < ?`,
+      [req.user.shop_id, today]
+    );
+    await pool.query(
+      `UPDATE offers SET is_active = 1 WHERE shop_id = ? AND is_paused = 0 AND start_date <= ? AND end_date >= ?`,
+      [req.user.shop_id, today, today]
+    );
+
+    // Get active, non-paused offers for the shop
     const [offers] = await pool.query(
-      `SELECT * FROM offers WHERE shop_id = ? AND is_active = 1 AND start_date <= ? AND end_date >= ?`,
+      `SELECT * FROM offers WHERE shop_id = ? AND is_active = 1 AND is_paused = 0 AND start_date <= ? AND end_date >= ?`,
       [req.user.shop_id, today, today]
     );
 
@@ -146,25 +156,56 @@ router.post('/checkout', authenticate, async (req, res, next) => {
 
       // Insert transaction
       const [txResult] = await connection.query(
-        `INSERT INTO pos_transactions (uuid, shop_id, customer_name, customer_id, total_amount, discount, net_amount, payment_method, amount_received, change_amount, receipt_number)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [uuid, req.user.shop_id, customer_name || null, customer_id || null, totalAmount, discountAmount, netAmount, payment_method || 'cash', amount_received || netAmount, changeAmount > 0 ? changeAmount : 0, receiptNumber]
+        `INSERT INTO pos_transactions (uuid, user_id, shop_id, customer_name, customer_id, total_amount, discount, net_amount, payment_method, amount_received, change_amount, receipt_number)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uuid, req.user.id, req.user.shop_id, customer_name || null, customer_id || null, totalAmount, discountAmount, netAmount, payment_method || 'cash', amount_received || netAmount, changeAmount > 0 ? changeAmount : 0, receiptNumber]
       );
       const transactionId = txResult.insertId;
 
-      // Insert items
+      // Insert items and update inventory with stock validation
       for (const item of processedItems) {
+        // Check current stock
+        const [stockRows] = await connection.query(
+          `SELECT COALESCE(quantity, 0) as quantity FROM inventory WHERE product_id = ? AND shop_id = ?`,
+          [item.product_id, req.user.shop_id]
+        );
+        const currentStock = stockRows.length > 0 ? parseFloat(stockRows[0].quantity) : 0;
+
+        if (currentStock < item.quantity) {
+          await connection.rollback();
+          return ApiResponse.error(
+            res,
+            `Insufficient stock for "${item.product_name}". Available: ${currentStock}, requested: ${item.quantity}`,
+            400
+          );
+        }
+
         await connection.query(
           `INSERT INTO pos_transaction_items (transaction_id, product_id, product_name, quantity, unit, unit_price, total)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
           [transactionId, item.product_id, item.product_name, item.quantity, item.unit, item.unit_price, item.total]
         );
 
-        // Reduce inventory
+        // Reduce inventory — floor at 0 to be safe
+        const newQty = Math.max(0, currentStock - item.quantity);
         await connection.query(
-          `UPDATE inventory SET quantity = quantity - ? WHERE product_id = ? AND shop_id = ?`,
-          [item.quantity, item.product_id, req.user.shop_id]
+          `UPDATE inventory SET quantity = ? WHERE product_id = ? AND shop_id = ?`,
+          [newQty, item.product_id, req.user.shop_id]
         );
+
+        // Log stock movement
+        const [[product]] = await connection.query(
+          `SELECT user_id FROM products WHERE id = ? AND shop_id = ?`,
+          [item.product_id, req.user.shop_id]
+        );
+        if (product) {
+          const movementUserId = product.user_id || req.user.id;
+          await connection.query(
+            `INSERT INTO stock_movements (product_id, user_id, shop_id, type, quantity, reference_type, reference_id, notes)
+             VALUES (?, ?, ?, 'out', ?, 'pos_transaction', ?, ?)`,
+            [item.product_id, movementUserId, req.user.shop_id, item.quantity, transactionId, `POS Sale: ${receiptNumber}`]
+          );
+        }
       }
 
       await connection.commit();
@@ -201,7 +242,7 @@ router.get('/transactions', authenticate, async (req, res, next) => {
   try {
     const pool = getPool();
     const { page, limit, offset } = parsePagination(req.query);
-    const { date } = req.query;
+    const { date, start_date, end_date, search } = req.query;
 
     let query = 'SELECT * FROM pos_transactions WHERE shop_id = ?';
     let countQuery = 'SELECT COUNT(*) as total FROM pos_transactions WHERE shop_id = ?';
@@ -211,6 +252,24 @@ router.get('/transactions', authenticate, async (req, res, next) => {
       query += ' AND DATE(created_at) = ?';
       countQuery += ' AND DATE(created_at) = ?';
       params.push(date);
+    } else {
+      if (start_date) {
+        query += ' AND DATE(created_at) >= ?';
+        countQuery += ' AND DATE(created_at) >= ?';
+        params.push(start_date);
+      }
+      if (end_date) {
+        query += ' AND DATE(created_at) <= ?';
+        countQuery += ' AND DATE(created_at) <= ?';
+        params.push(end_date);
+      }
+    }
+
+    if (search) {
+      const like = `%${search}%`;
+      query += ' AND (receipt_number LIKE ? OR customer_name LIKE ?)';
+      countQuery += ' AND (receipt_number LIKE ? OR customer_name LIKE ?)';
+      params.push(like, like);
     }
 
     const countParams = [...params];
@@ -251,12 +310,13 @@ router.get('/transactions/:id', authenticate, async (req, res, next) => {
 });
 
 /**
- * GET /api/pos/today-summary - Get today's POS summary
+ * GET /api/pos/today-summary - Get POS summary with payment breakdown for a given date
+ * Query params: date (YYYY-MM-DD, defaults to today)
  */
 router.get('/today-summary', authenticate, async (req, res, next) => {
   try {
     const pool = getPool();
-    const today = new Date().toISOString().split('T')[0];
+    const today = req.query.date || localDateStr();
 
     const [[sales]] = await pool.query(
       `SELECT COUNT(*) as count, COALESCE(SUM(net_amount), 0) as revenue
@@ -269,12 +329,71 @@ router.get('/today-summary', authenticate, async (req, res, next) => {
       [req.user.shop_id, today]
     );
 
+    const [breakdown] = await pool.query(
+      `SELECT payment_method,
+              COUNT(*) as count,
+              COALESCE(SUM(net_amount), 0) as total
+       FROM pos_transactions
+       WHERE shop_id = ? AND DATE(created_at) = ? AND status = 'completed'
+       GROUP BY payment_method`,
+      [req.user.shop_id, today]
+    );
+
+    // Build a keyed map so frontend always gets all keys
+    const paymentBreakdown = { cash: 0, upi: 0, card: 0, credit: 0 };
+    const paymentCounts    = { cash: 0, upi: 0, card: 0, credit: 0 };
+    breakdown.forEach(row => {
+      const key = row.payment_method || 'cash';
+      paymentBreakdown[key] = parseFloat(row.total);
+      paymentCounts[key]    = Number(row.count);
+    });
+
     return ApiResponse.success(res, {
       total_transactions: sales.count,
       total_revenue: sales.revenue,
       total_expenses: expenses.total,
       net_income: Math.round((sales.revenue - expenses.total) * 100) / 100,
+      payment_breakdown: paymentBreakdown,
+      payment_counts: paymentCounts,
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/pos/payment-summary - Payment method breakdown for a date range
+ * Query params: start_date, end_date (YYYY-MM-DD)
+ */
+router.get('/payment-summary', authenticate, async (req, res, next) => {
+  try {
+    const pool = getPool();
+    const { start_date, end_date } = req.query;
+
+    let where = 'WHERE shop_id = ? AND status = \'completed\'';
+    const params = [req.user.shop_id];
+
+    if (start_date) { where += ' AND DATE(created_at) >= ?'; params.push(start_date); }
+    if (end_date)   { where += ' AND DATE(created_at) <= ?'; params.push(end_date);   }
+
+    const [breakdown] = await pool.query(
+      `SELECT payment_method,
+              COUNT(*) as count,
+              COALESCE(SUM(net_amount), 0) as total
+       FROM pos_transactions ${where}
+       GROUP BY payment_method`,
+      params
+    );
+
+    const totals = { cash: 0, upi: 0, card: 0, credit: 0 };
+    const counts = { cash: 0, upi: 0, card: 0, credit: 0 };
+    breakdown.forEach(row => {
+      const key = row.payment_method || 'cash';
+      totals[key] = parseFloat(row.total);
+      counts[key] = Number(row.count);
+    });
+
+    return ApiResponse.success(res, { totals, counts });
   } catch (error) {
     next(error);
   }

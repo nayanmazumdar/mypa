@@ -10,9 +10,12 @@ const BACKEND_DIR = path.join(__dirname, 'backend');
 const FRONTEND_DIR = path.join(__dirname, 'frontend');
 
 function startProcess(name, command, args, cwd) {
+  // On Windows, npx/npm are .cmd files and require shell: true to be found by spawn
+  const isWindows = process.platform === 'win32';
   const proc = spawn(command, args, {
     cwd,
     stdio: 'pipe',
+    shell: isWindows,
   });
 
   proc.stdout.on('data', (data) => {

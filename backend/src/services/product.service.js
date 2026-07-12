@@ -28,6 +28,11 @@ class ProductService {
   }
 
   async create(userId, data, createdBy) {
+    if (!userId) {
+      const error = new Error('No shop selected. Please select a shop before adding products.');
+      error.statusCode = 400;
+      throw error;
+    }
     const uuid = generateId();
     const productData = {
       uuid,

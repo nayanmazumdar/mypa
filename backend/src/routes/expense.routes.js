@@ -56,8 +56,8 @@ router.post('/', authenticate, async (req, res, next) => {
     }
 
     const [result] = await pool.query(
-      'INSERT INTO expenses (shop_id, category, description, amount, payment_method, expense_date) VALUES (?, ?, ?, ?, ?, ?)',
-      [req.user.shop_id, category, description || null, amount, payment_method || 'cash', expense_date || new Date().toISOString().split('T')[0]]
+      'INSERT INTO expenses (user_id, shop_id, category, description, amount, payment_method, expense_date) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [req.user.id, req.user.shop_id, category, description || null, amount, payment_method || 'cash', expense_date || new Date().toISOString().split('T')[0]]
     );
 
     return ApiResponse.created(res, { id: result.insertId, category, amount });

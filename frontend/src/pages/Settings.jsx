@@ -5,6 +5,7 @@ import {
   HiOutlineUser, HiOutlineBuildingStorefront, HiOutlineUserGroup,
   HiOutlinePlus, HiOutlineShieldCheck, HiOutlineCog6Tooth,
   HiOutlinePrinter, HiOutlineBell, HiOutlineReceiptPercent,
+  HiOutlinePencil, HiOutlineXMark, HiOutlineBanknotes,
 } from 'react-icons/hi2';
 import api from '../api/axios';
 import Modal from '../components/common/Modal';
@@ -19,7 +20,7 @@ export default function Settings() {
   const [showStaffModal, setShowStaffModal] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
   const [editingShop, setEditingShop] = useState(false);
-  const [staffForm, setStaffForm] = useState({ name: '', email: '', password: '', phone: '', role: 'staff' });
+  const [staffForm, setStaffForm] = useState({ name: '', email: '', password: '', phone: '', role: 'staff', designation: '' });
   const [profileForm, setProfileForm] = useState({ name: '', phone: '' });
   const [shopForm, setShopForm] = useState({ name: '', address: '', phone: '', email: '', gst_number: '' });
   const [passcodeForm, setPasscodeForm] = useState({ passcode: '', confirm_passcode: '', current_password: '' });
@@ -99,26 +100,101 @@ export default function Settings() {
       await api.post('/auth/staff', staffForm);
       toast.success('Staff member added');
       setShowStaffModal(false);
-      setStaffForm({ name: '', email: '', password: '', phone: '', role: 'staff' });
+      setStaffForm({ name: '', email: '', password: '', phone: '', role: 'staff', designation: '' });
       loadStaff();
     } catch (err) { toast.error(err.structured?.message || 'Failed to add staff'); }
     finally { setLoading(false); }
   };
 
-  const handleToggleStaff = async (id, active) => {
-    try { await api.patch(`/users/${id}/status`, { is_active: !active }); toast.success('Updated'); loadStaff(); }
-    catch { toast.error('Failed'); }
+  const handleToggleStaff = async (id, active, name) => {
+    const action = active ? 'disable' : 'enable';
+    if (!confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} ${name}? They will ${active ? 'lose' : 'regain'} access to this shop.`)) return;
+    try {
+      await api.patch(`/users/${id}/status`, { is_active: !active });
+      toast.success(`${name} ${active ? 'disabled' : 'enabled'}`);
+      loadStaff();
+    } catch (err) {
+      toast.error(err.structured?.message || 'Failed to update status');
+    }
+  };
+
+  // ── Edit staff details ───────────────────────────────────────────────
+  const [editingDetails, setEditingDetails] = useState(null);
+  const [detailsForm, setDetailsForm]       = useState({ name: '', email: '', phone: '' });
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [showResetPwd, setShowResetPwd]     = useState(false);
+  const [newPassword, setNewPassword]       = useState('');
+  const [resetLoading, setResetLoading]     = useState(false);
+
+  const openEditDetails = (m) => {
+    setEditingDetails(m);
+    setDetailsForm({ name: m.name || '', email: m.email || '', phone: m.phone || '' });
+    setShowResetPwd(false);
+    setNewPassword('');
+  };
+
+  const handleSaveDetails = async (e) => {
+    e.preventDefault();
+    setDetailsLoading(true);
+    try {
+      await api.patch(`/users/${editingDetails.id}/details`, detailsForm);
+      toast.success(`${editingDetails.name}'s details updated`);
+      setEditingDetails(null);
+      loadStaff();
+    } catch (err) {
+      toast.error(err.structured?.message || 'Failed to update details');
+    } finally {
+      setDetailsLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (newPassword.length < 8) { toast.error('Min 8 characters required'); return; }
+    setResetLoading(true);
+    try {
+      await api.patch(`/users/${editingDetails.id}/reset-password`, { new_password: newPassword });
+      toast.success(`Password reset for ${editingDetails.name}`);
+      setShowResetPwd(false);
+      setNewPassword('');
+    } catch (err) {
+      toast.error(err.structured?.message || 'Failed to reset password');
+    } finally {
+      setResetLoading(false);
+    }
+  };
+  const [editingRole, setEditingRole] = useState(null); // { id, name, role, designation }
+  const [roleForm, setRoleForm]       = useState({ role: 'staff', designation: '' });
+  const [roleLoading, setRoleLoading] = useState(false);
+
+  const openEditRole = (m) => {
+    setEditingRole(m);
+    setRoleForm({ role: m.role || 'staff', designation: m.designation || '' });
+  };
+
+  const handleSaveRole = async (e) => {
+    e.preventDefault();
+    setRoleLoading(true);
+    try {
+      await api.patch(`/users/${editingRole.id}/role`, roleForm);
+      toast.success(`${editingRole.name}'s role updated`);
+      setEditingRole(null);
+      loadStaff();
+    } catch (err) {
+      toast.error(err.structured?.message || 'Failed to update role');
+    } finally {
+      setRoleLoading(false);
+    }
   };
 
   const isAdmin = user?.role === 'admin';
 
   const tabs = [
-    { id: 'profile', label: 'Profile', icon: HiOutlineUser },
-    { id: 'security', label: 'Security', icon: HiOutlineShieldCheck },
-    { id: 'shop', label: 'Shop Details', icon: HiOutlineBuildingStorefront },
-    ...(isAdmin ? [{ id: 'team', label: 'Team', icon: HiOutlineUserGroup }] : []),
-    { id: 'pos', label: 'POS & Billing', icon: HiOutlineReceiptPercent },
-    { id: 'notifications', label: 'Notifications', icon: HiOutlineBell },
+    { id: 'profile',       label: 'Profile',       icon: HiOutlineUser,               active: 'border-violet-500 text-violet-700 bg-violet-50',   hover: 'hover:text-violet-600 hover:border-violet-300' },
+    { id: 'security',      label: 'Security',      icon: HiOutlineShieldCheck,         active: 'border-rose-500 text-rose-700 bg-rose-50',         hover: 'hover:text-rose-600 hover:border-rose-300' },
+    { id: 'shop',          label: 'Shop Details',  icon: HiOutlineBuildingStorefront,  active: 'border-amber-500 text-amber-700 bg-amber-50',      hover: 'hover:text-amber-600 hover:border-amber-300' },
+    ...(isAdmin ? [{ id: 'team', label: 'Staff',   icon: HiOutlineUserGroup,           active: 'border-indigo-500 text-indigo-700 bg-indigo-50',   hover: 'hover:text-indigo-600 hover:border-indigo-300' }] : []),
+    { id: 'pos',           label: 'POS & Billing', icon: HiOutlineReceiptPercent,      active: 'border-emerald-500 text-emerald-700 bg-emerald-50', hover: 'hover:text-emerald-600 hover:border-emerald-300' },
+    { id: 'notifications', label: 'Notifications', icon: HiOutlineBell,                active: 'border-sky-500 text-sky-700 bg-sky-50',            hover: 'hover:text-sky-600 hover:border-sky-300' },
   ];
 
   if (!profile) return <LoadingSpinner />;
@@ -135,7 +211,11 @@ export default function Settings() {
         <div className="flex gap-1 border-b border-gray-200 w-fit min-w-max">
           {tabs.map((tab) => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${activeTab === tab.id ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px rounded-t-md ${
+                activeTab === tab.id
+                  ? tab.active
+                  : `border-transparent text-gray-500 ${tab.hover}`
+              }`}>
               <tab.icon className="w-4 h-4" />{tab.label}
             </button>
           ))}
@@ -286,13 +366,67 @@ export default function Settings() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-semibold text-gray-900">Team Members</h3>
+              <h3 className="font-semibold text-gray-900">Staff Members</h3>
               <p className="text-sm text-gray-500">{staff.length} member{staff.length !== 1 ? 's' : ''} in this shop</p>
             </div>
             <button onClick={() => setShowStaffModal(true)} className="btn-primary flex items-center gap-2 text-sm">
               <HiOutlinePlus className="w-4 h-4" /> Add Staff
             </button>
           </div>
+
+          {/* ── Salary reminder banner ── */}
+          {(() => {
+            const today   = new Date();
+            const day     = today.getDate();
+            const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+            const daysLeft = lastDay - day;
+            const monthName = today.toLocaleString('en-IN', { month: 'long' });
+
+            if (daysLeft === 0) {
+              // Last day — urgent
+              return (
+                <div className="flex items-start gap-3 rounded-xl border-2 border-red-400 bg-red-50 px-4 py-3 shadow-sm">
+                  <span className="relative flex h-6 w-6 shrink-0 mt-0.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-60" />
+                    <HiOutlineBanknotes className="relative w-6 h-6 text-red-600" />
+                  </span>
+                  <div>
+                    <p className="font-bold text-red-700 text-sm">Today is the last day of {monthName}!</p>
+                    <p className="text-xs text-red-600 mt-0.5">
+                      Don't forget to process salary payments for your {staff.filter(s => s.role !== 'admin').length} staff member{staff.filter(s => s.role !== 'admin').length !== 1 ? 's' : ''} before the month ends.
+                    </p>
+                  </div>
+                </div>
+              );
+            }
+
+            if (daysLeft <= 3) {
+              // Last 3 days — warning
+              return (
+                <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
+                  <HiOutlineBanknotes className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-amber-800 text-sm">{daysLeft} day{daysLeft !== 1 ? 's' : ''} left in {monthName}</p>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      Salary due soon — remember to pay your staff before the month ends.
+                    </p>
+                  </div>
+                </div>
+              );
+            }
+
+            // Not near end of month — soft reminder
+            return (
+              <div className="flex justify-end">
+                <div className="flex items-center gap-2 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-1.5">
+                  <HiOutlineBanknotes className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                  <p className="text-xs text-indigo-600">
+                    Pay day ahead — <span className="font-bold text-indigo-700">{lastDay} {monthName}</span> is {daysLeft} days away.
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="card overflow-hidden p-0">
             <table className="w-full text-sm">
@@ -316,10 +450,24 @@ export default function Settings() {
                         <div>
                           <p className="font-medium text-gray-900">{m.name}</p>
                           <p className="text-xs text-gray-400">{m.email}</p>
+                          {m.designation && (
+                            <p className="text-xs text-purple-600 font-medium mt-0.5">{m.designation}</p>
+                          )}
+                          {(m.shop_name || user?.shop_name) && (
+                            <p className="text-xs text-indigo-500 font-medium mt-0.5 flex items-center gap-1">
+                              <HiOutlineBuildingStorefront className="w-3 h-3" />
+                              {m.shop_name || user?.shop_name}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3"><RoleBadge role={m.role} /></td>
+                    <td className="px-4 py-3">
+                      {m.designation
+                        ? <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">{m.designation}</span>
+                        : <RoleBadge role={m.role} />
+                      }
+                    </td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${m.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                         {m.is_active ? 'Active' : 'Disabled'}
@@ -328,10 +476,38 @@ export default function Settings() {
                     <td className="px-4 py-3 text-gray-400 text-xs">{m.joined_at ? new Date(m.joined_at).toLocaleDateString() : '-'}</td>
                     <td className="px-4 py-3 text-center">
                       {m.role !== 'admin' && (
-                        <button onClick={() => handleToggleStaff(m.id, m.is_active)}
-                          className={`text-xs font-medium px-3 py-1 rounded-md ${m.is_active ? 'text-red-600 hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}`}>
-                          {m.is_active ? 'Disable' : 'Enable'}
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => openEditDetails(m)}
+                            className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors flex items-center gap-1">
+                            <HiOutlinePencil className="w-3 h-3" /> Edit
+                          </button>
+                          <button
+                            onClick={() => openEditRole(m)}
+                            className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-purple-200 text-purple-700 hover:bg-purple-50 hover:border-purple-300 transition-colors flex items-center gap-1">
+                            <HiOutlinePencil className="w-3 h-3" /> Edit Role
+                          </button>
+                          <button
+                            onClick={() => !m.is_active && handleToggleStaff(m.id, m.is_active, m.name)}
+                            disabled={m.is_active}
+                            className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
+                              m.is_active
+                                ? 'border-blue-100 text-blue-300 bg-blue-50 cursor-default'
+                                : 'border-blue-300 text-blue-700 hover:bg-blue-50 hover:border-blue-400'
+                            }`}>
+                            Enable
+                          </button>
+                          <button
+                            onClick={() => m.is_active && handleToggleStaff(m.id, m.is_active, m.name)}
+                            disabled={!m.is_active}
+                            className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
+                              !m.is_active
+                                ? 'border-red-100 text-red-300 bg-red-50 cursor-default'
+                                : 'border-red-300 text-red-700 hover:bg-red-50 hover:border-red-400'
+                            }`}>
+                            Disable
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -402,9 +578,175 @@ export default function Settings() {
         </div>
       )}
 
+      {/* ========== EDIT STAFF DETAILS MODAL ========== */}
+      <Modal open={!!editingDetails} onClose={() => setEditingDetails(null)} title="Edit Staff Details">
+        {editingDetails && (
+          <div className="space-y-4">
+            <form onSubmit={handleSaveDetails} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
+                <input
+                  type="text" required
+                  value={detailsForm.name}
+                  onChange={(e) => setDetailsForm({ ...detailsForm, name: e.target.value })}
+                  className="input-field"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                <input
+                  type="email" required
+                  value={detailsForm.email}
+                  onChange={(e) => setDetailsForm({ ...detailsForm, email: e.target.value })}
+                  className="input-field"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <input
+                  type="tel"
+                  value={detailsForm.phone}
+                  onChange={(e) => setDetailsForm({ ...detailsForm, phone: e.target.value })}
+                  className="input-field"
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+                <button type="button" onClick={() => setEditingDetails(null)} className="btn-secondary">Cancel</button>
+                <button type="submit" disabled={detailsLoading} className="btn-primary">
+                  {detailsLoading ? 'Saving…' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+
+            {/* Reset Password section */}
+            <div className="border-t border-gray-100 pt-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium text-gray-700">Reset Password</p>
+                <button
+                  type="button"
+                  onClick={() => { setShowResetPwd(v => !v); setNewPassword(''); }}
+                  className="text-xs text-amber-600 hover:text-amber-700 font-medium underline hover:no-underline"
+                >
+                  {showResetPwd ? 'Cancel' : 'Reset password'}
+                </button>
+              </div>
+              {showResetPwd && (
+                <div className="flex gap-2 mt-2">
+                  <input
+                    type="password"
+                    placeholder="New password (min 8 chars)"
+                    minLength={8}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="input-field flex-1 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleResetPassword}
+                    disabled={resetLoading || newPassword.length < 8}
+                    className="btn-primary text-sm px-4 disabled:opacity-50"
+                  >
+                    {resetLoading ? '…' : 'Set'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ========== EDIT ROLE MODAL ========== */}
+      <Modal open={!!editingRole} onClose={() => setEditingRole(null)} title="Edit Role & Designation">
+        {editingRole && (
+          <form onSubmit={handleSaveRole} className="space-y-4">
+            {/* Member info */}
+            <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
+              <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center shrink-0">
+                <span className="text-primary-700 text-sm font-medium">{editingRole.name?.charAt(0)?.toUpperCase()}</span>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-900">{editingRole.name}</p>
+                <p className="text-xs text-gray-400">{editingRole.email}</p>
+              </div>
+            </div>
+
+            {/* Designation */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Designation</label>
+              <select
+                value={roleForm.designation}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const sysRole = val === 'General Manager' ? 'manager' : 'staff';
+                  setRoleForm({ ...roleForm, designation: val, role: sysRole });
+                }}
+                className="input-field"
+              >
+                <option value="">Select designation…</option>
+                <optgroup label="Management">
+                  <option value="General Manager">General Manager</option>
+                  <option value="Manager">Manager</option>
+                  <option value="Accountant">Accountant</option>
+                </optgroup>
+                <optgroup label="Sales & Support">
+                  <option value="Cashier">Cashier</option>
+                  <option value="Sales Executive">Sales Executive</option>
+                  <option value="Customer Support">Customer Support</option>
+                </optgroup>
+                <optgroup label="Operations">
+                  <option value="Inventory Manager">Inventory Manager</option>
+                  <option value="Purchase Executive">Purchase Executive</option>
+                  <option value="Warehouse Staff">Warehouse Staff</option>
+                  <option value="Delivery Staff">Delivery Staff</option>
+                </optgroup>
+                <optgroup label="Other">
+                  <option value="Housekeeping">Housekeeping</option>
+                  <option value="Security">Security</option>
+                </optgroup>
+              </select>
+            </div>
+
+            {/* System role */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">System Access Level</label>
+              <select
+                value={roleForm.role}
+                onChange={(e) => setRoleForm({ ...roleForm, role: e.target.value })}
+                className="input-field"
+              >
+                <option value="staff">Staff — standard access (POS, products, inventory)</option>
+                <option value="manager">Manager — elevated access</option>
+              </select>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+              <button type="button" onClick={() => setEditingRole(null)} className="btn-secondary">Cancel</button>
+              <button type="submit" disabled={roleLoading} className="btn-primary">
+                {roleLoading ? 'Saving…' : 'Save Changes'}
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
       {/* ========== ADD STAFF MODAL ========== */}
-      <Modal open={showStaffModal} onClose={() => setShowStaffModal(false)} title="Add Team Member">
+      <Modal open={showStaffModal} onClose={() => setShowStaffModal(false)} title="Add Staff Member">
         <form onSubmit={handleAddStaff} className="space-y-4">
+          {/* Shop context — read-only info row */}
+          <div className="flex items-center gap-3 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2.5">
+            <HiOutlineBuildingStorefront className="w-4 h-4 text-indigo-500 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-indigo-700 truncate">
+                {user?.shop_name || shopForm.name || 'Current Shop'}
+              </p>
+              {user?.shop_id && (
+                <p className="text-[10px] text-indigo-400 mt-0.5">Shop ID: {user.shop_id}</p>
+              )}
+            </div>
+            <span className="text-[10px] font-semibold bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full shrink-0">
+              Adding to this shop
+            </span>
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
             <input type="text" required value={staffForm.name} onChange={(e) => setStaffForm({ ...staffForm, name: e.target.value })} className="input-field" placeholder="Staff name" />
@@ -423,10 +765,38 @@ export default function Settings() {
               <input type="tel" value={staffForm.phone} onChange={(e) => setStaffForm({ ...staffForm, phone: e.target.value })} className="input-field" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-              <select value={staffForm.role} onChange={(e) => setStaffForm({ ...staffForm, role: e.target.value })} className="input-field">
-                <option value="staff">Salesperson / Staff</option>
-                <option value="manager">Manager</option>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Designation</label>
+              <select
+                value={staffForm.designation}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  // Map designation to system role: General Manager → manager, else → staff
+                  const sysRole = val === 'General Manager' ? 'manager' : 'staff';
+                  setStaffForm({ ...staffForm, designation: val, role: sysRole });
+                }}
+                className="input-field"
+              >
+                <option value="">Select designation…</option>
+                <optgroup label="Management">
+                  <option value="General Manager">General Manager</option>
+                  <option value="Manager">Manager</option>
+                  <option value="Accountant">Accountant</option>
+                </optgroup>
+                <optgroup label="Sales & Support">
+                  <option value="Cashier">Cashier</option>
+                  <option value="Sales Executive">Sales Executive</option>
+                  <option value="Customer Support">Customer Support</option>
+                </optgroup>
+                <optgroup label="Operations">
+                  <option value="Inventory Manager">Inventory Manager</option>
+                  <option value="Purchase Executive">Purchase Executive</option>
+                  <option value="Warehouse Staff">Warehouse Staff</option>
+                  <option value="Delivery Staff">Delivery Staff</option>
+                </optgroup>
+                <optgroup label="Other">
+                  <option value="Housekeeping">Housekeeping</option>
+                  <option value="Security">Security</option>
+                </optgroup>
               </select>
             </div>
           </div>

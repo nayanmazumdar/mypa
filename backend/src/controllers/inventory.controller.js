@@ -29,10 +29,35 @@ class InventoryController {
   async addStock(req, res) {
     try {
       const { product_id, quantity, type, notes } = req.body;
-      await inventoryService.addStock(req.user.shop_id, product_id, quantity, type, 'manual', null, notes);
-      return ApiResponse.success(res, null, 'Stock updated successfully');
+      if (!product_id || quantity === undefined || !type) {
+        return ApiResponse.error(res, 'product_id, quantity, and type are required', 400);
+      }
+      if (!['in', 'out', 'adjustment'].includes(type)) {
+        return ApiResponse.error(res, 'type must be one of: in, out, adjustment', 400);
+      }
+      if (parseFloat(quantity) < 0) {
+        return ApiResponse.error(res, 'quantity must be a positive number', 400);
+      }
+      const result = await inventoryService.addStock(
+        req.user.shop_id, product_id, quantity, type, 'manual', null, notes
+      );
+      return ApiResponse.success(res, result, 'Stock updated successfully');
     } catch (error) {
       logger.error('Add stock error:', error.message);
+      return ApiResponse.error(res, error.message, error.statusCode || 500);
+    }
+  }
+
+  async updateLevels(req, res) {
+    try {
+      const { product_id, min_stock_level, max_stock_level, location } = req.body;
+      if (!product_id) return ApiResponse.error(res, 'product_id is required', 400);
+      await inventoryService.updateStockLevels(
+        req.user.shop_id, product_id, { min_stock_level, max_stock_level, location }
+      );
+      return ApiResponse.success(res, null, 'Stock levels updated');
+    } catch (error) {
+      logger.error('Update levels error:', error.message);
       return ApiResponse.error(res, error.message, error.statusCode || 500);
     }
   }

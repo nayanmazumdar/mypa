@@ -63,4 +63,16 @@ router.post('/', authenticate, validate(createPurchaseValidator), purchaseContro
  */
 router.patch('/:id/status', authenticate, purchaseController.updateStatus);
 
+/**
+ * @swagger
+ * /api/purchases/{id}/clear-due:
+ *   patch:
+ *     tags: [Purchases]
+ *     summary: Clear due amount and mark as paid
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: Due amount cleared }
+ */
+router.patch('/:id/clear-due', authenticate, purchaseController.clearDue);
+
 module.exports = router;

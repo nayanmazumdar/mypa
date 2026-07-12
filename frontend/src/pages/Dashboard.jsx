@@ -36,9 +36,9 @@ export default function Dashboard() {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      const [productsRes, salesRes, customersRes, recentRes, lowStockRes] = await Promise.allSettled([
+      const [productsRes, salesStatsRes, customersRes, recentRes, lowStockRes] = await Promise.allSettled([
         api.get('/products', { params: { limit: 1 } }),
-        api.get('/sales', { params: { limit: 1 } }),
+        api.get('/sales/stats'),
         api.get('/customers', { params: { limit: 1 } }),
         api.get('/sales', { params: { limit: 5 } }),
         api.get('/inventory/low-stock'),
@@ -46,10 +46,8 @@ export default function Dashboard() {
 
       setStats({
         products: productsRes.status === 'fulfilled' ? productsRes.value?.pagination?.total || 0 : 0,
-        sales: salesRes.status === 'fulfilled' ? salesRes.value?.pagination?.total || 0 : 0,
-        revenue: salesRes.status === 'fulfilled'
-          ? (salesRes.value?.data || []).reduce((sum, s) => sum + parseFloat(s.net_amount || 0), 0)
-          : 0,
+        sales: salesStatsRes.status === 'fulfilled' ? salesStatsRes.value?.data?.total_sales || 0 : 0,
+        revenue: salesStatsRes.status === 'fulfilled' ? salesStatsRes.value?.data?.total_revenue || 0 : 0,
         customers: customersRes.status === 'fulfilled' ? customersRes.value?.pagination?.total || 0 : 0,
       });
 

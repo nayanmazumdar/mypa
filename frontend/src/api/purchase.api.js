@@ -5,4 +5,5 @@ export const purchaseApi = {
   getById: (id) => api.get(`/purchases/${id}`),
   create: (data) => api.post('/purchases', data),
   updateStatus: (id, status) => api.patch(`/purchases/${id}/status`, { status }),
+  clearDue: (id) => api.patch(`/purchases/${id}/clear-due`),
 };

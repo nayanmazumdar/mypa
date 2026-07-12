@@ -5,7 +5,7 @@ const logger = require('../config/logger');
 class PurchaseController {
   async getAll(req, res) {
     try {
-      const result = await purchaseService.getAll(req.user.shop_id, req.query);
+      const result = await purchaseService.getAll(req.user.id, req.user.shop_id, req.query);
       return ApiResponse.paginated(res, result.purchases, result.pagination);
     } catch (error) {
       logger.error('Get purchases error:', error.message);
@@ -25,7 +25,7 @@ class PurchaseController {
 
   async create(req, res) {
     try {
-      const purchase = await purchaseService.create(req.user.shop_id, req.body);
+      const purchase = await purchaseService.create(req.user.id, req.user.shop_id, req.body);
       return ApiResponse.created(res, purchase, 'Purchase created successfully');
     } catch (error) {
       logger.error('Create purchase error:', error.message);
@@ -39,6 +39,16 @@ class PurchaseController {
       return ApiResponse.success(res, purchase, 'Purchase status updated');
     } catch (error) {
       logger.error('Update purchase status error:', error.message);
+      return ApiResponse.error(res, error.message, error.statusCode || 500);
+    }
+  }
+
+  async clearDue(req, res) {
+    try {
+      const purchase = await purchaseService.clearDue(req.params.id, req.user.shop_id);
+      return ApiResponse.success(res, purchase, 'Due amount cleared successfully');
+    } catch (error) {
+      logger.error('Clear due error:', error.message);
       return ApiResponse.error(res, error.message, error.statusCode || 500);
     }
   }

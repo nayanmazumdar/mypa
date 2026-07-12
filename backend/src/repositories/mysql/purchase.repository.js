@@ -60,7 +60,11 @@ class PurchaseRepository {
   async findItemsByPurchaseId(purchaseId) {
     const pool = getPool();
     const [rows] = await pool.query(
-      'SELECT pi.*, p.name as product_name FROM purchase_items pi JOIN products p ON pi.product_id = p.id WHERE pi.purchase_id = ?',
+      `SELECT pi.*,
+              COALESCE(p.name, pi.manual_name, 'Unknown Item') AS product_name
+       FROM purchase_items pi
+       LEFT JOIN products p ON pi.product_id = p.id
+       WHERE pi.purchase_id = ?`,
       [purchaseId]
     );
     return rows;
@@ -84,8 +88,8 @@ class PurchaseRepository {
 
       for (const item of items) {
         await connection.query(
-          'INSERT INTO purchase_items (purchase_id, product_id, quantity, unit_price, total) VALUES (?, ?, ?, ?, ?)',
-          [purchaseId, item.product_id, item.quantity, item.unit_price, item.total]
+          'INSERT INTO purchase_items (purchase_id, product_id, manual_name, quantity, unit_price, total) VALUES (?, ?, ?, ?, ?, ?)',
+          [purchaseId, item.product_id || null, item.manual_name || null, item.quantity, item.unit_price, item.total]
         );
       }
 
@@ -104,6 +108,20 @@ class PurchaseRepository {
     await pool.query(
       'UPDATE purchases SET status = ? WHERE id = ? AND shop_id = ?',
       [status, id, userId]
+    );
+    return this.findById(id, userId);
+  }
+
+  async clearDue(id, userId, netAmount) {
+    const pool = getPool();
+    await pool.query(
+      `UPDATE purchases 
+       SET paid_amount    = ?,
+           due_amount     = 0,
+           original_due_amount = CASE WHEN original_due_amount = 0 THEN net_amount ELSE original_due_amount END,
+           payment_status = 'paid'
+       WHERE id = ? AND shop_id = ?`,
+      [netAmount, id, userId]
     );
     return this.findById(id, userId);
   }
