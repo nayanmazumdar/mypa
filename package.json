@@ -13,5 +13,11 @@
     "seed:bulk": "node backend/src/database/seed-bulk.js",
     "db:setup": "node backend/src/database/migrate.js && node backend/src/database/seed.js",
     "deploy:docker": "docker compose up -d --build"
+  },
+  "devDependencies": {
+    "qrcode": "^1.5.4"
+  },
+  "dependencies": {
+    "pdfkit": "^0.19.1"
   }
 }

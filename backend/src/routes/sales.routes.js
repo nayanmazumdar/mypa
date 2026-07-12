@@ -5,6 +5,9 @@ const { authenticate, permit } = require('../middlewares/auth.middleware');
 const { validate } = require('../middlewares/validate.middleware');
 const { createSaleValidator } = require('../validators/sale.validator');
 
+const { getPool } = require('../config/db');
+const ApiResponse = require('../utils/response');
+
 /**
  * @swagger
  * /api/sales:
@@ -32,6 +35,44 @@ const { createSaleValidator } = require('../validators/sale.validator');
  *       200: { description: List of sales }
  */
 router.get('/', authenticate, permit('sales:read'), salesController.getAll);
+
+/**
+ * GET /api/sales/stats - Dashboard totals: combined invoice + POS sales count and revenue
+ */
+router.get('/stats', authenticate, async (req, res, next) => {
+  try {
+    const pool = getPool();
+    const shopId = req.user.shop_id;
+
+    const [[invoiceStats]] = await pool.query(
+      `SELECT COUNT(*) AS count, COALESCE(SUM(net_amount), 0) AS revenue
+       FROM sales WHERE shop_id = ? AND status != 'cancelled'`,
+      [shopId]
+    );
+
+    // pos_transactions may not exist on all installs — guard with try/catch
+    let posCount = 0;
+    let posRevenue = 0;
+    try {
+      const [[posStats]] = await pool.query(
+        `SELECT COUNT(*) AS count, COALESCE(SUM(net_amount), 0) AS revenue
+         FROM pos_transactions WHERE shop_id = ? AND status = 'completed'`,
+        [shopId]
+      );
+      posCount = Number(posStats.count);
+      posRevenue = parseFloat(posStats.revenue);
+    } catch (_) { /* table may not exist in all environments */ }
+
+    return ApiResponse.success(res, {
+      total_sales: Number(invoiceStats.count) + posCount,
+      total_revenue: parseFloat(invoiceStats.revenue) + posRevenue,
+      invoice_sales: Number(invoiceStats.count),
+      pos_sales: posCount,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 /**
  * @swagger

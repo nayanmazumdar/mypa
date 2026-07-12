@@ -217,6 +217,24 @@ router.put('/:id', authenticate, permit('offers:update'), async (req, res, next)
  *     responses:
  *       200: { description: Offer deleted }
  */
+router.patch('/:id/toggle', authenticate, permit('offers:update'), async (req, res, next) => {
+  try {
+    const { is_active } = req.body;
+    if (is_active === undefined) {
+      return ApiResponse.error(res, 'is_active is required', 400);
+    }
+    const isPaused = is_active ? false : true;
+    const activeVal = is_active ? true : false;
+    await Offer.update(
+      { is_paused: isPaused, is_active: activeVal },
+      { where: { id: req.params.id, shop_id: req.user.shop_id } }
+    );
+    return ApiResponse.success(res, { is_active: !!is_active, is_paused: isPaused }, 'Offer updated');
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.delete('/:id', authenticate, permit('offers:delete'), async (req, res, next) => {
   try {
     await Offer.destroy({ where: { id: req.params.id, shop_id: req.user.shop_id } });

@@ -90,6 +90,35 @@ const authSlice = createSlice({
         localStorage.setItem('user', JSON.stringify(state.user));
       }
     },
+    setRole(state, action) {
+      // Called after the user picks their role on first login
+      if (state.user) {
+        state.user = { ...state.user, role: action.payload };
+        localStorage.setItem('user', JSON.stringify(state.user));
+      }
+    },
+    setDefaultModule(state, action) {
+      // Persist the module the user chose on role-selection screen
+      if (state.user) {
+        state.user = { ...state.user, default_module: action.payload };
+        localStorage.setItem('user', JSON.stringify(state.user));
+      }
+    },
+    setRoleAndModule(state, action) {
+      // Called after chooseRole API — sets both role and default_module atomically
+      const { role, default_module } = action.payload;
+      if (state.user) {
+        state.user = { ...state.user, role, default_module };
+        localStorage.setItem('user', JSON.stringify(state.user));
+      }
+    },
+    updateUser(state, action) {
+      // Merge partial user fields (name, phone, avatar, etc.) into state
+      if (state.user) {
+        state.user = { ...state.user, ...action.payload };
+        localStorage.setItem('user', JSON.stringify(state.user));
+      }
+    },
     loadUser(state) {
       const token = localStorage.getItem('token');
       const user = localStorage.getItem('user');
@@ -148,5 +177,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { logout, switchShop, setActiveShop, loadUser, clearError } = authSlice.actions;
+export const { logout, switchShop, setActiveShop, setRole, setDefaultModule, setRoleAndModule, updateUser, loadUser, clearError } = authSlice.actions;
 export default authSlice.reducer;

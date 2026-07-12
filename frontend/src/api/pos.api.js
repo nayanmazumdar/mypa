@@ -6,7 +6,8 @@ export const posApi = {
   checkout: (data) => api.post('/pos/checkout', data),
   getTransactions: (params) => api.get('/pos/transactions', { params }),
   getTransaction: (id) => api.get(`/pos/transactions/${id}`),
-  getTodaySummary: () => api.get('/pos/today-summary'),
+  getTodaySummary: (params) => api.get('/pos/today-summary', { params }),
+  getPaymentSummary: (params) => api.get('/pos/payment-summary', { params }),
 };
 
 export const expenseApi = {
@@ -14,4 +15,12 @@ export const expenseApi = {
   create: (data) => api.post('/expenses', data),
   delete: (id) => api.delete(`/expenses/${id}`),
   getSummary: (params) => api.get('/expenses/summary', { params }),
+};
+
+export const reportApi = {
+  getToday:       ()       => api.get('/reports/today'),
+  getDashboard:   ()       => api.get('/reports/dashboard'),
+  getDailySales:  (date)   => api.get('/reports/daily-sales', { params: { date } }),
+  getMonthlySales:(y, m)   => api.get('/reports/monthly-sales', { params: { year: y, month: m } }),
+  getProfit:      (params) => api.get('/reports/profit', { params }),
 };

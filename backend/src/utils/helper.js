@@ -6,11 +6,16 @@ const { v4: uuidv4 } = require('uuid');
 const generateId = () => uuidv4();
 
 /**
- * Format date to YYYY-MM-DD
+ * Format date to YYYY-MM-DD using LOCAL time (not UTC).
+ * Prevents off-by-one errors in IST and other UTC+ timezones where
+ * new Date().toISOString() returns yesterday's date before midnight UTC.
  */
-const formatDate = (date) => {
+const localDateStr = (date = new Date()) => {
   const d = new Date(date);
-  return d.toISOString().split('T')[0];
+  const yyyy = d.getFullYear();
+  const mm   = String(d.getMonth() + 1).padStart(2, '0');
+  const dd   = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
 };
 
 /**
@@ -22,4 +27,4 @@ const generateInvoiceNumber = (prefix = 'INV') => {
   return `${prefix}-${timestamp}-${random}`;
 };
 
-module.exports = { generateId, formatDate, generateInvoiceNumber };
+module.exports = { generateId, localDateStr, generateInvoiceNumber };

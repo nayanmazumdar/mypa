@@ -16,21 +16,67 @@ class AuthService {
 
     const hashedPassword = await hashPassword(password);
     const uuid = generateId();
+    // Role is NULL until the user picks one on first login
     const [result] = await pool.query(
-      'INSERT INTO users (uuid, name, email, phone, password, role) VALUES (?, ?, ?, ?, ?, ?)',
-      [uuid, name, email, phone || null, hashedPassword, 'admin']
+      'INSERT INTO users (uuid, name, email, phone, password, role) VALUES (?, ?, ?, ?, ?, NULL)',
+      [uuid, name, email, phone || null, hashedPassword]
     );
 
-    const user = { id: result.insertId, uuid, name, email, role: 'admin', shops: [] };
-    const token = generateToken({ id: result.insertId, uuid, email, role: 'admin' });
-    logger.info(`User registered: ${email}`);
+    const user = { id: result.insertId, uuid, name, email, role: null, shops: [] };
+    // Token carries role: null — frontend will detect this and redirect to role picker
+    const token = generateToken({ id: result.insertId, uuid, email, role: null });
+    logger.info(`User registered: ${email} (role pending)`);
     return { user, token };
+  }
+
+  /**
+   * Called after registration when the user picks their account type + default module.
+   * Sets the role and default_module, returns a fresh token.
+   * Once set, role + module are permanent (cannot be changed here).
+   */
+  async chooseRole(userId, role, defaultModule) {
+    const pool = getPool();
+    const allowed = ['admin', 'individual'];
+    if (!allowed.includes(role)) {
+      const e = new Error('Invalid role. Choose either "admin" (Shop/Business) or "individual".');
+      e.statusCode = 400;
+      throw e;
+    }
+
+    if (!defaultModule || typeof defaultModule !== 'string' || defaultModule.trim() === '') {
+      const e = new Error('A default module must be selected.');
+      e.statusCode = 400;
+      throw e;
+    }
+
+    // Only allow if role is still unset
+    const [[user]] = await pool.query(
+      'SELECT id, uuid, name, email, role, default_module FROM users WHERE id = ?', [userId]
+    );
+    if (!user) { const e = new Error('User not found'); e.statusCode = 404; throw e; }
+
+    // Allow re-assignment only if role is currently null (first-time setup)
+    if (user.role !== null) {
+      const e = new Error('Role has already been set and cannot be changed here.');
+      e.statusCode = 409;
+      throw e;
+    }
+
+    const module = defaultModule.trim().toLowerCase();
+    await pool.query('UPDATE users SET role = ?, default_module = ? WHERE id = ?', [role, module, userId]);
+
+    const token = generateToken({ id: user.id, uuid: user.uuid, email: user.email, role, default_module: module });
+    logger.info(`Role set for user ${user.email}: ${role} / module: ${module}`);
+    return {
+      user: { id: user.id, uuid: user.uuid, name: user.name, email: user.email, role, default_module: module, shops: [] },
+      token,
+    };
   }
 
   async login({ email, password, passcode }) {
     const pool = getPool();
     const [rows] = await pool.query(
-      'SELECT id, uuid, name, email, password, passcode, role, is_active FROM users WHERE email = ?',
+      'SELECT id, uuid, name, email, password, passcode, role, default_module, avatar, is_active FROM users WHERE email = ?',
       [email]
     );
 
@@ -60,11 +106,11 @@ class AuthService {
     );
 
     // Token without shop_id — user must select shop next
-    const token = generateToken({ id: user.id, uuid: user.uuid, email: user.email, role: user.role });
+    const token = generateToken({ id: user.id, uuid: user.uuid, email: user.email, role: user.role, default_module: user.default_module || null });
 
     logger.info(`User logged in: ${email} (${shops.length} shops)`);
     return {
-      user: { id: user.id, uuid: user.uuid, name: user.name, email: user.email, role: user.role, has_passcode: !!user.passcode, shops },
+      user: { id: user.id, uuid: user.uuid, name: user.name, email: user.email, role: user.role, default_module: user.default_module || null, avatar: user.avatar || null, has_passcode: !!user.passcode, shops },
       token,
     };
   }
@@ -137,7 +183,7 @@ class AuthService {
     return { success: true };
   }
 
-  async addStaff({ name, email, password, phone, role, shop_id }) {
+  async addStaff({ name, email, password, phone, role, designation, shop_id }) {
     const pool = getPool();
     const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
 
@@ -157,16 +203,19 @@ class AuthService {
       userId = result.insertId;
     }
 
-    const staffRole = role || 'staff';
-    await pool.query('INSERT INTO user_shops (user_id, shop_id, role) VALUES (?, ?, ?)', [userId, shop_id, staffRole]);
+    const staffRole = role === 'admin' ? 'manager' : (role || 'staff');
+    await pool.query(
+      'INSERT INTO user_shops (user_id, shop_id, role, designation) VALUES (?, ?, ?, ?)',
+      [userId, shop_id, staffRole, designation || null]
+    );
     logger.info(`Staff ${email} added to shop ${shop_id}`);
-    return { id: userId, name, email, role: staffRole, shop_id };
+    return { id: userId, name, email, role: staffRole, designation: designation || null, shop_id };
   }
 
   async getProfile(userId) {
     const pool = getPool();
     const [[user]] = await pool.query(
-      'SELECT id, uuid, name, email, phone, role, is_active, created_at FROM users WHERE id = ?', [userId]
+      'SELECT id, uuid, name, email, phone, avatar, role, default_module, is_active, created_at FROM users WHERE id = ?', [userId]
     );
     if (!user) return null;
     const [shops] = await pool.query(
@@ -179,16 +228,23 @@ class AuthService {
   async getShopStaff(shopId) {
     const pool = getPool();
     const [rows] = await pool.query(
-      `SELECT u.id, u.uuid, u.name, u.email, u.phone, us.role, us.is_active, us.joined_at
-       FROM user_shops us JOIN users u ON us.user_id = u.id WHERE us.shop_id = ? ORDER BY us.joined_at DESC`,
+      `SELECT u.id, u.uuid, u.name, u.email, u.phone, us.role, us.designation, us.is_active, us.joined_at, s.name AS shop_name, s.id AS shop_id
+       FROM user_shops us
+       JOIN users u ON us.user_id = u.id
+       JOIN shops s ON us.shop_id = s.id
+       WHERE us.shop_id = ? ORDER BY us.joined_at ASC`,
       [shopId]
     );
     return rows;
   }
 
-  async updateProfile(userId, { name, phone }) {
+  async updateProfile(userId, { name, phone, avatar }) {
     const pool = getPool();
-    await pool.query('UPDATE users SET name = ?, phone = ? WHERE id = ?', [name, phone || null, userId]);
+    if (avatar !== undefined) {
+      await pool.query('UPDATE users SET name = ?, phone = ?, avatar = ? WHERE id = ?', [name, phone || null, avatar || null, userId]);
+    } else {
+      await pool.query('UPDATE users SET name = ?, phone = ? WHERE id = ?', [name, phone || null, userId]);
+    }
   }
 
   async updateShop(shopId, { name, address, phone, email, gst_number }) {

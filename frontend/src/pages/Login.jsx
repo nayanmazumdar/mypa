@@ -4,6 +4,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { loginUser, clearError } from '../store/authSlice';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { resolveDefaultRoute } from './RoleSelector';
 
 export default function Login() {
   usePageTitle('Login');
@@ -72,7 +73,7 @@ export default function Login() {
         has_passcode: result.payload.user.has_passcode,
       }));
       toast.success('Welcome back!');
-      navigateAfterLogin();
+      navigateAfterLogin(result.payload.user);
     } else {
       setPasscode(['', '', '', '']);
       passcodeRefs[0].current?.focus();
@@ -90,7 +91,7 @@ export default function Login() {
         has_passcode: result.payload.user.has_passcode,
       }));
       toast.success('Welcome back!');
-      navigateAfterLogin();
+      navigateAfterLogin(result.payload.user);
     } else {
       toast.error(result.payload || 'Login failed');
     }
@@ -109,8 +110,25 @@ export default function Login() {
     if (error) dispatch(clearError());
   };
 
-  const navigateAfterLogin = () => {
-    // Always go to shop selector — it handles empty state + add shop
+  const navigateAfterLogin = (user) => {
+    // No role yet — first-time setup
+    if (!user?.role) {
+      navigate('/choose-role');
+      return;
+    }
+
+    if (user.role === 'individual') {
+      navigate(resolveDefaultRoute(user.default_module, 'individual'));
+      return;
+    }
+
+    // Shop role — if shop already active in this session go to the module directly
+    if (user.shop_id) {
+      navigate(resolveDefaultRoute(user.default_module, 'shop'));
+      return;
+    }
+
+    // Shop role but no active shop — pick / create one
     navigate('/select-shop');
   };
 

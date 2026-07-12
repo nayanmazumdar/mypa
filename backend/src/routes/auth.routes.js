@@ -4,6 +4,7 @@ const authController = require('../controllers/auth.controller');
 const { authenticate, authorize } = require('../middlewares/auth.middleware');
 const { validate } = require('../middlewares/validate.middleware');
 const { registerValidator, loginValidator } = require('../validators/auth.validator');
+const upload = require('../middlewares/upload.middleware');
 
 /**
  * @swagger
@@ -96,16 +97,17 @@ router.get('/permissions', authenticate, (req, res) => {
  *     security: [{ bearerAuth: [] }]
  *     requestBody:
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
  *             properties:
  *               name: { type: string }
  *               phone: { type: string }
+ *               avatar: { type: string, format: binary }
  *     responses:
  *       200: { description: Profile updated }
  */
-router.put('/profile', authenticate, authController.updateProfile);
+router.put('/profile', authenticate, upload.single('avatar'), authController.updateProfile);
 
 /**
  * @swagger
@@ -221,6 +223,7 @@ router.post('/set-passcode', authenticate, authController.setPasscode);
  *       401: { description: Invalid current password }
  */
 router.post('/change-password', authenticate, authController.changePassword);
+router.post('/choose-role', authenticate, authController.chooseRole);
 
 /**
  * @swagger

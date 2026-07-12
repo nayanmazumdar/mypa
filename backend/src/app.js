@@ -26,6 +26,8 @@ const expenseRoutes = require('./routes/expense.routes');
 const offerRoutes = require('./routes/offer.routes');
 const shopRoutes = require('./routes/shop.routes');
 const customerLedgerRoutes = require('./routes/customer-ledger.routes');
+const individualRoutes = require('./routes/individual.routes');
+const notesRoutes = require('./routes/notes.routes');
 
 const app = express();
 
@@ -117,6 +119,8 @@ app.use('/api/expenses', expenseRoutes);
 app.use('/api/offers', offerRoutes);
 app.use('/api/shop', shopRoutes);
 app.use('/api/customer-ledger', customerLedgerRoutes);
+app.use('/api/individual', individualRoutes);
+app.use('/api/notes', notesRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

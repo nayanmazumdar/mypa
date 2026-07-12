@@ -16,6 +16,7 @@ module.exports = (sequelize) => {
     start_date: { type: DataTypes.DATEONLY, allowNull: false },
     end_date: { type: DataTypes.DATEONLY, allowNull: false },
     is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
+    is_paused: { type: DataTypes.BOOLEAN, defaultValue: false },
   }, {
     tableName: 'offers',
     timestamps: true,

@@ -103,6 +103,55 @@ async function migrate() {
       }
     }
 
+    // Helper: run a SQL file splitting on semicolons, ignoring safe errors
+    async function runMigrationFile(filePath, label) {
+      if (!fs.existsSync(filePath)) return;
+      const raw = fs.readFileSync(filePath, 'utf8');
+      const clean = raw.replace(/--.*$/gm, '').trim();
+      const stmts = clean.split(';').map(s => s.trim()).filter(s => s.length > 0);
+      for (const stmt of stmts) {
+        try {
+          await connection.query(stmt);
+        } catch (e) {
+          const msg = e.message || '';
+          if (
+            msg.includes('already exists') || msg.includes('Duplicate column') ||
+            msg.includes('Duplicate key name') || msg.includes('Duplicate entry') ||
+            msg.includes('Duplicate foreign key') || msg.includes('Multiple primary key') ||
+            msg.includes("Can't DROP") || msg.includes('already exists')
+          ) {
+            // Safe to skip — idempotent migration
+          } else {
+            console.warn(`  ⚠ ${label} warning:`, msg.slice(0, 120));
+          }
+        }
+      }
+    }
+
+    // Migration 7: Individual role — personal_expenses, personal_incomes, personal_tasks
+    await runMigrationFile(
+      path.join(__dirname, 'migrations', '007_individual.sql'),
+      'Migration 7'
+    );
+
+    // Migration 8: default_module column + role nullable
+    await runMigrationFile(
+      path.join(__dirname, 'migrations', '008_default_module.sql'),
+      'Migration 8'
+    );
+    // Also make role nullable (handled in apply-008 but not in sql file)
+    try {
+      await connection.query(
+        `ALTER TABLE users MODIFY COLUMN role ENUM('admin','shopkeeper','staff','individual') DEFAULT NULL`
+      );
+    } catch (e) { /* already correct */ }
+
+    // Migration 9: offer is_paused column
+    await runMigrationFile(
+      path.join(__dirname, 'migrations', '009_offer_paused.sql'),
+      'Migration 9'
+    );
+
     console.log('✓ All tables created successfully');
 
     // Show created tables

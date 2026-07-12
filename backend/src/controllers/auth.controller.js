@@ -86,8 +86,16 @@ class AuthController {
 
   async updateProfile(req, res) {
     try {
-      await authService.updateProfile(req.user.id, req.body);
-      return ApiResponse.success(res, null, 'Profile updated');
+      // If a file was uploaded, build the relative URL for the avatar
+      const avatarPath = req.file ? `/uploads/${req.file.filename}` : undefined;
+      await authService.updateProfile(req.user.id, {
+        name: req.body.name,
+        phone: req.body.phone,
+        ...(avatarPath !== undefined && { avatar: avatarPath }),
+      });
+      // Return updated profile so the client can refresh state
+      const updated = await authService.getProfile(req.user.id);
+      return ApiResponse.success(res, updated, 'Profile updated');
     } catch (error) {
       logger.error('Update profile error:', error.message);
       return ApiResponse.error(res, error.message, error.statusCode || 500);
@@ -110,6 +118,16 @@ class AuthController {
       return ApiResponse.success(res, null, 'Password changed successfully');
     } catch (error) {
       logger.error('Change password error:', error.message);
+      return ApiResponse.error(res, error.message, error.statusCode || 500);
+    }
+  }
+
+  async chooseRole(req, res) {
+    try {
+      const result = await authService.chooseRole(req.user.id, req.body.role, req.body.default_module);
+      return ApiResponse.success(res, result, 'Role assigned successfully');
+    } catch (error) {
+      logger.error('Choose role error:', error.message);
       return ApiResponse.error(res, error.message, error.statusCode || 500);
     }
   }
