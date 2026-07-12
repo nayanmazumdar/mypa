@@ -5,7 +5,7 @@ import {
   HiOutlinePlus, HiOutlineQrCode, HiOutlineUser, HiOutlineMagnifyingGlass,
   HiOutlineShoppingCart, HiOutlineXMark, HiOutlineReceiptPercent,
   HiOutlineClock, HiOutlineChartBar, HiOutlinePause, HiOutlinePlay,
-  HiOutlineArrowPath,
+  HiOutlineArrowPath, HiOutlineClipboardDocumentList,
 } from 'react-icons/hi2';
 import { posApi } from '../api/pos.api';
 import api from '../api/axios';
@@ -60,6 +60,12 @@ export default function POS() {
   // Hold/Park state
   const [heldBills, setHeldBills] = useState(getHeldBills());
   const [showHeldPanel, setShowHeldPanel] = useState(false);
+
+  // Sales history state
+  const [showSalesHistory, setShowSalesHistory] = useState(false);
+  const [salesHistory, setSalesHistory] = useState([]);
+  const [salesHistoryLoading, setSalesHistoryLoading] = useState(false);
+  const [printingHistoryId, setPrintingHistoryId] = useState(null);
 
   // Shop info for receipt
   const [shopInfo, setShopInfo] = useState({ name: '', address: '', phone: '', gst_number: '' });
@@ -149,6 +155,35 @@ export default function POS() {
     setShowCustomerDropdown(false);
   };
   const clearCustomer = () => { setSelectedCustomer(null); setCustomerSearch(''); setIsCredit(false); setCustomerResults([]); setShowCustomerDropdown(false); };
+
+  // ─── Add New Customer from POS ────────────────────────────────
+  const detectInputType = (value) => {
+    const v = value.trim();
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return 'email';
+    if (/^[+\d][\d\s\-()+]*$/.test(v) && v.replace(/\D/g, '').length >= 4) return 'phone';
+    return 'name';
+  };
+
+  const handleAddNewCustomer = async () => {
+    const raw = customerSearch.trim();
+    if (!raw) return;
+    setShowCustomerDropdown(false);
+    const type = detectInputType(raw);
+    const payload = { name: raw };
+    if (type === 'email') { payload.email = raw; payload.name = raw.split('@')[0]; }
+    else if (type === 'phone') { payload.phone = raw; }
+    try {
+      const res = await api.post('/customers', payload);
+      const created = res.data || res;
+      const newCustomer = { id: created.id, name: created.name, phone: created.phone ?? null, email: created.email ?? null, balance: 0 };
+      setSelectedCustomer(newCustomer);
+      setCustomerSearch(created.name);
+      setCustomerResults([]);
+      toast.success(`Customer added: ${created.name}`);
+    } catch {
+      toast.error('Failed to add customer');
+    }
+  };
 
   // ─── Barcode Scanner ──────────────────────────────────────────
   useEffect(() => {
@@ -265,6 +300,33 @@ export default function POS() {
       clearCart(); setPaymentMethod('cash'); loadProducts();
     } catch { toast.error('Checkout failed. Please try again.'); }
     finally { setLoading(false); }
+  };
+
+  // ─── Sales History ─────────────────────────────────────────────
+  const loadSalesHistory = async () => {
+    setSalesHistoryLoading(true);
+    try {
+      const res = await posApi.getTransactions({ limit: 3, page: 1 });
+      const data = res.data || res || [];
+      setSalesHistory(Array.isArray(data) ? data : []);
+    } catch {
+      toast.error('Failed to load sales history');
+    } finally {
+      setSalesHistoryLoading(false);
+    }
+  };
+
+  const handlePrintHistoryReceipt = async (txn) => {
+    setPrintingHistoryId(txn.id);
+    try {
+      const res = await posApi.getTransaction(txn.id);
+      const detail = res.data || res;
+      printReceipt(detail);
+    } catch {
+      toast.error('Failed to load receipt details');
+    } finally {
+      setPrintingHistoryId(null);
+    }
   };
 
   // ─── Print Receipt ────────────────────────────────────────────
@@ -578,6 +640,7 @@ ${data.customer_name && data.customer_phone ? `<div class="row meta"><span>Phone
           <button onClick={openSummary} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${quickPanel === 'summary' ? 'text-emerald-700' : 'text-gray-500'}`} style={quickPanel === 'summary' ? { background: '#e8edf5', boxShadow: 'inset 2px 2px 4px #c8cfd8, inset -2px -2px 4px #ffffff' } : { background: '#e8edf5', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}><HiOutlineChartBar className="w-3.5 h-3.5" /><span className="hidden md:inline">Today</span></button>
           {lastReceipt && <button onClick={() => printReceipt()} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-gray-500" style={{ background: '#e8edf5', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}><HiOutlinePrinter className="w-3.5 h-3.5" /><span className="hidden md:inline">Reprint</span></button>}
           {heldBills.length > 0 && <button onClick={() => setShowHeldPanel(!showHeldPanel)} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${showHeldPanel ? 'text-amber-700' : 'text-amber-600'}`} style={showHeldPanel ? { background: '#e8edf5', boxShadow: 'inset 2px 2px 4px #c8cfd8, inset -2px -2px 4px #ffffff' } : { background: '#e8edf5', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}><HiOutlinePause className="w-3.5 h-3.5" /> {heldBills.length} Parked</button>}
+            <button onClick={() => { setShowSalesHistory(true); loadSalesHistory(); }} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-blue-600 transition-all" style={{ background: '#e8edf5', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}><HiOutlineClipboardDocumentList className="w-3.5 h-3.5" /><span className="hidden md:inline">Recent Sales</span></button>
           </div>
           {/* Pagination (right) */}
           {productsPagination && productsPagination.totalPages > 1 && (
@@ -768,7 +831,7 @@ ${data.customer_name && data.customer_phone ? `<div class="row meta"><span>Phone
                         <p className="text-sm font-medium text-gray-900 truncate">{customerSearch}</p>
                         <span className="text-[9px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">New</span>
                       </div>
-                      <p className="text-[11px] text-amber-600">Not in contacts — name will be saved on bill</p>
+                      <p className="text-[11px] text-amber-600">Not in contacts — <button type="button" onClick={handleAddNewCustomer} className="underline font-semibold hover:text-amber-800">save as customer</button></p>
                     </div>
                     <button onClick={() => { setCustomerSearch(''); setCustomerResults([]); }} className="p-1 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 flex-shrink-0 transition-colors">
                       <HiOutlineXMark className="w-4 h-4" />
@@ -872,6 +935,124 @@ ${data.customer_name && data.customer_phone ? `<div class="row meta"><span>Phone
           )}
         </div>
       </div>
+
+      {/* ─── Sales History Modal ─────────────────────────────── */}
+      {showSalesHistory && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          onClick={() => setShowSalesHistory(false)}
+        >
+          <div
+            className="rounded-3xl w-full max-w-lg"
+            style={{ background: '#e8edf5', boxShadow: '8px 8px 16px #c8cfd8, -8px -8px 16px #ffffff' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid rgba(200,207,216,0.4)' }}>
+              <h2 className="font-bold text-gray-800 flex items-center gap-2 text-sm">
+                <HiOutlineClipboardDocumentList className="w-5 h-5 text-blue-600" />
+                Recent Sales
+              </h2>
+              <button
+                onClick={() => setShowSalesHistory(false)}
+                className="p-1.5 rounded-xl text-gray-400 hover:text-gray-600 transition-all"
+                style={{ background: '#e8edf5', boxShadow: '2px 2px 4px #c8cfd8, -2px -2px 4px #ffffff' }}
+              >
+                <HiOutlineXMark className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 space-y-3 max-h-[70vh] overflow-y-auto">
+              {salesHistoryLoading ? (
+                <div className="flex items-center justify-center py-10">
+                  <div className="w-6 h-6 border-2 border-primary-300 border-t-primary-600 rounded-full animate-spin" />
+                </div>
+              ) : salesHistory.length === 0 ? (
+                <div className="text-center py-10">
+                  <div className="w-12 h-12 rounded-2xl mx-auto mb-3 flex items-center justify-center" style={{ background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }}>
+                    <HiOutlineClipboardDocumentList className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <p className="text-sm text-gray-500">No transactions yet</p>
+                </div>
+              ) : (
+                salesHistory.map((txn) => {
+                  const payLabel = txn.payment_method === 'credit'
+                    ? 'Udhar'
+                    : txn.payment_method
+                      ? txn.payment_method.charAt(0).toUpperCase() + txn.payment_method.slice(1)
+                      : 'Cash';
+                  const payColor = txn.payment_method === 'credit'
+                    ? 'text-red-600'
+                    : txn.payment_method === 'upi'
+                      ? 'text-purple-600'
+                      : 'text-emerald-600';
+
+                  return (
+                    <div
+                      key={txn.id}
+                      className="rounded-2xl p-4 transition-all"
+                      style={{ background: '#e8edf5', boxShadow: '4px 4px 8px #c8cfd8, -4px -4px 8px #ffffff' }}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-mono font-semibold text-gray-700">{txn.receipt_number}</span>
+                            <span className="text-[10px] text-gray-400">
+                              {new Date(txn.created_at).toLocaleString('en-IN', {
+                                day: '2-digit', month: 'short',
+                                hour: '2-digit', minute: '2-digit', hour12: true,
+                              })}
+                            </span>
+                          </div>
+                          {txn.customer_name && (
+                            <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+                              <HiOutlineUser className="w-3 h-3 shrink-0" />
+                              {txn.customer_name}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-2 mt-1.5">
+                            <span className="text-base font-bold text-gray-800">₹{parseFloat(txn.net_amount).toFixed(2)}</span>
+                            <span
+                              className={`text-[10px] font-semibold px-2 py-0.5 rounded-lg ${payColor}`}
+                              style={{ background: '#e8edf5', boxShadow: 'inset 1px 1px 2px #c8cfd8, inset -1px -1px 2px #ffffff' }}
+                            >{payLabel}</span>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => handlePrintHistoryReceipt(txn)}
+                          disabled={printingHistoryId === txn.id}
+                          title="Print receipt"
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-gray-600 transition-all disabled:opacity-50"
+                          style={{ background: '#e8edf5', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}
+                        >
+                          {printingHistoryId === txn.id ? (
+                            <span className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <HiOutlinePrinter className="w-4 h-4" />
+                          )}
+                          <span className="hidden sm:inline">Print</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3 flex justify-end" style={{ borderTop: '1px solid rgba(200,207,216,0.4)' }}>
+              <button
+                onClick={() => setShowSalesHistory(false)}
+                className="btn-secondary text-xs py-2 px-4"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
