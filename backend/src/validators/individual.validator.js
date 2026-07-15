@@ -46,4 +46,14 @@ const taskValidator = [
   body('description').optional().trim(),
 ];
 
-module.exports = { expenseValidator, incomeValidator, taskValidator };
+const budgetValidator = [
+  body('category').trim().notEmpty().withMessage('Category is required'),
+  body('monthly_limit')
+    .isFloat({ min: 0 }).withMessage('Monthly limit must be a non-negative number'),
+  body('year')
+    .isInt({ min: 2000, max: 2100 }).withMessage('year must be a valid 4-digit year'),
+  body('month')
+    .isInt({ min: 1, max: 12 }).withMessage('month must be between 1 and 12'),
+];
+
+module.exports = { expenseValidator, incomeValidator, taskValidator, budgetValidator };

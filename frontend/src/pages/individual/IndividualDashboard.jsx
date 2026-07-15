@@ -10,6 +10,10 @@ import {
   HiOutlineClock,
   HiOutlinePencilSquare,
   HiOutlineChevronRight,
+  HiOutlineChartBarSquare,
+  HiOutlineEye,
+  HiOutlineEyeSlash,
+  HiOutlineShoppingCart,
 } from 'react-icons/hi2';
 import { individualApi } from '../../api/individual.api';
 import api from '../../api/axios';
@@ -18,7 +22,7 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 const NeoStat = ({ title, value, icon: Icon, color, sub, onClick }) => (
   <button
     onClick={onClick}
-    className="rounded-2xl p-5 flex items-center gap-4 text-left transition-all hover:scale-[1.02]"
+    className="w-full h-full rounded-2xl p-5 flex items-center gap-4 text-left transition-all hover:scale-[1.02]"
     style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}
   >
     <div
@@ -48,6 +52,7 @@ export default function IndividualDashboard() {
   const [dateFrom, setDateFrom] = useState(firstOfMonth);
   const [dateTo,   setDateTo]   = useState(today);
   const [activePreset, setActivePreset] = useState('This Month');
+  const [showAmounts, setShowAmounts] = useState(false);
 
   const PRESETS = [
     { label: 'Today',      from: today,        to: today },
@@ -83,6 +88,7 @@ export default function IndividualDashboard() {
 
   const fmt = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
   const net = summary?.net_balance ?? 0;
+  const mask = (val) => showAmounts ? val : '•••••';
 
   const greeting = () => {
     const h = new Date().getHours();
@@ -96,20 +102,22 @@ export default function IndividualDashboard() {
 
       {/* ─── Welcome Header ──────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">{greeting()}, {user?.name?.split(' ')[0]} 👋</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Showing data from{' '}
-            <span className="font-medium text-gray-700">
-              {new Date(dateFrom+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}
-            </span>{' '}to{' '}
-            <span className="font-medium text-gray-700">
-              {new Date(dateTo+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}
-            </span>
-          </p>
+        <div className="flex items-center gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800">{greeting()}, {user?.name?.split(' ')[0]} 👋</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              Showing data from{' '}
+              <span className="font-medium text-gray-700">
+                {new Date(dateFrom+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}
+              </span>{' '}to{' '}
+              <span className="font-medium text-gray-700">
+                {new Date(dateTo+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}
+              </span>
+            </p>
+          </div>
         </div>
 
-        {/* Date presets */}
+        {/* Date presets + Toggle amount visibility */}
         <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
           {PRESETS.map(p => (
             <button
@@ -143,6 +151,19 @@ export default function IndividualDashboard() {
               className="text-gray-700 outline-none bg-transparent text-xs"
             />
           </div>
+          {/* Toggle amount visibility */}
+          <button
+            onClick={() => setShowAmounts(v => !v)}
+            className="px-3.5 py-2 rounded-xl text-gray-400 hover:text-primary-600 transition-all flex-shrink-0"
+            style={{ background: '#e8edf5', boxShadow: showAmounts ? 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' : '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}
+            aria-label={showAmounts ? 'Hide amounts' : 'Show amounts'}
+            title={showAmounts ? 'Hide amounts' : 'Show amounts'}
+          >
+            {showAmounts
+              ? <HiOutlineEyeSlash className="w-5 h-5" />
+              : <HiOutlineEye className="w-5 h-5" />
+            }
+          </button>
         </div>
       </div>
 
@@ -150,21 +171,21 @@ export default function IndividualDashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
         <NeoStat
           title="Total Income"
-          value={fmt(summary?.total_income)}
+          value={mask(fmt(summary?.total_income))}
           icon={HiOutlineArrowTrendingUp}
           color="text-emerald-500"
           sub="This period"
         />
         <NeoStat
           title="Total Expenses"
-          value={fmt(summary?.total_expense)}
+          value={mask(fmt(summary?.total_expense))}
           icon={HiOutlineArrowTrendingDown}
           color="text-red-400"
           sub="This period"
         />
         <NeoStat
           title="Net Balance"
-          value={fmt(net)}
+          value={mask(fmt(net))}
           icon={HiOutlineBanknotes}
           color={net >= 0 ? 'text-emerald-600' : 'text-orange-500'}
           sub={net >= 0 ? 'Surplus' : 'Deficit'}
@@ -176,7 +197,7 @@ export default function IndividualDashboard() {
           color="text-purple-500"
           sub={`${summary?.tasks?.due_today ?? 0} due today`}
         />
-        <Link to="/individual/notes" className="block">
+        <Link to="/individual/notes" className="block h-full">
           <NeoStat
             title="My Notes"
             value={notesCount?.total ?? '—'}
@@ -195,23 +216,59 @@ export default function IndividualDashboard() {
           className="rounded-3xl p-6"
           style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}
         >
-          <h3 className="text-sm font-bold text-gray-800 mb-5 flex items-center gap-2">
-            <HiOutlineBanknotes className="w-5 h-5 text-primary-500" />
-            Financial Health
+          <h3 className="text-sm font-bold text-gray-800 mb-5 flex items-center justify-between gap-2">
+            <span className="flex items-center gap-2">
+              <HiOutlineBanknotes className="w-5 h-5 text-primary-500" />
+              Financial Health
+            </span>
+            {net !== 0 && (
+              <span className="relative group">
+                <span
+                  className={`px-3 py-1 rounded-full text-xs font-bold tracking-wide uppercase cursor-default select-none ${
+                    net >= 0
+                      ? 'text-emerald-700 bg-emerald-100'
+                      : 'text-orange-700 bg-orange-100'
+                  }`}
+                >
+                  {net >= 0 ? 'Visionary' : 'Warrior'}
+                </span>
+                {/* Tooltip */}
+                <span className="pointer-events-none absolute right-0 top-full mt-2 w-56 z-10
+                  opacity-0 group-hover:opacity-100 translate-y-1 group-hover:translate-y-0
+                  transition-all duration-200 ease-out">
+                  <span
+                    className="block rounded-xl px-3.5 py-3 text-xs leading-relaxed text-gray-700 font-medium"
+                    style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}
+                  >
+                    {net >= 0 ? (
+                      <>
+                        <span className="block font-bold text-emerald-600 mb-1">💡 Visionary</span>
+                        Your income exceeds your expenses — you're building a healthy financial future. Keep growing your savings and investments!
+                      </>
+                    ) : (
+                      <>
+                        <span className="block font-bold text-orange-500 mb-1">⚡ Warrior</span>
+                        You're spending more than you earn this period. Review your expenses, cut non-essentials, and set a budget to get back on track. All the best!
+                      </>
+                    )}
+                  </span>
+                </span>
+              </span>
+            )}
           </h3>
           <div className="space-y-3">
             <div className="flex justify-between items-center py-2.5 rounded-xl px-3" style={{ borderBottom: '1px solid rgba(200,207,216,0.3)' }}>
               <span className="text-sm text-gray-600">Income</span>
-              <span className="text-sm font-bold text-emerald-600">{fmt(summary?.total_income)}</span>
+              <span className="text-sm font-bold text-emerald-600">{mask(fmt(summary?.total_income))}</span>
             </div>
             <div className="flex justify-between items-center py-2.5 rounded-xl px-3" style={{ borderBottom: '1px solid rgba(200,207,216,0.3)' }}>
               <span className="text-sm text-gray-600">Expenses</span>
-              <span className="text-sm font-bold text-red-500">{fmt(summary?.total_expense)}</span>
+              <span className="text-sm font-bold text-red-500">{mask(fmt(summary?.total_expense))}</span>
             </div>
             <div className="flex justify-between items-center py-2.5 rounded-xl px-3">
               <span className="text-sm font-semibold text-gray-800">Net Balance</span>
               <span className={`text-sm font-bold ${net >= 0 ? 'text-primary-700' : 'text-orange-600'}`}>
-                {fmt(net)}
+                {mask(fmt(net))}
               </span>
             </div>
           </div>
@@ -272,20 +329,64 @@ export default function IndividualDashboard() {
       </div>
 
       {/* ─── Quick Actions ───────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
         {[
-          { to: '/individual/income?add=1', label: 'Add Income', gradient: 'linear-gradient(145deg, #10b981, #059669)' },
-          { to: '/individual/expenses?add=1', label: 'Add Expense', gradient: 'linear-gradient(145deg, #ef4444, #dc2626)' },
-          { to: '/individual/tasks?add=1', label: 'New Task', gradient: 'linear-gradient(145deg, #8b5cf6, #7c3aed)' },
-          { to: '/individual/report', label: 'View Report', gradient: 'linear-gradient(145deg, #5a4dd4, #4f46e5)' },
+          {
+            to: '/individual/income?add=1',
+            label: 'Add Income',
+            icon: HiOutlineArrowTrendingUp,
+            iconColor: 'text-emerald-500',
+            accent: '#059669',
+          },
+          {
+            to: '/individual/expenses?add=1',
+            label: 'Add Expense',
+            icon: HiOutlineArrowTrendingDown,
+            iconColor: 'text-red-500',
+            accent: '#dc2626',
+          },
+          {
+            to: '/individual/budget',
+            label: 'My Budget',
+            icon: HiOutlineBanknotes,
+            iconColor: 'text-amber-500',
+            accent: '#d97706',
+          },
+          {
+            to: '/individual/tasks?add=1',
+            label: 'New Task',
+            icon: HiOutlineClipboardDocumentList,
+            iconColor: 'text-purple-500',
+            accent: '#7c3aed',
+          },
+          {
+            to: '/individual/shopping',
+            label: 'Shopping List',
+            icon: HiOutlineShoppingCart,
+            iconColor: 'text-sky-500',
+            accent: '#0284c7',
+          },
+          {
+            to: '/individual/report',
+            label: 'View Report',
+            icon: HiOutlineChartBarSquare,
+            iconColor: 'text-primary-500',
+            accent: '#4f46e5',
+          },
         ].map((item) => (
           <Link
             key={item.to}
             to={item.to}
-            className="text-white text-sm font-semibold py-3 rounded-2xl text-center transition-all hover:scale-[1.02]"
-            style={{ background: item.gradient, boxShadow: '5px 5px 10px #c8cfd8, -5px -5px 10px #ffffff' }}
+            className="flex flex-col items-center gap-2 py-4 px-2 rounded-2xl text-center transition-all hover:scale-[1.03] active:scale-[0.98]"
+            style={{ background: '#e8edf5', boxShadow: '5px 5px 10px #c8cfd8, -5px -5px 10px #ffffff' }}
           >
-            {item.label}
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }}
+            >
+              <item.icon className={`w-5 h-5 ${item.iconColor}`} />
+            </div>
+            <span className="text-xs font-semibold text-gray-700 leading-tight">{item.label}</span>
           </Link>
         ))}
       </div>

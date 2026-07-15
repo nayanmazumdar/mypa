@@ -21,7 +21,7 @@ export default function Settings() {
   const [editingProfile, setEditingProfile] = useState(false);
   const [editingShop, setEditingShop] = useState(false);
   const [staffForm, setStaffForm] = useState({ name: '', email: '', password: '', phone: '', role: 'staff' });
-  const [profileForm, setProfileForm] = useState({ name: '', phone: '' });
+  const [profileForm, setProfileForm] = useState({ name: '', phone: '', area: '', pincode: '' });
   const [shopForm, setShopForm] = useState({ name: '', address: '', phone: '', email: '', gst_number: '' });
   const [passcodeForm, setPasscodeForm] = useState({ passcode: '', confirm_passcode: '', current_password: '' });
   const [passwordForm, setPasswordForm] = useState({ current_password: '', new_password: '', confirm_password: '' });
@@ -34,7 +34,7 @@ export default function Settings() {
     try {
       const res = await api.get('/auth/profile');
       setProfile(res.data);
-      setProfileForm({ name: res.data.name || '', phone: res.data.phone || '' });
+      setProfileForm({ name: res.data.name || '', phone: res.data.phone || '', area: res.data.area || '', pincode: res.data.pincode || '' });
       setShopForm({
         name: res.data.shops?.[0]?.name || user?.shop_name || '',
         address: res.data.shops?.[0]?.address || '',
@@ -148,6 +148,14 @@ export default function Settings() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
                   <input type="tel" value={profileForm.phone} onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })} className="input-field" />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Area / Locality</label>
+                  <input type="text" value={profileForm.area} onChange={(e) => setProfileForm({ ...profileForm, area: e.target.value })} className="input-field" placeholder="Street, Area, City" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">PIN Code</label>
+                  <input type="text" inputMode="numeric" maxLength={6} value={profileForm.pincode} onChange={(e) => setProfileForm({ ...profileForm, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) })} className="input-field" placeholder="6-digit PIN" />
+                </div>
               </div>
               <div className="flex gap-3">
                 <button type="submit" className="btn-primary text-sm">Save</button>
@@ -160,6 +168,8 @@ export default function Settings() {
               <InfoRow label="Email" value={profile.email} />
               <InfoRow label="Phone" value={profile.phone || 'Not set'} />
               <InfoRow label="Role" value={<RoleBadge role={profile.role} />} />
+              <InfoRow label="Area / Locality" value={profile.area || 'Not set'} />
+              <InfoRow label="PIN Code" value={profile.pincode || 'Not set'} />
               <InfoRow label="Member Since" value={new Date(profile.created_at).toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })} />
               <InfoRow label="Account Status" value={<span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Active</span>} />
             </div>

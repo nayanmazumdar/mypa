@@ -142,6 +142,40 @@ class IndividualController {
     }
   }
 
+  // ─── Monthly Budgets ─────────────────────────────────────────────────────────
+
+  async getBudgets(req, res) {
+    try {
+      const result = await individualService.getBudgets(req.user.id, req.query);
+      return ApiResponse.success(res, result);
+    } catch (error) {
+      logger.error('Get budgets error:', error.message);
+      return ApiResponse.error(res, error.message, error.statusCode || 500);
+    }
+  }
+
+  async upsertBudget(req, res) {
+    try {
+      const result = await individualService.upsertBudget(req.user.id, req.body);
+      return ApiResponse.success(res, result, 'Budget saved');
+    } catch (error) {
+      logger.error('Upsert budget error:', error.message);
+      return ApiResponse.error(res, error.message, error.statusCode || 500);
+    }
+  }
+
+  async deleteBudget(req, res) {
+    try {
+      const category = decodeURIComponent(req.params.category);
+      const period   = req.params.period;
+      await individualService.deleteBudget(req.user.id, category, period);
+      return ApiResponse.success(res, null, 'Budget removed');
+    } catch (error) {
+      logger.error('Delete budget error:', error.message);
+      return ApiResponse.error(res, error.message, error.statusCode || 500);
+    }
+  }
+
   // ─── Report ──────────────────────────────────────────────────────────────────
 
   async getReport(req, res) {

@@ -9,12 +9,12 @@ import api from '../../api/axios';
 
 // ── Colour palette ────────────────────────────────────────────────────────────
 const NOTE_COLORS = [
-  { key: 'yellow', bg: 'bg-yellow-50',  border: 'border-yellow-200', header: 'bg-yellow-100', dot: 'bg-yellow-400' },
-  { key: 'blue',   bg: 'bg-blue-50',    border: 'border-blue-200',   header: 'bg-blue-100',   dot: 'bg-blue-400' },
-  { key: 'green',  bg: 'bg-green-50',   border: 'border-green-200',  header: 'bg-green-100',  dot: 'bg-green-400' },
-  { key: 'pink',   bg: 'bg-pink-50',    border: 'border-pink-200',   header: 'bg-pink-100',   dot: 'bg-pink-400' },
-  { key: 'purple', bg: 'bg-purple-50',  border: 'border-purple-200', header: 'bg-purple-100', dot: 'bg-purple-400' },
-  { key: 'orange', bg: 'bg-orange-50',  border: 'border-orange-200', header: 'bg-orange-100', dot: 'bg-orange-400' },
+  { key: 'yellow', bg: 'bg-yellow-40',  border: 'border-yellow-200', header: 'bg-yellow-100', dot: 'bg-yellow-400' },
+  { key: 'blue',   bg: 'bg-blue-40',    border: 'border-blue-200',   header: 'bg-blue-100',   dot: 'bg-blue-400' },
+  { key: 'green',  bg: 'bg-green-40',   border: 'border-green-200',  header: 'bg-green-100',  dot: 'bg-green-400' },
+  { key: 'pink',   bg: 'bg-pink-40',    border: 'border-pink-200',   header: 'bg-pink-100',   dot: 'bg-pink-400' },
+  { key: 'purple', bg: 'bg-purple-40',  border: 'border-purple-200', header: 'bg-purple-100', dot: 'bg-purple-400' },
+  { key: 'orange', bg: 'bg-orange-40',  border: 'border-orange-200', header: 'bg-orange-100', dot: 'bg-orange-400' },
 ];
 const colorOf = (key) => NOTE_COLORS.find(c => c.key === key) || NOTE_COLORS[0];
 
@@ -38,7 +38,7 @@ const CAT_COLORS = {
   Travel:    'bg-cyan-100 text-cyan-700',
   Reminders: 'bg-orange-100 text-orange-700',
   Goals:     'bg-indigo-100 text-indigo-700',
-  Other:     'bg-gray-100 text-gray-500',
+  Other:     'bg-gray-100 text-gray-400',
 };
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -53,9 +53,10 @@ export default function PersonalNotes() {
   const [filterCat,   setFilterCat]   = useState('All');
 
   const today         = new Date().toISOString().split('T')[0];
+  const threeDaysAgo  = (() => { const d = new Date(); d.setDate(d.getDate() - 2); return d.toISOString().split('T')[0]; })();
   const firstOfMonth  = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
-  const [dateFrom,    setDateFrom]    = useState('');
-  const [dateTo,      setDateTo]      = useState('');
+  const [dateFrom,    setDateFrom]    = useState(threeDaysAgo);
+  const [dateTo,      setDateTo]      = useState(today);
 
   const load = async (from = dateFrom, to = dateTo) => {
     try {
@@ -72,7 +73,6 @@ export default function PersonalNotes() {
 
   // Reload when date range changes
   useEffect(() => {
-    if (!dateFrom && !dateTo) return; // skip on initial empty state
     setLoading(true);
     load(dateFrom, dateTo);
   }, [dateFrom, dateTo]);
@@ -92,7 +92,7 @@ export default function PersonalNotes() {
     e.preventDefault();
     if (!form.title.trim()) { toast.error('Title is required'); return; }
     const wordCount = form.content.trim() === '' ? 0 : form.content.trim().split(/\s+/).length;
-    if (wordCount > 100) { toast.error('Note exceeds 100 word limit'); return; }
+    if (wordCount > 40) { toast.error('Note exceeds 40 word limit'); return; }
     setSaving(true);
     try {
       if (editingNote) {
@@ -149,7 +149,7 @@ export default function PersonalNotes() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">My Notes</h1>
-          <p className="text-gray-500 text-sm mt-0.5">{notes.length} note{notes.length !== 1 ? 's' : ''}</p>
+          <p className="text-gray-400 text-sm mt-0.5">{notes.length} note{notes.length !== 1 ? 's' : ''}</p>
         </div>
         <button onClick={openNew} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium shadow-sm transition-colors">
           <HiOutlinePlus className="w-4 h-4" /> New Note
@@ -181,9 +181,9 @@ export default function PersonalNotes() {
           />
           {(dateFrom || dateTo) && (
             <button
-              onClick={() => { setDateFrom(''); setDateTo(''); setLoading(true); load('', ''); }}
+              onClick={() => { setDateFrom(threeDaysAgo); setDateTo(today); }}
               className="ml-1 text-gray-400 hover:text-gray-600"
-              title="Clear dates"
+              title="Reset to last 3 days"
             >
               ×
             </button>
@@ -192,8 +192,9 @@ export default function PersonalNotes() {
         {/* Quick presets */}
         <div className="flex gap-1">
           {[
-            { label: 'This month', from: firstOfMonth, to: today },
-            { label: 'Today',      from: today,        to: today },
+            { label: 'Last 3 days', from: threeDaysAgo,  to: today },
+            { label: 'This month',  from: firstOfMonth,  to: today },
+            { label: 'Today',       from: today,         to: today },
           ].map(p => (
             <button key={p.label}
               onClick={() => { setDateFrom(p.from); setDateTo(p.to); }}
@@ -230,12 +231,12 @@ export default function PersonalNotes() {
       {/* ── Notes grid ── */}
       {loading ? (
         <div className="flex justify-center py-16">
-          <span className="w-7 h-7 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+          <span className="w-7 h-7 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : notes.length === 0 ? (
         <div className="text-center py-20">
           <HiOutlinePencilSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500 font-medium">No notes yet</p>
+          <p className="text-gray-400 font-medium">No notes yet</p>
           <p className="text-gray-400 text-sm mt-1">Click "New Note" to jot something down</p>
         </div>
       ) : filtered.length === 0 ? (
@@ -269,7 +270,7 @@ export default function PersonalNotes() {
 
       {/* ── Modal ── */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/40">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
 
             {/* Modal header */}
@@ -277,7 +278,7 @@ export default function PersonalNotes() {
               <h2 className="text-base font-semibold text-gray-800">
                 {editingNote ? 'Edit Note' : 'New Note'}
               </h2>
-              <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-700">
+              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-700">
                 <HiOutlineXMark className="w-5 h-5" />
               </button>
             </div>
@@ -294,7 +295,7 @@ export default function PersonalNotes() {
 
               {/* Category */}
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1 flex items-center gap-1">
+                <label className="block text-xs font-medium text-gray-400 mb-1 flex items-center gap-1">
                   <HiOutlineTag className="w-3.5 h-3.5" /> Select Category
                 </label>
                 <div className="flex flex-wrap gap-1.5">
@@ -320,30 +321,30 @@ export default function PersonalNotes() {
               {/* Content */}
               {(() => {
                 const wordCount = form.content.trim() === '' ? 0 : form.content.trim().split(/\s+/).length;
-                const remaining = 100 - wordCount;
-                const isOver    = wordCount > 100;
+                const remaining = 40 - wordCount;
+                const isOver    = wordCount > 40;
                 return (
                   <div>
                     <textarea
-                      rows={5} placeholder="Write your note here… (max 100 words)"
+                      rows={5} placeholder="Write your note here… (max 40 words)"
                       value={form.content}
                       onChange={e => {
                         const val = e.target.value;
                         const words = val.trim() === '' ? [] : val.trim().split(/\s+/);
-                        if (words.length <= 100) {
+                        if (words.length <= 40) {
                           setForm({ ...form, content: val });
                         } else {
-                          setForm({ ...form, content: words.slice(0, 100).join(' ') });
+                          setForm({ ...form, content: words.slice(0, 40).join(' ') });
                         }
                       }}
                       className={`input-field resize-none w-full ${isOver ? 'border-red-400 focus:ring-red-400' : ''}`}
                     />
                     <div className="flex items-center justify-between mt-1 px-0.5">
-                      <span className="text-[11px] text-gray-400">Max 100 words</span>
+                      <span className="text-[11px] text-gray-400">Max 40 words</span>
                       <span className={`text-[11px] font-semibold ${
-                        isOver ? 'text-red-500' : remaining <= 10 ? 'text-amber-500' : 'text-gray-400'
+                        isOver ? 'text-red-400' : remaining <= 10 ? 'text-amber-400' : 'text-gray-400'
                       }`}>
-                        {wordCount} / 100 words
+                        {wordCount} / 40 words
                         {remaining <= 10 && !isOver && ` — ${remaining} left`}
                         {isOver && ' — limit reached'}
                       </span>
@@ -354,7 +355,7 @@ export default function PersonalNotes() {
 
               {/* Colour picker */}
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500">Color:</span>
+                <span className="text-xs text-gray-400">Color:</span>
                 {NOTE_COLORS.map(c => (
                   <button key={c.key} type="button"
                     onClick={() => setForm({ ...form, color: c.key })}
@@ -370,7 +371,7 @@ export default function PersonalNotes() {
                   <input type="checkbox" checked={form.pinned}
                     onChange={e => setForm({ ...form, pinned: e.target.checked })}
                     className="rounded border-gray-300 text-indigo-600" />
-                  <HiOutlineStar className="w-4 h-4 text-amber-500" /> Pin this note
+                  <HiOutlineStar className="w-4 h-4 text-amber-400" /> Pin this note
                 </label>
 
                 {/* Visible / Hidden toggle buttons */}
@@ -380,7 +381,7 @@ export default function PersonalNotes() {
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
                       form.visible
                         ? 'bg-green-600 text-white border-green-600'
-                        : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                        : 'border-gray-200 text-gray-400 hover:bg-gray-40'
                     }`}>
                     <HiOutlineEye className="w-3.5 h-3.5" /> Visible
                   </button>
@@ -389,7 +390,7 @@ export default function PersonalNotes() {
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
                       !form.visible
                         ? 'bg-gray-700 text-white border-gray-700'
-                        : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                        : 'border-gray-200 text-gray-400 hover:bg-gray-40'
                     }`}>
                     <HiOutlineEyeSlash className="w-3.5 h-3.5" /> Hidden
                   </button>
@@ -430,7 +431,7 @@ function NoteCard({ note, onEdit, onDelete, onPin, onToggleVisible }) {
         <p className="text-sm font-semibold text-gray-800 truncate flex-1">{note.title}</p>
         <div className="flex items-center gap-1 ml-2 shrink-0">
           <button onClick={() => onPin(note)}
-            className={`p-1 rounded hover:bg-black/10 transition-colors ${note.pinned ? 'text-amber-500' : 'text-gray-400'}`}
+            className={`p-1 rounded hover:bg-black/10 transition-colors ${note.pinned ? 'text-amber-400' : 'text-gray-400'}`}
             title={note.pinned ? 'Unpin' : 'Pin'}>
             <HiOutlineStar className="w-3.5 h-3.5" />
           </button>

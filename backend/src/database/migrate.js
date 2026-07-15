@@ -172,6 +172,24 @@ async function migrate() {
       await connection.query(`ALTER TABLE personal_notes ADD COLUMN visible BOOLEAN DEFAULT TRUE`);
     } catch (e) { /* already exists */ }
 
+    // Migration 12: monthly budgets per category
+    await runMigrationFile(
+      path.join(__dirname, 'migrations', '012_personal_budgets.sql'),
+      'Migration 12'
+    );
+
+    // Migration 13: budget_period column for personal_budgets
+    await runMigrationFile(
+      path.join(__dirname, 'migrations', '013_budget_period.sql'),
+      'Migration 13'
+    );
+
+    // Migration 14: area and pincode columns for users (individual profile settings)
+    await runMigrationFile(
+      path.join(__dirname, 'migrations', '014_user_area_pincode.sql'),
+      'Migration 14'
+    );
+
     console.log('✓ All tables created successfully');
 
     // Show created tables

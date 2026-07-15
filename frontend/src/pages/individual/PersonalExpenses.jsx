@@ -10,6 +10,8 @@ import {
   HiOutlineXMark,
   HiOutlineBanknotes,
   HiOutlineCalendarDays,
+  HiOutlineEye,
+  HiOutlineEyeSlash,
 } from 'react-icons/hi2';
 import { individualApi } from '../../api/individual.api';
 import Modal from '../../components/common/Modal';
@@ -23,6 +25,7 @@ const EXPENSE_CATEGORIES = [
   { group: 'Education',           items: ['School / College Fees', 'Books & Stationery', 'Online Courses', 'Coaching'] },
   { group: 'Finance',             items: ['Loan EMI', 'Credit Card Bill', 'Insurance Premium', 'Savings & Investment', 'Tax Payment'] },
   { group: 'Family & Social',     items: ['Gifts & Donations', 'Family Support', 'Subscriptions', 'Travel & Vacation'] },
+  { group: 'Travel & Tours',      items: ['Flight Tickets', 'Train / Bus Tickets', 'Hotel & Accommodation', 'Tour Package', 'Travel Insurance', 'Sightseeing & Activities', 'Food while Travelling', 'Visa & Passport Fees', 'Travel Accessories', 'Other Travel'] },
   { group: 'Other',               items: ['Miscellaneous', 'Other'] },
 ];
 
@@ -41,13 +44,22 @@ function prevMonthRange() {
   return { from: first.toISOString().split('T')[0], to: last.toISOString().split('T')[0] };
 }
 
-function fmtDate(raw) {
-  if (!raw) return '—';
-  const datePart = raw.length > 10 ? raw.substring(0, 10) : raw;
-  const [y, m, d] = datePart.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('en-IN', {
-    day: '2-digit', month: 'short', year: 'numeric',
-  });
+function fmtDateTime(dateRaw, createdAt) {
+  const date = (() => {
+    if (!dateRaw) return '—';
+    const part = dateRaw.length > 10 ? dateRaw.substring(0, 10) : dateRaw;
+    const [y, m, d] = part.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('en-IN', {
+      day: '2-digit', month: 'short', year: 'numeric',
+    });
+  })();
+  const time = (() => {
+    if (!createdAt) return '';
+    const dt = new Date(createdAt);
+    if (isNaN(dt)) return '';
+    return dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  })();
+  return { date, time };
 }
 
 const fmt = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
@@ -71,11 +83,12 @@ const emptyForm = {
   expense_date: today(), notes: '',
 };
 
-const PRESETS = [
-  { label: 'This Month', from: firstOfMonth(), to: today() },
-  { label: 'Last Month', ...prevMonthRange() },
-  { label: 'This Year',  from: firstOfYear(),  to: today() },
-  { label: 'All Time',   from: '',              to: ''      },
+const getPresets = () => [
+  { label: 'Today',      from: today(),        to: today()  },
+  { label: 'This Month', from: firstOfMonth(), to: today()  },
+  { label: 'Last Month', ...prevMonthRange()               },
+  { label: 'This Year',  from: firstOfYear(),  to: today()  },
+  { label: 'All Time',   from: '',             to: ''       },
 ];
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -87,9 +100,10 @@ export default function PersonalExpenses() {
   const [showModal,  setShowModal]  = useState(false);
   const [editingId,  setEditingId]  = useState(null);
   const [form,       setForm]       = useState(emptyForm);
-  const [activePreset, setActivePreset] = useState('This Month');
+  const [activePreset, setActivePreset] = useState('Today');
+  const [showAmounts, setShowAmounts] = useState(false);
   const [filters, setFilters] = useState({
-    from: firstOfMonth(), to: today(), category: '',
+    from: today(), to: today(), category: '',
   });
 
   // Auto-open modal when navigated with ?add=1
@@ -177,6 +191,7 @@ export default function PersonalExpenses() {
   const total       = expenses.reduce((s, e) => s + parseFloat(e.amount || 0), 0);
   const highest     = expenses.length ? Math.max(...expenses.map((e) => parseFloat(e.amount))) : 0;
   const avgPerEntry = expenses.length ? total / expenses.length : 0;
+  const mask = (v) => showAmounts ? v : '•••••';
 
   // ═══════════════════════════════════════════════════════════════════════════
   return (
@@ -184,9 +199,20 @@ export default function PersonalExpenses() {
 
       {/* ── Page header ── */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Expenses</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Track and manage your personal spending</p>
+        <div className="flex items-center gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">My Expenses</h1>
+            <p className="text-gray-500 text-sm mt-0.5">Track and manage your personal spending</p>
+          </div>
+          <button
+            onClick={() => setShowAmounts(v => !v)}
+            className="p-2 rounded-xl text-gray-400 hover:text-primary-600 transition-all self-start mt-1"
+            style={{ background: '#e8edf5', boxShadow: showAmounts ? 'inset 2px 2px 4px #c8cfd8, inset -2px -2px 4px #ffffff' : '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}
+            aria-label={showAmounts ? 'Hide amounts' : 'Show amounts'}
+            title={showAmounts ? 'Hide amounts' : 'Show amounts'}
+          >
+            {showAmounts ? <HiOutlineEyeSlash className="w-4 h-4" /> : <HiOutlineEye className="w-4 h-4" />}
+          </button>
         </div>
         <button onClick={openCreate} className="btn-primary flex items-center gap-2">
           <HiOutlinePlus className="w-4 h-4" /> Add Expense
@@ -201,7 +227,7 @@ export default function PersonalExpenses() {
           </div>
           <div>
             <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">Total Expenses</p>
-            <p className="text-xl font-bold text-red-600">{fmt(total)}</p>
+            <p className="text-xl font-bold text-red-600">{mask(fmt(total))}</p>
             <p className="text-[10px] text-gray-400">{expenses.length} record{expenses.length !== 1 ? 's' : ''}</p>
           </div>
         </div>
@@ -211,7 +237,7 @@ export default function PersonalExpenses() {
           </div>
           <div>
             <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">Highest Entry</p>
-            <p className="text-xl font-bold text-gray-800">{fmt(highest)}</p>
+            <p className="text-xl font-bold text-gray-800">{mask(fmt(highest))}</p>
             <p className="text-[10px] text-gray-400">Single transaction</p>
           </div>
         </div>
@@ -221,7 +247,7 @@ export default function PersonalExpenses() {
           </div>
           <div>
             <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">Avg per Entry</p>
-            <p className="text-xl font-bold text-gray-800">{fmt(avgPerEntry)}</p>
+            <p className="text-xl font-bold text-gray-800">{mask(fmt(avgPerEntry))}</p>
             <p className="text-[10px] text-gray-400">Based on filtered view</p>
           </div>
         </div>
@@ -232,7 +258,7 @@ export default function PersonalExpenses() {
         {/* Quick presets */}
         <div className="flex items-center gap-2 px-5 pt-4 pb-3 flex-wrap" style={{ borderBottom: '1px solid rgba(200,207,216,0.3)' }}>
           <HiOutlineFunnel className="w-4 h-4 text-gray-400 flex-shrink-0" />
-          {PRESETS.map((p) => (
+          {getPresets().map((p) => (
             <button
               key={p.label}
               onClick={() => applyPreset(p)}
@@ -284,7 +310,7 @@ export default function PersonalExpenses() {
           </div>
           {(filters.from || filters.to || filters.category) && (
             <button
-              onClick={() => { setActivePreset('This Month'); setFilters({ from: firstOfMonth(), to: today(), category: '' }); }}
+              onClick={() => { setActivePreset('Today'); setFilters({ from: today(), to: today(), category: '' }); }}
               className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-500 py-2 px-3 rounded-xl transition-all"
               style={{ background: '#e8edf5', boxShadow: '2px 2px 4px #c8cfd8, -2px -2px 4px #ffffff' }}
             >
@@ -306,7 +332,7 @@ export default function PersonalExpenses() {
               <HiOutlineArrowTrendingDown className="w-6 h-6 text-gray-400" />
             </div>
             <p className="text-sm font-medium text-gray-500">No expenses for this period</p>
-            <p className="text-xs text-gray-400 mt-1">Try changing the date range or add a new entry</p>
+            <p className="text-xs text-gray-400 mt-1">Change Date Range to view Expenses</p>
             <button onClick={openCreate} className="mt-4 btn-primary text-sm flex items-center gap-1.5">
               <HiOutlinePlus className="w-4 h-4" /> Add Expense
             </button>
@@ -336,7 +362,7 @@ export default function PersonalExpenses() {
                       {exp.description || <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-4 py-3 text-right font-semibold text-red-600">
-                      {fmt(exp.amount)}
+                      {mask(fmt(exp.amount))}
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell">
                       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-600">
@@ -344,7 +370,7 @@ export default function PersonalExpenses() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                      {fmtDate(exp.expense_date)}
+                      {(() => { const { date, time } = fmtDateTime(exp.expense_date, exp.created_at); return (<><span>{date}</span>{time && <span className="block text-[11px] text-gray-400">{time}</span>}</>); })()}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-1.5">
@@ -370,11 +396,22 @@ export default function PersonalExpenses() {
             </table>
 
             {/* Footer total */}
-            <div className="flex items-center justify-between px-5 py-3" style={{ borderTop: '1px solid rgba(200,207,216,0.3)' }}>
-              <span className="text-xs text-gray-600">
+            <div className="flex items-center justify-between px-5 py-3 bg-violet-50 border-t border-violet-100">
+              <span className="text-xs text-violet-700">
                 <strong>{expenses.length}</strong> record{expenses.length !== 1 ? 's' : ''}
               </span>
-              <span className="text-sm font-bold text-red-600">Total: {fmt(total)}</span>
+              {(filters.from || filters.to) && (
+                <span className="text-xs text-violet-600 flex items-center gap-1">
+                  <HiOutlineCalendarDays className="w-3.5 h-3.5" />
+                  {filters.from && filters.to
+                    ? `${filters.from} → ${filters.to}`
+                    : filters.from
+                      ? `From ${filters.from}`
+                      : `Up to ${filters.to}`
+                  }
+                </span>
+              )}
+              <span className="text-sm font-bold text-violet-700">Total: {mask(fmt(total))}</span>
             </div>
           </>
         )}

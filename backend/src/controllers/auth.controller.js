@@ -91,6 +91,8 @@ class AuthController {
       await authService.updateProfile(req.user.id, {
         name: req.body.name,
         phone: req.body.phone,
+        area: req.body.area,
+        pincode: req.body.pincode,
         ...(avatarPath !== undefined && { avatar: avatarPath }),
       });
       // Return updated profile so the client can refresh state

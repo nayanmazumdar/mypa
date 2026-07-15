@@ -24,4 +24,9 @@ export const individualApi = {
 
   // Report
   getReport: (params) => api.get('/individual/report', { params }),
+
+  // Monthly budgets
+  getBudgets: (params) => api.get('/individual/budgets', { params }),
+  upsertBudget: (data) => api.post('/individual/budgets', data),
+  deleteBudget: (period, category) => api.delete(`/individual/budgets/${period}/${encodeURIComponent(category)}`),
 };

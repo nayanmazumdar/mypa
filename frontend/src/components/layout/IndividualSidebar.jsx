@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import {
   HiOutlineHome,
   HiOutlineBanknotes,
@@ -10,19 +11,26 @@ import {
   HiOutlineXMark,
   HiOutlineUser,
   HiOutlinePencilSquare,
+  HiOutlineCalculator,
+  HiOutlineShoppingCart,
+  HiOutlineCheckBadge,
+  HiOutlineExclamationCircle,
 } from 'react-icons/hi2';
 
 const navigation = [
-  { name: 'Dashboard',   href: '/individual',          icon: HiOutlineHome,                  end: true },
-  { name: 'My Income',   href: '/individual/income',   icon: HiOutlineArrowTrendingUp },
-  { name: 'My Expenses', href: '/individual/expenses', icon: HiOutlineArrowTrendingDown },
-  { name: 'My Tasks',    href: '/individual/tasks',    icon: HiOutlineClipboardDocumentList },
-  { name: 'My Notes',    href: '/individual/notes',    icon: HiOutlinePencilSquare },
-  { name: 'Reports',     href: '/individual/report',   icon: HiOutlineChartBarSquare },
-  { name: 'Settings',    href: '/individual/settings', icon: HiOutlineCog6Tooth },
+  { name: 'Dashboard',        href: '/individual',           icon: HiOutlineHome,                  end: true },
+  { name: 'My Income',        href: '/individual/income',    icon: HiOutlineArrowTrendingUp },
+  { name: 'My Expenses',      href: '/individual/expenses',  icon: HiOutlineArrowTrendingDown },
+  { name: 'My Budget',        href: '/individual/budget',    icon: HiOutlineCalculator },
+  { name: 'My Tasks',         href: '/individual/tasks',     icon: HiOutlineClipboardDocumentList },
+  { name: 'My Notes',         href: '/individual/notes',     icon: HiOutlinePencilSquare },
+  { name: 'My Cart', href: '/individual/shopping',  icon: HiOutlineShoppingCart },
+  { name: 'Reports',          href: '/individual/report',    icon: HiOutlineChartBarSquare },
+  { name: 'Settings',         href: '/individual/settings',  icon: HiOutlineCog6Tooth },
 ];
 
 export default function IndividualSidebar({ open, onClose }) {
+  const { user } = useSelector((state) => state.auth);
   return (
     <>
       {open && (
@@ -42,10 +50,13 @@ export default function IndividualSidebar({ open, onClose }) {
         {/* Logo header */}
         <div className="flex items-center justify-between h-16 px-5 flex-shrink-0" style={{ borderBottom: '1px solid rgba(200,207,216,0.4)' }}>
           <NavLink to="/individual" className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(145deg, #10b981, #059669)', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}>
-              <span className="text-white text-sm font-bold">M</span>
-            </div>
-            <span className="text-lg font-bold text-gray-800 tracking-tight">MyPA</span>
+            <img
+              src="/logo.png"
+              alt="MyPA logo"
+              className="w-9 h-9 rounded-xl object-contain"
+              style={{ boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}
+            />
+            <span className="text-lg font-bold text-primary-700 tracking-tight">MyPA</span>
           </NavLink>
           <button
             onClick={onClose}
@@ -93,6 +104,20 @@ export default function IndividualSidebar({ open, onClose }) {
               <p className="text-xs font-semibold text-gray-700 truncate">Individual</p>
               <p className="text-[10px] text-gray-400">Personal mode</p>
             </div>
+          </div>
+          {/* Verified / Unverified badge */}
+          <div className="mt-2 flex justify-center">
+            {user?.is_active ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
+                <HiOutlineCheckBadge className="w-3.5 h-3.5" />
+                Verified Account
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                <HiOutlineExclamationCircle className="w-3.5 h-3.5" />
+                Unverified Account
+              </span>
+            )}
           </div>
         </div>
       </aside>

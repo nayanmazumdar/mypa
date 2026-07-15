@@ -3,7 +3,7 @@ const router = express.Router();
 const individualController = require('../controllers/individual.controller');
 const { authenticate, authorize } = require('../middlewares/auth.middleware');
 const { validate } = require('../middlewares/validate.middleware');
-const { expenseValidator, incomeValidator, taskValidator } = require('../validators/individual.validator');
+const { expenseValidator, incomeValidator, taskValidator, budgetValidator } = require('../validators/individual.validator');
 
 // All routes require authentication and individual role
 router.use(authenticate);
@@ -32,5 +32,10 @@ router.delete('/tasks/:id', individualController.deleteTask);
 
 // Transaction report
 router.get('/report', individualController.getReport);
+
+// Monthly budgets
+router.get('/budgets', individualController.getBudgets);
+router.post('/budgets', validate(budgetValidator), individualController.upsertBudget);
+router.delete('/budgets/:period/:category', individualController.deleteBudget);
 
 module.exports = router;

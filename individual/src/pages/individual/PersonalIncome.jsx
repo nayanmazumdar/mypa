@@ -42,16 +42,23 @@ function prevMonthRange() {
   };
 }
 
-// Fix UTC timestamp display — income_date comes as full ISO string from MySQL
-function fmtDate(raw) {
-  if (!raw) return '—';
-  // Handle both "YYYY-MM-DD" and "YYYY-MM-DDTHH:mm:ss.000Z" formats
-  // Add T12:00:00 to avoid UTC-to-local date shift
-  const datePart = raw.length > 10 ? raw.substring(0, 10) : raw;
-  const [y, m, d] = datePart.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('en-IN', {
-    day: '2-digit', month: 'short', year: 'numeric',
-  });
+// Fix UTC timestamp display — income_date is a DATE column; created_at carries the real timestamp
+function fmtDateTime(dateRaw, createdAt) {
+  const date = (() => {
+    if (!dateRaw) return '—';
+    const part = dateRaw.length > 10 ? dateRaw.substring(0, 10) : dateRaw;
+    const [y, m, d] = part.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('en-IN', {
+      day: '2-digit', month: 'short', year: 'numeric',
+    });
+  })();
+  const time = (() => {
+    if (!createdAt) return '';
+    const dt = new Date(createdAt);
+    if (isNaN(dt)) return '';
+    return dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  })();
+  return { date, time };
 }
 
 const fmt = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
@@ -62,11 +69,12 @@ const emptyForm = {
 };
 
 // ── Quick-filter presets ──────────────────────────────────────────────────────
-const PRESETS = [
-  { label: 'This Month', from: firstOfMonth(), to: today() },
-  { label: 'Last Month', ...prevMonthRange() },
-  { label: 'This Year',  from: firstOfYear(),  to: today() },
-  { label: 'All Time',   from: '',              to: ''      },
+const getPresets = () => [
+  { label: 'Today',      from: today(),        to: today()  },
+  { label: 'This Month', from: firstOfMonth(), to: today()  },
+  { label: 'Last Month', ...prevMonthRange()               },
+  { label: 'This Year',  from: firstOfYear(),  to: today()  },
+  { label: 'All Time',   from: '',             to: ''       },
 ];
 
 // ── Payment method label ──────────────────────────────────────────────────────
@@ -93,9 +101,9 @@ export default function PersonalIncome() {
   const [showModal,  setShowModal]  = useState(false);
   const [editingId,  setEditingId]  = useState(null);
   const [form,       setForm]       = useState(emptyForm);
-  const [activePreset, setActivePreset] = useState('This Month');
+  const [activePreset, setActivePreset] = useState('Today');
   const [filters, setFilters] = useState({
-    from: firstOfMonth(), to: today(), source: '',
+    from: today(), to: today(), source: '',
   });
 
   // Auto-open modal when navigated with ?add=1
@@ -239,7 +247,7 @@ export default function PersonalIncome() {
         {/* Quick presets */}
         <div className="flex items-center gap-2 px-4 pt-4 pb-3 border-b border-gray-200/60 flex-wrap">
           <HiOutlineFunnel className="w-4 h-4 text-gray-400 flex-shrink-0" />
-          {PRESETS.map((p) => (
+          {getPresets().map((p) => (
             <button
               key={p.label}
               onClick={() => applyPreset(p)}
@@ -295,7 +303,7 @@ export default function PersonalIncome() {
           </div>
           {(filters.from || filters.to || filters.source) && (
             <button
-              onClick={() => { setActivePreset('This Month'); setFilters({ from: firstOfMonth(), to: today(), source: '' }); }}
+              onClick={() => { setActivePreset('Today'); setFilters({ from: today(), to: today(), source: '' }); }}
               className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-500 py-1.5 px-2.5 border border-gray-200 rounded-lg"
             >
               <HiOutlineXMark className="w-3.5 h-3.5" /> Clear
@@ -314,7 +322,7 @@ export default function PersonalIncome() {
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <HiOutlineArrowTrendingUp className="w-12 h-12 mb-3 text-gray-200" />
             <p className="text-sm font-medium text-gray-500">No income records for this period</p>
-            <p className="text-xs text-gray-400 mt-1">Try changing the date range or add a new entry</p>
+            <p className="text-xs text-gray-400 mt-1">Change Date Range to view Income</p>
             <button onClick={openCreate} className="mt-4 btn-primary text-sm flex items-center gap-1.5">
               <HiOutlinePlus className="w-4 h-4" /> Add Income
             </button>
@@ -352,7 +360,7 @@ export default function PersonalIncome() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                      {fmtDate(inc.income_date)}
+                      {(() => { const { date, time } = fmtDateTime(inc.income_date, inc.created_at); return (<><span>{date}</span>{time && <span className="block text-[11px] text-gray-400">{time}</span>}</>); })()}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-1.5">
@@ -378,11 +386,22 @@ export default function PersonalIncome() {
             </table>
 
             {/* Footer total */}
-            <div className="flex items-center justify-between px-4 py-3 bg-green-50 border-t border-green-100">
-              <span className="text-sm text-green-700">
+            <div className="flex items-center justify-between px-4 py-3 bg-violet-50 border-t border-violet-100">
+              <span className="text-sm text-violet-700">
                 <strong>{incomes.length}</strong> record{incomes.length !== 1 ? 's' : ''}
               </span>
-              <span className="text-sm font-bold text-green-700">Total: {fmt(total)}</span>
+              {(filters.from || filters.to) && (
+                <span className="text-xs text-violet-600 flex items-center gap-1">
+                  <HiOutlineCalendarDays className="w-3.5 h-3.5" />
+                  {filters.from && filters.to
+                    ? `${filters.from} → ${filters.to}`
+                    : filters.from
+                      ? `From ${filters.from}`
+                      : `Up to ${filters.to}`
+                  }
+                </span>
+              )}
+              <span className="text-sm font-bold text-violet-700">Total: {fmt(total)}</span>
             </div>
           </>
         )}

@@ -244,6 +244,134 @@ class IndividualService {
     if (result.affectedRows === 0) { const e = new Error('Task not found'); e.statusCode = 404; throw e; }
   }
 
+  // ─── Monthly Budgets ─────────────────────────────────────────────────────────
+
+  /**
+   * Get all budget entries for the user, merged with their actual spending
+   * for the given month (defaults to current month).
+   *
+   * Budgets are tracked at the MAJOR CATEGORY (group) level.
+   * Spending is the SUM of all sub-category items that belong to each group.
+   */
+  async getBudgets(userId, { year, month } = {}) {
+    const pool = getPool();
+    const now = new Date();
+    const y = parseInt(year)  || now.getFullYear();
+    const m = parseInt(month) || now.getMonth() + 1;
+    const period   = y * 100 + m;                                          // e.g. 202607
+    const dateFrom = `${y}-${String(m).padStart(2, '0')}-01`;
+    const dateTo   = new Date(y, m, 0).toISOString().split('T')[0];
+
+    // Sub-category → major group mapping (must stay in sync with frontend)
+    const CATEGORY_GROUPS = {
+      'Food & Dining': 'Food & Lifestyle', 'Groceries': 'Food & Lifestyle',
+      'Personal Care': 'Food & Lifestyle', 'Clothing & Fashion': 'Food & Lifestyle',
+      'Entertainment': 'Food & Lifestyle',
+      'Housing & Rent': 'Housing & Utilities', 'Electricity': 'Housing & Utilities',
+      'Water': 'Housing & Utilities', 'Gas': 'Housing & Utilities',
+      'Internet & Phone': 'Housing & Utilities', 'Maintenance': 'Housing & Utilities',
+      'Fuel': 'Transport', 'Public Transport': 'Transport', 'Vehicle EMI': 'Transport',
+      'Vehicle Insurance': 'Transport', 'Parking & Tolls': 'Transport', 'Cab / Auto': 'Transport',
+      'Doctor / Hospital': 'Health', 'Medicines': 'Health',
+      'Health Insurance': 'Health', 'Gym & Fitness': 'Health',
+      'School / College Fees': 'Education', 'Books & Stationery': 'Education',
+      'Online Courses': 'Education', 'Coaching': 'Education',
+      'Loan EMI': 'Finance', 'Credit Card Bill': 'Finance',
+      'Insurance Premium': 'Finance', 'Savings & Investment': 'Finance', 'Tax Payment': 'Finance',
+      'Gifts & Donations': 'Family & Social', 'Family Support': 'Family & Social',
+      'Subscriptions': 'Family & Social', 'Travel & Vacation': 'Family & Social',
+      'Flight Tickets': 'Travel & Tours', 'Train / Bus Tickets': 'Travel & Tours',
+      'Hotel & Accommodation': 'Travel & Tours', 'Tour Package': 'Travel & Tours',
+      'Travel Insurance': 'Travel & Tours', 'Sightseeing & Activities': 'Travel & Tours',
+      'Food while Travelling': 'Travel & Tours', 'Visa & Passport Fees': 'Travel & Tours',
+      'Travel Accessories': 'Travel & Tours', 'Other Travel': 'Travel & Tours',
+      'Miscellaneous': 'Other', 'Other': 'Other',
+    };
+
+    // Saved budgets for the specific period only
+    const [budgetRows] = await pool.query(
+      'SELECT category AS grp, monthly_limit FROM personal_budgets WHERE user_id = ? AND budget_period = ?',
+      [userId, period]
+    );
+
+    // Actual spending per sub-category for the month
+    const [actuals] = await pool.query(
+      `SELECT category, COALESCE(SUM(amount), 0) AS spent
+       FROM personal_expenses
+       WHERE user_id = ? AND DATE(expense_date) BETWEEN ? AND ?
+       GROUP BY category`,
+      [userId, dateFrom, dateTo]
+    );
+
+    // Roll actuals up to group level
+    const groupSpent = {};
+    actuals.forEach(r => {
+      const grp = CATEGORY_GROUPS[r.category] || 'Other';
+      groupSpent[grp] = (groupSpent[grp] || 0) + parseFloat(r.spent);
+    });
+
+    const result = budgetRows.map(b => {
+      const spent = groupSpent[b.grp] || 0;
+      const limit = parseFloat(b.monthly_limit);
+      return {
+        category:      b.grp,
+        monthly_limit: limit,
+        spent,
+        remaining:     limit - spent,
+        exceeded:      limit > 0 && spent > limit,
+        pct_used:      limit > 0 ? Math.round((spent / limit) * 100) : 0,
+      };
+    });
+
+    // Alerts: groups where spending exceeds the budget
+    const alerts = result
+      .filter(b => b.exceeded)
+      .map(b => ({
+        group:     b.category,
+        limit:     b.monthly_limit,
+        spent:     b.spent,
+        overspent: b.spent - b.monthly_limit,
+      }));
+
+    return { period: { year: y, month: m, budget_period: period, from: dateFrom, to: dateTo }, budgets: result, alerts };
+  }
+
+  /**
+   * Upsert a budget entry — category is a MAJOR GROUP name, scoped to a budget_period.
+   * budget_period is a 6-digit integer: YYYYMM (e.g. 202607 for July 2026).
+   */
+  async upsertBudget(userId, { category, monthly_limit, year, month }) {
+    const pool = getPool();
+    const now = new Date();
+    const y = parseInt(year)  || now.getFullYear();
+    const m = parseInt(month) || now.getMonth() + 1;
+    const period = y * 100 + m;
+
+    await pool.query(
+      `INSERT INTO personal_budgets (user_id, budget_period, category, monthly_limit)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE monthly_limit = VALUES(monthly_limit), updated_at = NOW()`,
+      [userId, period, category, monthly_limit]
+    );
+    logger.info(`Budget upserted: user=${userId}, period=${period}, group="${category}", limit=${monthly_limit}`);
+    return { category, monthly_limit, budget_period: period };
+  }
+
+  /**
+   * Delete a budget entry for a major group within a specific period.
+   * period is a 6-digit integer: YYYYMM (e.g. 202607).
+   */
+  async deleteBudget(userId, category, period) {
+    const pool = getPool();
+    const [result] = await pool.query(
+      'DELETE FROM personal_budgets WHERE user_id = ? AND category = ? AND budget_period = ?',
+      [userId, category, parseInt(period, 10)]
+    );
+    if (result.affectedRows === 0) {
+      const e = new Error('Budget entry not found'); e.statusCode = 404; throw e;
+    }
+  }
+
   // ─── Report ──────────────────────────────────────────────────────────────────
 
   async getReport(userId, { from, to }) {
@@ -274,12 +402,28 @@ class IndividualService {
       [userId, dateFrom, dateTo]
     );
 
+    // Opening balance = cumulative net before the period start date
+    const [[preExpRow]] = await pool.query(
+      `SELECT COALESCE(SUM(amount), 0) AS total FROM personal_expenses
+       WHERE user_id = ? AND DATE(expense_date) < ?`,
+      [userId, dateFrom]
+    );
+    const [[preIncRow]] = await pool.query(
+      `SELECT COALESCE(SUM(amount), 0) AS total FROM personal_incomes
+       WHERE user_id = ? AND DATE(income_date) < ?`,
+      [userId, dateFrom]
+    );
+
     const totalIncome = parseFloat(incTotals.total);
     const totalExpense = parseFloat(expTotals.total);
+    const openingBalance = parseFloat(preIncRow.total) - parseFloat(preExpRow.total);
+    const closingBalance = openingBalance + (totalIncome - totalExpense);
 
     return {
       period: { from: dateFrom, to: dateTo },
       summary: {
+        opening_balance: openingBalance,
+        closing_balance: closingBalance,
         total_income: totalIncome,
         total_expense: totalExpense,
         net_balance: totalIncome - totalExpense,

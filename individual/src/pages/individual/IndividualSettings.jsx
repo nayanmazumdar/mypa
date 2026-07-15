@@ -12,6 +12,9 @@ import {
   HiOutlineEnvelope,
   HiOutlineCalendarDays,
   HiOutlineIdentification,
+  HiOutlineMapPin,
+  HiOutlineCheckBadge,
+  HiOutlineExclamationCircle,
 } from 'react-icons/hi2';
 import api from '../../api/axios';
 import { authApi } from '../../api/auth.api';
@@ -125,15 +128,18 @@ function AvatarUpload({ current, name, onUploaded }) {
 }
 
 // ─── Editable field row ───────────────────────────────────────────────────
-function InfoRow({ label, value, icon: Icon }) {
+function InfoRow({ label, value, icon: Icon, badge }) {
   return (
     <div className="flex items-start gap-3 py-3 border-b border-gray-100/60 last:border-0">
       <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5" style={{ background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }}>
         <Icon className="w-4 h-4 text-indigo-500" />
       </div>
-      <div>
+      <div className="flex-1 min-w-0">
         <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">{label}</p>
-        <p className="text-sm text-gray-800 mt-0.5">{value || <span className="text-gray-400 italic">Not set</span>}</p>
+        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+          <p className="text-sm text-gray-800">{value || <span className="text-gray-400 italic">Not set</span>}</p>
+          {badge}
+        </div>
       </div>
     </div>
   );
@@ -146,7 +152,7 @@ export default function IndividualSettings() {
   const [activeTab, setActiveTab] = useState('profile');
   const [profile, setProfile] = useState(null);
   const [editing, setEditing] = useState(false);
-  const [profileForm, setProfileForm] = useState({ name: '', phone: '' });
+  const [profileForm, setProfileForm] = useState({ name: '', phone: '', area: '', pincode: '' });
   const [saving, setSaving] = useState(false);
 
   const [passcodeForm, setPasscodeForm] = useState({ passcode: '', confirm_passcode: '', current_password: '' });
@@ -158,7 +164,7 @@ export default function IndividualSettings() {
     try {
       const res = await api.get('/auth/profile');
       setProfile(res.data);
-      setProfileForm({ name: res.data.name || '', phone: res.data.phone || '' });
+      setProfileForm({ name: res.data.name || '', phone: res.data.phone || '', area: res.data.area || '', pincode: res.data.pincode || '' });
     } catch {}
   };
 
@@ -176,10 +182,12 @@ export default function IndividualSettings() {
       const fd = new FormData();
       fd.append('name', profileForm.name.trim());
       fd.append('phone', profileForm.phone.trim());
+      fd.append('area', profileForm.area.trim());
+      fd.append('pincode', profileForm.pincode.trim());
       const res = await authApi.updateProfile(fd);
       const updated = res.data;
       setProfile(updated);
-      setProfileForm({ name: updated.name || '', phone: updated.phone || '' });
+      setProfileForm({ name: updated.name || '', phone: updated.phone || '', area: updated.area || '', pincode: updated.pincode || '' });
       dispatch(updateUser({ name: updated.name, phone: updated.phone, avatar: updated.avatar }));
       toast.success('Profile updated');
       setEditing(false);
@@ -274,9 +282,11 @@ export default function IndividualSettings() {
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h2 className="text-lg font-bold text-gray-900">{profile.name}</h2>
-                    <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700">
-                      👤 Individual
-                    </span>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700">
+                        👤 Individual
+                      </span>
+                    </div>
                   </div>
                   {!editing && (
                     <button
@@ -316,6 +326,35 @@ export default function IndividualSettings() {
                         placeholder="9876543210"
                       />
                     </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                          Area / Locality
+                        </label>
+                        <input
+                          type="text"
+                          value={profileForm.area}
+                          onChange={(e) => setProfileForm({ ...profileForm, area: e.target.value })}
+                          className="input-field"
+                          placeholder="Street, Area, City"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+                          PIN Code <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          inputMode="numeric"
+                          maxLength={6}
+                          value={profileForm.pincode}
+                          onChange={(e) => setProfileForm({ ...profileForm, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+                          className="input-field"
+                          placeholder="6-digit PIN"
+                        />
+                      </div>
+                    </div>
                     <div className="flex gap-2 pt-1">
                       <button
                         type="submit"
@@ -332,7 +371,7 @@ export default function IndividualSettings() {
                         type="button"
                         onClick={() => {
                           setEditing(false);
-                          setProfileForm({ name: profile.name || '', phone: profile.phone || '' });
+                          setProfileForm({ name: profile.name || '', phone: profile.phone || '', area: profile.area || '', pincode: profile.pincode || '' });
                         }}
                         className="flex items-center gap-1.5 btn-secondary text-sm py-1.5 px-4"
                       >
@@ -343,8 +382,15 @@ export default function IndividualSettings() {
                   </form>
                 ) : (
                   <div className="space-y-1">
-                    <InfoRow label="Email"       value={profile.email}  icon={HiOutlineEnvelope} />
+                    <InfoRow label="Email"       value={profile.email}  icon={HiOutlineEnvelope}
+                      badge={profile.is_active
+                        ? <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700"><HiOutlineCheckBadge className="w-3 h-3" />Verified</span>
+                        : <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700"><HiOutlineExclamationCircle className="w-3 h-3" />Unverified</span>
+                      }
+                    />
                     <InfoRow label="Phone"       value={profile.phone}  icon={HiOutlinePhone} />
+                    <InfoRow label="Area / Locality" value={profile.area}   icon={HiOutlineMapPin} />
+                    <InfoRow label="PIN Code"    value={profile.pincode} icon={HiOutlineMapPin} />
                     <InfoRow label="Account ID"  value={profile.uuid?.slice(0, 8).toUpperCase()} icon={HiOutlineIdentification} />
                     <InfoRow
                       label="Member Since"

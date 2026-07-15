@@ -34,6 +34,8 @@ import PersonalTasks from '../pages/individual/PersonalTasks';
 import PersonalNotes from '../pages/individual/PersonalNotes';
 import PersonalReport from '../pages/individual/PersonalReport';
 import IndividualSettings from '../pages/individual/IndividualSettings';
+import PersonalBudget from '../pages/individual/PersonalBudget';
+import ShoppingList from '../pages/individual/ShoppingList';
 
 export default function AppRouter() {
   return (
@@ -73,8 +75,10 @@ export default function AppRouter() {
                 <Route path="/individual" element={<IndividualDashboard />} />
                 <Route path="/individual/expenses" element={<PersonalExpenses />} />
                 <Route path="/individual/income" element={<PersonalIncome />} />
+                <Route path="/individual/budget" element={<PersonalBudget />} />
                 <Route path="/individual/tasks" element={<PersonalTasks />} />
                 <Route path="/individual/notes" element={<PersonalNotes />} />
+                <Route path="/individual/shopping" element={<ShoppingList />} />
                 <Route path="/individual/report" element={<PersonalReport />} />
                 <Route path="/individual/settings" element={<IndividualSettings />} />
               </Route>

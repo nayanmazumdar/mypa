@@ -7,8 +7,11 @@ import {
   HiOutlineBanknotes,
   HiOutlineCalculator,
   HiOutlineArrowDownTray,
+  HiOutlinePrinter,
   HiOutlineXMark,
   HiOutlinePencilSquare,
+  HiOutlineEye,
+  HiOutlineEyeSlash,
 } from 'react-icons/hi2';
 import { individualApi } from '../../api/individual.api';
 import api from '../../api/axios';
@@ -211,9 +214,72 @@ async function generatePDF(report, userName, from, to, notes = []) {
   const net      = nv(report.summary.net_balance);
   const totalInc = nv(report.summary.total_income);
   const totalExp = nv(report.summary.total_expense);
+  const openBal  = nv(report.summary.opening_balance);
+  const closeBal = nv(report.summary.closing_balance);
 
-  // ── 1. Financial Summary — minimal key-value rows ──────────────────────────
-  let y = sectionHeading('Financial Summary', 44);
+  // ── 1. Opening / Closing Balance — two prominent header cards ───────────────
+  let y = 44;
+  const balCardW  = (pageW - M * 2 - 6) / 2;
+  const balCardH  = 22;
+  const balRadius = 3;
+
+  const BLUE   = [37,  99,  235];   // blue-600
+  const BLUE_L = [239, 246, 255];   // blue-50
+  const BLUE_D = [29,  78,  216];   // blue-700
+
+  // Opening Balance card (left)
+  doc.setFillColor(...BLUE_L);
+  doc.setDrawColor(...BLUE);
+  doc.setLineWidth(0.5);
+  doc.roundedRect(M, y, balCardW, balCardH, balRadius, balRadius, 'FD');
+  // Left accent bar
+  doc.setFillColor(...BLUE);
+  doc.roundedRect(M, y, 3, balCardH, balRadius, balRadius, 'F');
+  doc.rect(M + 1.5, y, 1.5, balCardH, 'F');
+  // Label
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...BLUE);
+  doc.text('OPENING BALANCE', M + 7, y + 7);
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 100, 112);
+  doc.text(`As of ${fmtDate(from)}`, M + 7, y + 12.5);
+  // Value
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...BLUE_D);
+  doc.text(rupees(openBal), M + balCardW - 4, y + 14, { align: 'right' });
+
+  // Closing Balance card (right)
+  const cbX = M + balCardW + 6;
+  doc.setFillColor(...BLUE_L);
+  doc.setDrawColor(...BLUE);
+  doc.setLineWidth(0.5);
+  doc.roundedRect(cbX, y, balCardW, balCardH, balRadius, balRadius, 'FD');
+  // Left accent bar
+  doc.setFillColor(...BLUE);
+  doc.roundedRect(cbX, y, 3, balCardH, balRadius, balRadius, 'F');
+  doc.rect(cbX + 1.5, y, 1.5, balCardH, 'F');
+  // Label
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...BLUE);
+  doc.text('CLOSING BALANCE', cbX + 7, y + 7);
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(100, 100, 112);
+  doc.text(`As of ${fmtDate(to)}`, cbX + 7, y + 12.5);
+  // Value
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...BLUE_D);
+  doc.text(rupees(closeBal), cbX + balCardW - 4, y + 14, { align: 'right' });
+
+  y += balCardH + 10;
+
+  // ── 2. Financial Summary — minimal key-value rows ──────────────────────────
+  y = sectionHeading('Financial Summary', y);
 
   const GREY     = [230, 230, 232];
   const DARK     = [30,  30,  40 ];
@@ -347,21 +413,21 @@ async function generatePDF(report, userName, from, to, notes = []) {
     y += totalRowH + 10;
   };
 
-  // ── 2. Income by Source ──────────────────────────────────────────────────────
+  // ── 3. Income by Source ──────────────────────────────────────────────────────
   if (report.income_by_source && report.income_by_source.length > 0) {
     if (y > 220) { doc.addPage(); drawHeader(); y = 44; }
     y = sectionHeading('Income by Source', y);
     drawBreakdownSection(report.income_by_source, totalInc, 'source', GREEN_D, GREEN);
   }
 
-  // ── 3. Expense by Category ───────────────────────────────────────────────────
+  // ── 4. Expense by Category ───────────────────────────────────────────────────
   if (report.expense_by_category && report.expense_by_category.length > 0) {
     if (y > 220) { doc.addPage(); drawHeader(); y = 44; }
     y = sectionHeading('Expense by Category', y);
     drawBreakdownSection(report.expense_by_category, totalExp, 'category', RED_D, RED);
   }
 
-  // ── 4. Notes ─────────────────────────────────────────────────────────────────
+  // ── 5. Notes ─────────────────────────────────────────────────────────────────
   if (notes && notes.length > 0) {
     if (y > 230) { doc.addPage(); drawHeader(); y = 40; }
     y = sectionHeading(`Notes  (${notes.length})`, y);
@@ -466,6 +532,7 @@ export default function PersonalReport() {
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [activePreset, setActivePreset] = useState('This Month');
+  const [showAmounts, setShowAmounts] = useState(false);
 
   // Notes-modal state
   const [showNotesModal, setShowNotesModal] = useState(false);
@@ -539,6 +606,7 @@ export default function PersonalReport() {
 
   const fmtCurUI = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
   const net = report?.summary?.net_balance ?? 0;
+  const mask = (val) => showAmounts ? val : '••••••';
 
   return (
     <div className="space-y-5">
@@ -549,6 +617,18 @@ export default function PersonalReport() {
           <h1 className="text-2xl font-bold text-gray-900">Transaction Report</h1>
           <p className="text-gray-500 text-sm mt-0.5">Analyse your income and expenses for any period</p>
         </div>
+        <button
+          onClick={() => setShowAmounts(v => !v)}
+          className="p-2 rounded-xl text-gray-400 hover:text-indigo-600 transition-all flex-shrink-0"
+          style={{ background: '#e8edf5', boxShadow: showAmounts ? 'inset 2px 2px 4px #c8cfd8, inset -2px -2px 4px #ffffff' : '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}
+          aria-label={showAmounts ? 'Hide amounts' : 'Show amounts'}
+          title={showAmounts ? 'Hide amounts' : 'Show amounts'}
+        >
+          {showAmounts
+            ? <HiOutlineEyeSlash className="w-5 h-5" />
+            : <HiOutlineEye className="w-5 h-5" />
+          }
+        </button>
       </div>
 
       {/* ── Date range picker ── */}
@@ -613,9 +693,9 @@ export default function PersonalReport() {
             >
               {generating
                 ? <span className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-                : <HiOutlineArrowDownTray className="w-4 h-4" />
+                : <HiOutlinePrinter className="w-4 h-4" />
               }
-              {generating ? 'Generating...' : 'Download PDF'}
+              {generating ? 'Generating...' : 'Print Report'}
             </button>
           )}
         </div>
@@ -634,10 +714,10 @@ export default function PersonalReport() {
           {/* Summary cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { label: 'Total Income',  value: fmtCurUI(report.summary.total_income),  icon: HiOutlineArrowTrendingUp,   color: 'text-green-600' },
-              { label: 'Total Expense', value: fmtCurUI(report.summary.total_expense), icon: HiOutlineArrowTrendingDown,  color: 'text-red-600' },
-              { label: 'Net Balance',   value: fmtCurUI(net),                           icon: HiOutlineBanknotes,          color: net >= 0 ? 'text-indigo-600' : 'text-orange-600' },
-              { label: 'Savings Rate',  value: `${report.summary.savings_rate}%`,       icon: HiOutlineCalculator,         color: 'text-purple-600' },
+              { label: 'Total Income',  value: mask(fmtCurUI(report.summary.total_income)),  icon: HiOutlineArrowTrendingUp,   color: 'text-green-600' },
+              { label: 'Total Expense', value: mask(fmtCurUI(report.summary.total_expense)), icon: HiOutlineArrowTrendingDown,  color: 'text-red-600' },
+              { label: 'Net Balance',   value: mask(fmtCurUI(net)),                           icon: HiOutlineBanknotes,          color: net >= 0 ? 'text-indigo-600' : 'text-orange-600' },
+              { label: 'Savings Rate',  value: mask(`${report.summary.savings_rate}%`),       icon: HiOutlineCalculator,         color: 'text-purple-600' },
             ].map((card) => (
               <div key={card.label} className="rounded-2xl p-5 flex items-center gap-3" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
                 <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }}>
@@ -671,7 +751,7 @@ export default function PersonalReport() {
                       <div key={row.source}>
                         <div className="flex justify-between text-sm mb-1">
                           <span className="text-gray-700">{row.source}</span>
-                          <span className="font-semibold text-green-600">{fmtCurUI(row.total)}</span>
+                          <span className="font-semibold text-green-600">{mask(fmtCurUI(row.total))}</span>
                         </div>
                         <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                           <div className="h-full bg-green-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
@@ -682,7 +762,7 @@ export default function PersonalReport() {
                   })}
                   <div className="pt-2 border-t border-gray-100 flex justify-between text-sm font-semibold">
                     <span className="text-gray-700">Total</span>
-                    <span className="text-green-700">{fmtCurUI(report.summary.total_income)}</span>
+                    <span className="text-green-700">{mask(fmtCurUI(report.summary.total_income))}</span>
                   </div>
                 </div>
               )}
@@ -705,7 +785,7 @@ export default function PersonalReport() {
                       <div key={row.category}>
                         <div className="flex justify-between text-sm mb-1">
                           <span className="text-gray-700">{row.category}</span>
-                          <span className="font-semibold text-red-600">{fmtCurUI(row.total)}</span>
+                          <span className="font-semibold text-red-600">{mask(fmtCurUI(row.total))}</span>
                         </div>
                         <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                           <div className="h-full bg-red-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
@@ -716,7 +796,7 @@ export default function PersonalReport() {
                   })}
                   <div className="pt-2 border-t border-gray-100 flex justify-between text-sm font-semibold">
                     <span className="text-gray-700">Total</span>
-                    <span className="text-red-700">{fmtCurUI(report.summary.total_expense)}</span>
+                    <span className="text-red-700">{mask(fmtCurUI(report.summary.total_expense))}</span>
                   </div>
                 </div>
               )}
@@ -771,8 +851,8 @@ export default function PersonalReport() {
                   onClick={() => handleConfirmDownload(false)}
                   className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
                 >
-                  <HiOutlineArrowDownTray className="w-4 h-4" />
-                  Download PDF
+                  <HiOutlinePrinter className="w-4 h-4" />
+                  Print Report
                 </button>
               ) : (
                 <>
@@ -786,7 +866,7 @@ export default function PersonalReport() {
                     onClick={() => handleConfirmDownload(true)}
                     className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
                   >
-                    <HiOutlineArrowDownTray className="w-4 h-4" />
+                    <HiOutlinePrinter className="w-4 h-4" />
                     Include &amp; Download
                   </button>
                 </>

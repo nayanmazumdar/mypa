@@ -10,6 +10,7 @@ import PersonalTasks from '../pages/individual/PersonalTasks';
 import PersonalNotes from '../pages/individual/PersonalNotes';
 import PersonalReport from '../pages/individual/PersonalReport';
 import IndividualSettings from '../pages/individual/IndividualSettings';
+import ShoppingList from '../pages/individual/ShoppingList';
 
 export default function AppRouter() {
   return (

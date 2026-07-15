@@ -10,6 +10,8 @@ import {
   HiOutlineXMark,
   HiOutlineBanknotes,
   HiOutlineCalendarDays,
+  HiOutlineEye,
+  HiOutlineEyeSlash,
 } from 'react-icons/hi2';
 import { individualApi } from '../../api/individual.api';
 import Modal from '../../components/common/Modal';
@@ -42,16 +44,24 @@ function prevMonthRange() {
   };
 }
 
-// Fix UTC timestamp display — income_date comes as full ISO string from MySQL
-function fmtDate(raw) {
-  if (!raw) return '—';
-  // Handle both "YYYY-MM-DD" and "YYYY-MM-DDTHH:mm:ss.000Z" formats
-  // Add T12:00:00 to avoid UTC-to-local date shift
-  const datePart = raw.length > 10 ? raw.substring(0, 10) : raw;
-  const [y, m, d] = datePart.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('en-IN', {
-    day: '2-digit', month: 'short', year: 'numeric',
-  });
+// Fix UTC timestamp display — income_date is a DATE column; created_at carries the real timestamp
+function fmtDateTime(dateRaw, createdAt) {
+  const date = (() => {
+    if (!dateRaw) return '—';
+    // Handle both "YYYY-MM-DD" and "YYYY-MM-DDTHH:mm:ss.000Z" formats
+    const part = dateRaw.length > 10 ? dateRaw.substring(0, 10) : dateRaw;
+    const [y, m, d] = part.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('en-IN', {
+      day: '2-digit', month: 'short', year: 'numeric',
+    });
+  })();
+  const time = (() => {
+    if (!createdAt) return '';
+    const dt = new Date(createdAt);
+    if (isNaN(dt)) return '';
+    return dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+  })();
+  return { date, time };
 }
 
 const fmt = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
@@ -62,11 +72,12 @@ const emptyForm = {
 };
 
 // ── Quick-filter presets ──────────────────────────────────────────────────────
-const PRESETS = [
-  { label: 'This Month', from: firstOfMonth(), to: today() },
-  { label: 'Last Month', ...prevMonthRange() },
-  { label: 'This Year',  from: firstOfYear(),  to: today() },
-  { label: 'All Time',   from: '',              to: ''      },
+const getPresets = () => [
+  { label: 'Today',      from: today(),        to: today()  },
+  { label: 'This Month', from: firstOfMonth(), to: today()  },
+  { label: 'Last Month', ...prevMonthRange()               },
+  { label: 'This Year',  from: firstOfYear(),  to: today()  },
+  { label: 'All Time',   from: '',             to: ''       },
 ];
 
 // ── Payment method label ──────────────────────────────────────────────────────
@@ -93,9 +104,10 @@ export default function PersonalIncome() {
   const [showModal,  setShowModal]  = useState(false);
   const [editingId,  setEditingId]  = useState(null);
   const [form,       setForm]       = useState(emptyForm);
-  const [activePreset, setActivePreset] = useState('This Month');
+  const [activePreset, setActivePreset] = useState('Today');
+  const [showAmounts, setShowAmounts] = useState(false);
   const [filters, setFilters] = useState({
-    from: firstOfMonth(), to: today(), source: '',
+    from: today(), to: today(), source: '',
   });
 
   // Auto-open modal when navigated with ?add=1
@@ -184,6 +196,7 @@ export default function PersonalIncome() {
   const total      = incomes.reduce((s, i) => s + parseFloat(i.amount || 0), 0);
   const highest    = incomes.length ? Math.max(...incomes.map((i) => parseFloat(i.amount))) : 0;
   const avgPerEntry= incomes.length ? total / incomes.length : 0;
+  const mask = (v) => showAmounts ? v : '•••••';
 
   // ══════════════════════════════════════════════════════════════════════════════
   return (
@@ -191,9 +204,20 @@ export default function PersonalIncome() {
 
       {/* ── Page header ── */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Income</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Track all your income sources</p>
+        <div className="flex items-center gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">My Income</h1>
+            <p className="text-gray-500 text-sm mt-0.5">Track all your income sources</p>
+          </div>
+          <button
+            onClick={() => setShowAmounts(v => !v)}
+            className="p-2 rounded-xl text-gray-400 hover:text-primary-600 transition-all self-start mt-1"
+            style={{ background: '#e8edf5', boxShadow: showAmounts ? 'inset 2px 2px 4px #c8cfd8, inset -2px -2px 4px #ffffff' : '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}
+            aria-label={showAmounts ? 'Hide amounts' : 'Show amounts'}
+            title={showAmounts ? 'Hide amounts' : 'Show amounts'}
+          >
+            {showAmounts ? <HiOutlineEyeSlash className="w-4 h-4" /> : <HiOutlineEye className="w-4 h-4" />}
+          </button>
         </div>
         <button onClick={openCreate} className="btn-primary flex items-center gap-2">
           <HiOutlinePlus className="w-4 h-4" /> Add Income
@@ -208,7 +232,7 @@ export default function PersonalIncome() {
           </div>
           <div>
             <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">Total Income</p>
-            <p className="text-xl font-bold text-green-600">{fmt(total)}</p>
+            <p className="text-xl font-bold text-green-600">{mask(fmt(total))}</p>
             <p className="text-xs text-gray-400">{incomes.length} record{incomes.length !== 1 ? 's' : ''}</p>
           </div>
         </div>
@@ -218,7 +242,7 @@ export default function PersonalIncome() {
           </div>
           <div>
             <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">Highest Entry</p>
-            <p className="text-xl font-bold text-gray-800">{fmt(highest)}</p>
+            <p className="text-xl font-bold text-gray-800">{mask(fmt(highest))}</p>
             <p className="text-xs text-gray-400">Single transaction</p>
           </div>
         </div>
@@ -228,7 +252,7 @@ export default function PersonalIncome() {
           </div>
           <div>
             <p className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">Avg per Entry</p>
-            <p className="text-xl font-bold text-gray-800">{fmt(avgPerEntry)}</p>
+            <p className="text-xl font-bold text-gray-800">{mask(fmt(avgPerEntry))}</p>
             <p className="text-xs text-gray-400">Based on filtered view</p>
           </div>
         </div>
@@ -239,7 +263,7 @@ export default function PersonalIncome() {
         {/* Quick presets */}
         <div className="flex items-center gap-2 px-4 pt-4 pb-3 border-b border-gray-200/60 flex-wrap">
           <HiOutlineFunnel className="w-4 h-4 text-gray-400 flex-shrink-0" />
-          {PRESETS.map((p) => (
+          {getPresets().map((p) => (
             <button
               key={p.label}
               onClick={() => applyPreset(p)}
@@ -295,7 +319,7 @@ export default function PersonalIncome() {
           </div>
           {(filters.from || filters.to || filters.source) && (
             <button
-              onClick={() => { setActivePreset('This Month'); setFilters({ from: firstOfMonth(), to: today(), source: '' }); }}
+              onClick={() => { setActivePreset('Today'); setFilters({ from: today(), to: today(), source: '' }); }}
               className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-500 py-1.5 px-2.5 border border-gray-200 rounded-lg"
             >
               <HiOutlineXMark className="w-3.5 h-3.5" /> Clear
@@ -314,7 +338,7 @@ export default function PersonalIncome() {
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <HiOutlineArrowTrendingUp className="w-12 h-12 mb-3 text-gray-200" />
             <p className="text-sm font-medium text-gray-500">No income records for this period</p>
-            <p className="text-xs text-gray-400 mt-1">Try changing the date range or add a new entry</p>
+            <p className="text-xs text-gray-400 mt-1">Change Date Range to view Income</p>
             <button onClick={openCreate} className="mt-4 btn-primary text-sm flex items-center gap-1.5">
               <HiOutlinePlus className="w-4 h-4" /> Add Income
             </button>
@@ -344,7 +368,7 @@ export default function PersonalIncome() {
                       {inc.description || <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-4 py-3 text-right font-semibold text-green-600">
-                      {fmt(inc.amount)}
+                      {mask(fmt(inc.amount))}
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell">
                       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-600">
@@ -352,7 +376,7 @@ export default function PersonalIncome() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                      {fmtDate(inc.income_date)}
+                      {(() => { const { date, time } = fmtDateTime(inc.income_date, inc.created_at); return (<><span>{date}</span>{time && <span className="block text-[11px] text-gray-400">{time}</span>}</>); })()}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-1.5">
@@ -378,11 +402,22 @@ export default function PersonalIncome() {
             </table>
 
             {/* Footer total */}
-            <div className="flex items-center justify-between px-4 py-3 bg-green-50 border-t border-green-100">
-              <span className="text-sm text-green-700">
+            <div className="flex items-center justify-between px-4 py-3 bg-violet-50 border-t border-violet-100">
+              <span className="text-sm text-violet-700">
                 <strong>{incomes.length}</strong> record{incomes.length !== 1 ? 's' : ''}
               </span>
-              <span className="text-sm font-bold text-green-700">Total: {fmt(total)}</span>
+              {(filters.from || filters.to) && (
+                <span className="text-xs text-violet-600 flex items-center gap-1">
+                  <HiOutlineCalendarDays className="w-3.5 h-3.5" />
+                  {filters.from && filters.to
+                    ? `${filters.from} → ${filters.to}`
+                    : filters.from
+                      ? `From ${filters.from}`
+                      : `Up to ${filters.to}`
+                  }
+                </span>
+              )}
+              <span className="text-sm font-bold text-violet-700">Total: {mask(fmt(total))}</span>
             </div>
           </>
         )}

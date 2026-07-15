@@ -215,7 +215,7 @@ class AuthService {
   async getProfile(userId) {
     const pool = getPool();
     const [[user]] = await pool.query(
-      'SELECT id, uuid, name, email, phone, avatar, role, default_module, is_active, created_at FROM users WHERE id = ?', [userId]
+      'SELECT id, uuid, name, email, phone, avatar, area, pincode, role, default_module, is_active, created_at FROM users WHERE id = ?', [userId]
     );
     if (!user) return null;
     const [shops] = await pool.query(
@@ -238,12 +238,18 @@ class AuthService {
     return rows;
   }
 
-  async updateProfile(userId, { name, phone, avatar }) {
+  async updateProfile(userId, { name, phone, avatar, area, pincode }) {
     const pool = getPool();
     if (avatar !== undefined) {
-      await pool.query('UPDATE users SET name = ?, phone = ?, avatar = ? WHERE id = ?', [name, phone || null, avatar || null, userId]);
+      await pool.query(
+        'UPDATE users SET name = ?, phone = ?, avatar = ?, area = ?, pincode = ? WHERE id = ?',
+        [name, phone || null, avatar || null, area || null, pincode || null, userId]
+      );
     } else {
-      await pool.query('UPDATE users SET name = ?, phone = ? WHERE id = ?', [name, phone || null, userId]);
+      await pool.query(
+        'UPDATE users SET name = ?, phone = ?, area = ?, pincode = ? WHERE id = ?',
+        [name, phone || null, area || null, pincode || null, userId]
+      );
     }
   }
 

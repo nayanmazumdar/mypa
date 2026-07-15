@@ -1,7 +1,7 @@
 /**
- * Migration 013 — Ensure pos_transactions has user_id and shop_id columns
- * Fixes "Field 'user_id' doesn't have a default value" error on POS checkout.
- * Safe to run multiple times.
+ * apply-013.js
+ * Adds budget_period column to personal_budgets and updates the unique key.
+ * Safe to run multiple times — each statement is idempotent.
  *
  * Usage: node src/database/apply-013.js
  */
@@ -11,93 +11,77 @@ const dotenv = require('dotenv');
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const config = {
-  host: process.env.MYSQL_HOST || 'localhost',
-  port: parseInt(process.env.MYSQL_PORT, 10) || 3306,
-  user: process.env.MYSQL_USER || 'root',
+  host:     process.env.MYSQL_HOST     || 'localhost',
+  port:     parseInt(process.env.MYSQL_PORT, 10) || 3306,
+  user:     process.env.MYSQL_USER     || 'root',
   password: process.env.MYSQL_PASSWORD || '',
   database: process.env.MYSQL_DATABASE || 'shopkeeper_db',
 };
+
+const statements = [
+  {
+    label: '013 — Add budget_period column (INT 6)',
+    sql: `ALTER TABLE personal_budgets
+          ADD COLUMN budget_period INT(6) NOT NULL DEFAULT 0 AFTER user_id`,
+  },
+  {
+    label: '013 — Backfill existing rows with current period',
+    sql: `UPDATE personal_budgets
+          SET budget_period = CAST(DATE_FORMAT(NOW(), '%Y%m') AS UNSIGNED)
+          WHERE budget_period = 0`,
+    ignoreDuplicate: false,
+  },
+  {
+    label: '013 — Drop old unique key uq_user_category',
+    sql: `ALTER TABLE personal_budgets DROP INDEX uq_user_category`,
+  },
+  {
+    label: '013 — Add new unique key uq_user_period_category',
+    sql: `ALTER TABLE personal_budgets
+          ADD UNIQUE KEY uq_user_period_category (user_id, budget_period, category)`,
+  },
+  {
+    label: '013 — Add index on budget_period',
+    sql: `ALTER TABLE personal_budgets ADD INDEX idx_budget_period (budget_period)`,
+  },
+];
 
 (async () => {
   let conn;
   try {
     conn = await mysql.createConnection(config);
-    console.log('Connected to MySQL');
+    console.log(`\nConnected to MySQL → ${config.database}\n`);
 
-    // 1. Check existing columns
-    const [cols] = await conn.execute(
-      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pos_transactions'`
-    );
-    const existing = new Set(cols.map(c => c.COLUMN_NAME));
-    console.log('Existing columns:', [...existing].join(', '));
-
-    // 2. Add user_id if missing (nullable so old rows are not broken)
-    if (!existing.has('user_id')) {
-      await conn.execute(
-        `ALTER TABLE pos_transactions ADD COLUMN user_id INT DEFAULT NULL AFTER uuid`
-      );
-      console.log('OK: Added user_id column');
-    } else {
-      // Make user_id nullable so INSERT without it doesn't fail
-      await conn.execute(
-        `ALTER TABLE pos_transactions MODIFY COLUMN user_id INT DEFAULT NULL`
-      );
-      console.log('OK: user_id made nullable (no-default safe)');
+    for (const { label, sql } of statements) {
+      try {
+        await conn.execute(sql);
+        console.log(`  ✓ ${label}`);
+      } catch (err) {
+        const msg = err.message || '';
+        const safe =
+          msg.includes('already exists') ||
+          msg.includes('Duplicate column') ||
+          msg.includes('Duplicate key name') ||
+          msg.includes("Can't DROP") ||
+          msg.includes('check that column/key exists') ||
+          msg.includes("doesn't exist");
+        if (safe) {
+          console.log(`  ↩ ${label} — already applied, skipped`);
+        } else {
+          console.error(`  ✗ ${label}\n    ${msg}`);
+          process.exit(1);
+        }
+      }
     }
 
-    // 3. Add shop_id if missing
-    if (!existing.has('shop_id')) {
-      await conn.execute(
-        `ALTER TABLE pos_transactions ADD COLUMN shop_id INT DEFAULT NULL AFTER user_id`
-      );
-      console.log('OK: Added shop_id column');
-    } else {
-      console.log('SKIP: shop_id already exists');
-    }
+    // Verify
+    console.log('\nVerifying column exists...');
+    const [cols] = await conn.execute(`SHOW COLUMNS FROM personal_budgets LIKE 'budget_period'`);
+    console.log(cols.length ? '  ✓ budget_period column present' : '  ✗ budget_period column MISSING');
 
-    // 4. Add status if missing
-    if (!existing.has('status')) {
-      await conn.execute(
-        `ALTER TABLE pos_transactions ADD COLUMN status ENUM('completed','cancelled') DEFAULT 'completed'`
-      );
-      console.log('OK: Added status column with default completed');
-    } else {
-      // Ensure default is 'completed' so rows without explicit status are counted
-      await conn.execute(
-        `ALTER TABLE pos_transactions MODIFY COLUMN status ENUM('completed','cancelled') DEFAULT 'completed'`
-      );
-      // Backfill any NULL status rows
-      const [updated] = await conn.execute(
-        `UPDATE pos_transactions SET status = 'completed' WHERE status IS NULL`
-      );
-      console.log(`OK: status column verified; backfilled ${updated.affectedRows} NULL rows`);
-    }
-
-    // 5. Verify final schema
-    const [finalCols] = await conn.execute(
-      `SELECT COLUMN_NAME, COLUMN_TYPE, COLUMN_DEFAULT, IS_NULLABLE
-       FROM INFORMATION_SCHEMA.COLUMNS
-       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'pos_transactions'
-       ORDER BY ORDINAL_POSITION`
-    );
-    console.log('\nFinal pos_transactions schema:');
-    finalCols.forEach(c =>
-      console.log(`  ${c.COLUMN_NAME} | ${c.COLUMN_TYPE} | default: ${c.COLUMN_DEFAULT} | nullable: ${c.IS_NULLABLE}`)
-    );
-
-    // 6. Row counts
-    const [[counts]] = await conn.execute(
-      `SELECT COUNT(*) as total,
-              SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
-              SUM(CASE WHEN status IS NULL THEN 1 ELSE 0 END) as null_status
-       FROM pos_transactions`
-    );
-    console.log('\nRow counts:', counts);
-
-    console.log('\nMigration 013 applied successfully.');
+    console.log('\n✅ Migration 013 applied successfully.\n');
   } catch (err) {
-    console.error('Error:', err.message);
+    console.error('\nFatal error:', err.message);
     process.exit(1);
   } finally {
     if (conn) await conn.end();
