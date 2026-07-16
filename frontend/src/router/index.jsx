@@ -27,6 +27,9 @@ import Offers from '../pages/Offers';
 import Reports from '../pages/Reports';
 import NotFound from '../pages/NotFound';
 import LandingPage from '../pages/LandingPage';
+import Subscription from '../pages/Subscription';
+import SyncStatus from '../pages/SyncStatus';
+import ExportImport from '../pages/Export';
 import IndividualDashboard from '../pages/individual/IndividualDashboard';
 import PersonalExpenses from '../pages/individual/PersonalExpenses';
 import PersonalIncome from '../pages/individual/PersonalIncome';
@@ -104,6 +107,9 @@ export default function AppRouter() {
                 <Route path="/suppliers" element={<PermissionRoute permission="suppliers:read"><Suppliers /></PermissionRoute>} />
                 <Route path="/accounts" element={<PermissionRoute permission="expenses:read"><Accounts /></PermissionRoute>} />
                 <Route path="/reports" element={<PermissionRoute permission="reports:read"><Reports /></PermissionRoute>} />
+                <Route path="/subscription" element={<Subscription />} />
+                <Route path="/sync" element={<SyncStatus />} />
+                <Route path="/export" element={<ExportImport />} />
                 <Route path="/settings" element={<Settings />} />
               </Route>
             </Route>

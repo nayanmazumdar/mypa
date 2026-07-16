@@ -7,7 +7,7 @@ import { purchaseApi } from '../api/purchase.api';
 import api from '../api/axios';
 import {
   PageHeader, SearchInput, FilterTabs, Modal,
-  LoadingSpinner, Pagination, ActionButton, ActionGroup,
+  LoadingSpinner, Pagination, ActionButton, ActionGroup, ExportButton,
 } from '../components/common';
 import { usePermission } from '../hooks/usePermission';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -120,7 +120,9 @@ export default function Purchase() {
         subtitle="Manage your purchase orders"
         action={can('purchases:create') ? 'New Purchase' : null}
         onAction={openCreate}
-      />
+      >
+        <ExportButton entity="purchases" />
+      </PageHeader>
 
       {/* Search + Filters */}
       <div className="flex items-center gap-3 flex-wrap">

@@ -28,6 +28,11 @@ const shopRoutes = require('./routes/shop.routes');
 const customerLedgerRoutes = require('./routes/customer-ledger.routes');
 const individualRoutes = require('./routes/individual.routes');
 const notesRoutes = require('./routes/notes.routes');
+const subscriptionRoutes = require('./routes/subscription.routes');
+const returnRoutes = require('./routes/return.routes');
+const shiftRoutes = require('./routes/shift.routes');
+const exportRoutes = require('./routes/export.routes');
+const sseRoutes = require('./routes/sse.routes');
 
 const app = express();
 
@@ -62,6 +67,16 @@ const generalLimiter = rateLimit({
   legacyHeaders: false,
 });
 app.use('/api/', generalLimiter);
+
+// Rate limiting - POS (higher limit for busy shops)
+const posLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 1000, // POS needs high throughput during rush hours
+  message: { success: false, message: 'Too many requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/pos/', posLimiter);
 
 // Rate limiting - Auth (stricter)
 const authLimiter = rateLimit({
@@ -121,6 +136,12 @@ app.use('/api/shop', shopRoutes);
 app.use('/api/customer-ledger', customerLedgerRoutes);
 app.use('/api/individual', individualRoutes);
 app.use('/api/notes', notesRoutes);
+app.use('/api/subscriptions', subscriptionRoutes);
+app.use('/api/returns', returnRoutes);
+app.use('/api/shifts', shiftRoutes);
+app.use('/api/export', exportRoutes);
+app.use('/api/import', exportRoutes);
+app.use('/api/events', sseRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

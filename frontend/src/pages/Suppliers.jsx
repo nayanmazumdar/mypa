@@ -6,7 +6,7 @@ import { fetchSuppliers, createSupplier } from '../store/supplierSlice';
 import { supplierApi } from '../api/supplier.api';
 import {
   PageHeader, SearchInput, DataTable, Modal, FormField, FormRow,
-  LoadingSpinner, Pagination, ActionButton, ActionGroup, Avatar,
+  LoadingSpinner, Pagination, ActionButton, ActionGroup, Avatar, ExportButton,
 } from '../components/common';
 import { usePermission } from '../hooks/usePermission';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -81,7 +81,9 @@ export default function Suppliers() {
         subtitle="Manage your suppliers"
         action={can('suppliers:create') ? 'Add Supplier' : null}
         onAction={openCreate}
-      />
+      >
+        <ExportButton entity="suppliers" canImport />
+      </PageHeader>
 
       <SearchInput value={search} onChange={(v) => { setSearch(v); setPage(1); }} placeholder="Search suppliers..." className="max-w-md" />
 

@@ -6,6 +6,7 @@ import api from '../api/axios';
 import { logout, setActiveShop } from '../store/authSlice';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { resolveDefaultRoute } from './RoleSelector';
+import { syncDataFromServer } from '../utils/syncService';
 
 export default function ShopSelector() {
   usePageTitle('Select Shop');
@@ -25,6 +26,8 @@ export default function ShopSelector() {
       localStorage.setItem('user', JSON.stringify(updatedUser));
       dispatch(setActiveShop({ shop_id: selectedShop.id, shop_name: selectedShop.name, role }));
       toast.success(`Opened ${selectedShop.name}`);
+      // Cache data for offline POS usage (non-blocking)
+      syncDataFromServer().catch(() => {});
       const destination = resolveDefaultRoute(updatedUser.default_module, 'shop');
       navigate(destination);
     } catch (err) {

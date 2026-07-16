@@ -3,6 +3,7 @@ const router = express.Router();
 const { Op, fn, col, literal } = require('sequelize');
 const { Sale, SaleItem, Product, Customer, Inventory } = require('../models');
 const { authenticate, permit } = require('../middlewares/auth.middleware');
+const { requireFeature } = require('../middlewares/subscription.middleware');
 const ApiResponse = require('../utils/response');
 
 /**
@@ -15,7 +16,7 @@ const ApiResponse = require('../utils/response');
  *     responses:
  *       200: { description: Dashboard stats (today sales, products, customers, low stock) }
  */
-router.get('/dashboard', authenticate, permit('reports:read'), async (req, res, next) => {
+router.get('/dashboard', authenticate, permit('reports:read'), requireFeature('reports'), async (req, res, next) => {
   try {
     const shopId = req.user.shop_id;
     const today = new Date().toISOString().split('T')[0];
@@ -57,7 +58,7 @@ router.get('/dashboard', authenticate, permit('reports:read'), async (req, res, 
  *     responses:
  *       200: { description: Daily sales totals }
  */
-router.get('/daily-sales', authenticate, permit('reports:read'), async (req, res, next) => {
+router.get('/daily-sales', authenticate, permit('reports:read'), requireFeature('reports'), async (req, res, next) => {
   try {
     const date = req.query.date || new Date().toISOString().split('T')[0];
     const result = await Sale.findOne({
@@ -92,7 +93,7 @@ router.get('/daily-sales', authenticate, permit('reports:read'), async (req, res
  *     responses:
  *       200: { description: Daily breakdown for the month }
  */
-router.get('/monthly-sales', authenticate, permit('reports:read'), async (req, res, next) => {
+router.get('/monthly-sales', authenticate, permit('reports:read'), requireFeature('reports'), async (req, res, next) => {
   try {
     const now = new Date();
     const year = parseInt(req.query.year) || now.getFullYear();
@@ -145,7 +146,7 @@ router.get('/monthly-sales', authenticate, permit('reports:read'), async (req, r
  *     responses:
  *       200: { description: Top products by revenue }
  */
-router.get('/top-products', authenticate, permit('reports:read'), async (req, res, next) => {
+router.get('/top-products', authenticate, permit('reports:read'), requireFeature('reports'), async (req, res, next) => {
   try {
     const { start_date, end_date, limit: queryLimit } = req.query;
     const topLimit = parseInt(queryLimit) || 10;
@@ -210,7 +211,7 @@ router.get('/top-products', authenticate, permit('reports:read'), async (req, re
  *     responses:
  *       200: { description: Profit data (sales, cost, profit) }
  */
-router.get('/profit', authenticate, permit('reports:read'), async (req, res, next) => {
+router.get('/profit', authenticate, permit('reports:read'), requireFeature('reports'), async (req, res, next) => {
   try {
     const { start_date, end_date } = req.query;
 

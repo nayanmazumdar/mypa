@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const productController = require('../controllers/product.controller');
 const { authenticate, permit } = require('../middlewares/auth.middleware');
+const { requireLimit } = require('../middlewares/subscription.middleware');
 const { validate } = require('../middlewares/validate.middleware');
 const { createProductValidator, updateProductValidator } = require('../validators/product.validator');
 
@@ -88,7 +89,7 @@ router.get('/:id', permit('products:read'), productController.getById);
  *       201: { description: Product created }
  *       400: { description: Validation error }
  */
-router.post('/', permit('products:create'), validate(createProductValidator), productController.create);
+router.post('/', permit('products:create'), requireLimit('products'), validate(createProductValidator), productController.create);
 
 /**
  * @swagger

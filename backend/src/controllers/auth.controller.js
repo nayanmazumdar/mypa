@@ -133,6 +133,16 @@ class AuthController {
       return ApiResponse.error(res, error.message, error.statusCode || 500);
     }
   }
+
+  async refreshToken(req, res) {
+    try {
+      const result = await authService.refreshToken(req.body.refresh_token);
+      return ApiResponse.success(res, result, 'Token refreshed');
+    } catch (error) {
+      logger.error('Refresh token error:', error.message);
+      return ApiResponse.error(res, error.message, error.statusCode || 401);
+    }
+  }
 }
 
 module.exports = new AuthController();

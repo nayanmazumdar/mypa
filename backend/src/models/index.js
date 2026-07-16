@@ -47,6 +47,8 @@ const Offer = require('./Offer')(sequelize);
 const PosTransaction = require('./PosTransaction')(sequelize);
 const PosTransactionItem = require('./PosTransactionItem')(sequelize);
 const CustomerLedger = require('./CustomerLedger')(sequelize);
+const SubscriptionPlan = require('./SubscriptionPlan')(sequelize);
+const ShopSubscription = require('./ShopSubscription')(sequelize);
 
 // ─── Associations ───────────────────────────────────────────────────────────
 
@@ -127,6 +129,12 @@ CustomerLedger.belongsTo(Customer, { foreignKey: 'customer_id' });
 Shop.hasMany(CustomerLedger, { foreignKey: 'shop_id' });
 CustomerLedger.belongsTo(Shop, { foreignKey: 'shop_id' });
 
+// Subscriptions
+SubscriptionPlan.hasMany(ShopSubscription, { foreignKey: 'plan_id', as: 'subscriptions' });
+ShopSubscription.belongsTo(SubscriptionPlan, { foreignKey: 'plan_id', as: 'plan' });
+Shop.hasMany(ShopSubscription, { foreignKey: 'shop_id', as: 'subscriptions' });
+ShopSubscription.belongsTo(Shop, { foreignKey: 'shop_id' });
+
 // ─── Export ─────────────────────────────────────────────────────────────────
 
 const db = {
@@ -151,6 +159,8 @@ const db = {
   PosTransaction,
   PosTransactionItem,
   CustomerLedger,
+  SubscriptionPlan,
+  ShopSubscription,
 };
 
 module.exports = db;

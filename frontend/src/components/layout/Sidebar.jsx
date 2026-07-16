@@ -14,6 +14,7 @@ import {
   HiOutlineBanknotes,
   HiOutlineGift,
   HiOutlineChartBar,
+  HiOutlineCreditCard,
 } from 'react-icons/hi2';
 import { canAccessRoute } from '../../utils/permissions';
 
@@ -29,6 +30,7 @@ const navigation = [
   { name: 'Suppliers', href: '/suppliers', icon: HiOutlineBuildingStorefront, section: 'people' },
   { name: 'Accounts', href: '/accounts', icon: HiOutlineBanknotes, section: 'finance' },
   { name: 'Reports', href: '/reports', icon: HiOutlineChartBar, section: 'finance' },
+  { name: 'Subscription', href: '/subscription', icon: HiOutlineCreditCard, section: 'system' },
   { name: 'Settings', href: '/settings', icon: HiOutlineCog6Tooth, section: 'system' },
 ];
 

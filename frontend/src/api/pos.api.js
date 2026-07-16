@@ -3,7 +3,7 @@ import api from './axios';
 export const posApi = {
   getProducts: (params) => api.get('/pos/products', { params }),
   lookupBarcode: (code) => api.get(`/pos/barcode/${code}`),
-  checkout: (data) => api.post('/pos/checkout', data),
+  checkout: (data, config) => api.post('/pos/checkout', data, config),
   getTransactions: (params) => api.get('/pos/transactions', { params }),
   getTransaction: (id) => api.get(`/pos/transactions/${id}`),
   getTodaySummary: (params) => api.get('/pos/today-summary', { params }),

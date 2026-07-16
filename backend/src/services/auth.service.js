@@ -1,6 +1,6 @@
 const { getPool } = require('../config/db');
 const { hashPassword, comparePassword } = require('../utils/hash');
-const { generateToken } = require('../utils/jwt');
+const { generateToken, generateRefreshToken, verifyRefreshToken } = require('../utils/jwt');
 const { generateId } = require('../utils/helper');
 const logger = require('../config/logger');
 
@@ -107,11 +107,13 @@ class AuthService {
 
     // Token without shop_id — user must select shop next
     const token = generateToken({ id: user.id, uuid: user.uuid, email: user.email, role: user.role, default_module: user.default_module || null });
+    const refreshToken = generateRefreshToken({ id: user.id, uuid: user.uuid, email: user.email });
 
     logger.info(`User logged in: ${email} (${shops.length} shops)`);
     return {
       user: { id: user.id, uuid: user.uuid, name: user.name, email: user.email, role: user.role, default_module: user.default_module || null, avatar: user.avatar || null, has_passcode: !!user.passcode, shops },
       token,
+      refresh_token: refreshToken,
     };
   }
 
@@ -274,6 +276,29 @@ class AuthService {
     }
     const hashed = await hashPassword(new_password);
     await pool.query('UPDATE users SET password = ? WHERE id = ?', [hashed, userId]);
+  }
+
+  async refreshToken(refreshToken) {
+    if (!refreshToken) {
+      const e = new Error('Refresh token is required'); e.statusCode = 400; throw e;
+    }
+    try {
+      const decoded = verifyRefreshToken(refreshToken);
+      const pool = getPool();
+      const [[user]] = await pool.query(
+        'SELECT id, uuid, email, role, default_module, is_active FROM users WHERE id = ?',
+        [decoded.id]
+      );
+      if (!user || !user.is_active) {
+        const e = new Error('User not found or inactive'); e.statusCode = 401; throw e;
+      }
+      const token = generateToken({ id: user.id, uuid: user.uuid, email: user.email, role: user.role, default_module: user.default_module });
+      const newRefreshToken = generateRefreshToken({ id: user.id, uuid: user.uuid, email: user.email });
+      return { token, refresh_token: newRefreshToken };
+    } catch (err) {
+      if (err.statusCode) throw err;
+      const e = new Error('Invalid or expired refresh token'); e.statusCode = 401; throw e;
+    }
   }
 }
 

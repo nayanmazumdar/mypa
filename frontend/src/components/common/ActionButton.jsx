@@ -38,5 +38,5 @@ export default function ActionButton({ variant = 'edit', onClick, title, icon: C
  * Group multiple ActionButtons together with consistent spacing.
  */
 export function ActionGroup({ children }) {
-  return <div className="flex items-center justify-end gap-0.5">{children}</div>;
+  return <div className="flex items-center justify-end gap-2">{children}</div>;
 }

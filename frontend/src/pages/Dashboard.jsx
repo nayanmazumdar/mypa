@@ -15,6 +15,7 @@ import {
 } from 'react-icons/hi2';
 import api from '../api/axios';
 import { posApi } from '../api/pos.api';
+import { syncDataFromServer } from '../utils/syncService';
 import { LoadingSpinner } from '../components/common';
 import { usePageTitle } from '../hooks/usePageTitle';
 
@@ -29,6 +30,11 @@ export default function Dashboard() {
   const [lowStock, setLowStock] = useState([]);
 
   useEffect(() => { fetchDashboardData(); }, []);
+
+  // Background sync for offline cache (non-blocking)
+  useEffect(() => {
+    syncDataFromServer().catch(() => {});
+  }, []);
 
   const fetchDashboardData = async () => {
     setLoading(true);

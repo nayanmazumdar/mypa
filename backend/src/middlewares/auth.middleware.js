@@ -139,6 +139,10 @@ const PERMISSIONS = {
   // Customer Ledger
   'customer-ledger:read':   ['admin', 'manager'],
   'customer-ledger:create': ['admin', 'manager'],
+
+  // Subscriptions
+  'subscription:read':   ['admin', 'manager', 'staff'],
+  'subscription:manage': ['admin'],
 };
 
 /**

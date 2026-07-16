@@ -86,6 +86,10 @@ const PERMISSIONS = {
   // Customer Ledger
   'customer-ledger:read':   ['admin', 'manager'],
   'customer-ledger:create': ['admin', 'manager'],
+
+  // Subscriptions
+  'subscription:read':   ['admin', 'manager', 'staff'],
+  'subscription:manage': ['admin'],
 };
 
 /**
@@ -113,6 +117,7 @@ export function canAccessRoute(role, path) {
     '/suppliers': 'suppliers:read',
     '/accounts': 'expenses:read',
     '/reports': 'reports:read',
+    '/subscription': 'subscription:read',
     '/settings': 'shop:read',
   };
   const permission = routePermissions[path];

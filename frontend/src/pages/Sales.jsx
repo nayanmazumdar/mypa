@@ -7,7 +7,7 @@ import { salesApi } from '../api/sales.api';
 import api from '../api/axios';
 import {
   PageHeader, SearchInput, FilterTabs, Modal,
-  LoadingSpinner, Pagination, ActionButton, ActionGroup,
+  LoadingSpinner, Pagination, ActionButton, ActionGroup, ExportButton,
 } from '../components/common';
 import { usePermission } from '../hooks/usePermission';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -164,7 +164,9 @@ export default function Sales() {
         subtitle="Track your sales and invoices"
         action={can('sales:create') ? 'New Sale' : null}
         onAction={openCreate}
-      />
+      >
+        <ExportButton entity="sales" />
+      </PageHeader>
 
       {/* Search + Filters */}
       <div className="flex items-center gap-3 flex-wrap">

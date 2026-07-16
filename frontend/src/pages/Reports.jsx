@@ -2,11 +2,22 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { HiOutlineChartBar, HiOutlineCalendar, HiOutlineTrophy, HiOutlineCurrencyRupee } from 'react-icons/hi2';
 import api from '../api/axios';
-import { PageHeader, FilterTabs } from '../components/common';
+import { PageHeader, FilterTabs, FeatureGate } from '../components/common';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useSubscription } from '../hooks/useSubscription';
 
 export default function Reports() {
   usePageTitle('Reports');
+  const { hasFeature } = useSubscription();
+
+  if (!hasFeature('reports')) {
+    return <FeatureGate feature="reports" available={false} />;
+  }
+
+  return <ReportsContent />;
+}
+
+function ReportsContent() {
   const [activeTab, setActiveTab] = useState('daily');
   const [dailySales, setDailySales] = useState(null);
   const [monthlySales, setMonthlySales] = useState([]);

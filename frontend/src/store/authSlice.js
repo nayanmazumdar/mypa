@@ -17,8 +17,9 @@ export const loginUser = createAsyncThunk(
   async (credentials, { rejectWithValue }) => {
     try {
       const response = await authApi.login(credentials);
-      const { token, user } = response.data;
+      const { token, refresh_token, user } = response.data;
       localStorage.setItem('token', token);
+      localStorage.setItem('refresh_token', refresh_token);
       localStorage.setItem('user', JSON.stringify(user));
       return { token, user };
     } catch (error) {
@@ -74,6 +75,7 @@ const authSlice = createSlice({
       state.isAuthenticated = false;
       state.error = null;
       localStorage.removeItem('token');
+      localStorage.removeItem('refresh_token');
       localStorage.removeItem('user');
     },
     switchShop(state) {

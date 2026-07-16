@@ -1,12 +1,14 @@
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { HiOutlineBars3, HiOutlineArrowRightOnRectangle, HiOutlineArrowsRightLeft } from 'react-icons/hi2';
+import { HiOutlineBars3, HiOutlineArrowRightOnRectangle, HiOutlineArrowsRightLeft, HiOutlineArrowPath, HiOutlineSignal, HiOutlineSignalSlash } from 'react-icons/hi2';
 import { logout, switchShop } from '../../store/authSlice';
+import { useNetwork } from '../../hooks/useNetwork';
 
 export default function Header({ onMenuClick }) {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth);
+  const { isOnline, pendingCount, isSyncing, triggerSync } = useNetwork();
 
   const handleLogout = () => {
     dispatch(logout());
@@ -36,6 +38,32 @@ export default function Header({ onMenuClick }) {
       </div>
 
       <div className="flex items-center gap-2">
+        {/* Online/Offline Indicator + Sync */}
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={triggerSync}
+            disabled={!isOnline || isSyncing}
+            className="relative flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-medium transition-all"
+            style={{ background: '#e8edf5', boxShadow: isSyncing ? 'inset 2px 2px 4px #c8cfd8, inset -2px -2px 4px #ffffff' : '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}
+            title={isOnline ? (pendingCount > 0 ? `${pendingCount} pending sync` : 'All synced') : 'Offline'}
+          >
+            {isOnline ? (
+              <HiOutlineSignal className="w-3.5 h-3.5 text-emerald-500" />
+            ) : (
+              <HiOutlineSignalSlash className="w-3.5 h-3.5 text-red-500" />
+            )}
+            {isSyncing && <HiOutlineArrowPath className="w-3 h-3 text-blue-500 animate-spin" />}
+            {pendingCount > 0 && !isSyncing && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                {pendingCount > 9 ? '9+' : pendingCount}
+              </span>
+            )}
+          </button>
+          <span className={`text-[10px] font-medium hidden sm:inline ${isOnline ? 'text-emerald-600' : 'text-red-500'}`}>
+            {isOnline ? (isSyncing ? 'Syncing...' : 'Online') : 'Offline'}
+          </span>
+        </div>
+
         {/* Switch Shop */}
         {user?.shops?.length > 1 && (
           <button

@@ -6,7 +6,7 @@ import { customerApi } from '../api/customer.api';
 import api from '../api/axios';
 import {
   PageHeader, SearchInput, DataTable, ActionButton, ActionGroup,
-  Modal, FormField, FormRow, Avatar, LoadingSpinner,
+  Modal, FormField, FormRow, Avatar, LoadingSpinner, ExportButton,
 } from '../components/common';
 import { usePermission } from '../hooks/usePermission';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -105,7 +105,9 @@ export default function Customers() {
         subtitle="Manage your customer base"
         action={can('customers:create') ? 'Add Customer' : null}
         onAction={openCreate}
-      />
+      >
+        <ExportButton entity="customers" canImport />
+      </PageHeader>
 
       <SearchInput
         value={search}

@@ -227,6 +227,28 @@ router.post('/choose-role', authenticate, authController.chooseRole);
 
 /**
  * @swagger
+ * /api/auth/refresh:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Refresh access token using refresh token
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [refresh_token]
+ *             properties:
+ *               refresh_token: { type: string }
+ *     responses:
+ *       200: { description: New access token }
+ *       401: { description: Invalid refresh token }
+ */
+router.post('/refresh', authController.refreshToken);
+
+/**
+ * @swagger
  * /api/auth/staff:
  *   get:
  *     tags: [Auth]

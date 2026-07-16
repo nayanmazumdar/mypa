@@ -18,3 +18,9 @@ export { default as Avatar } from './Avatar';
 // Error Handling
 export { default as ErrorBoundary } from './ErrorBoundary';
 export { PageError, InlineError, EmptyState } from './ErrorDisplay';
+
+// Subscription
+export { default as FeatureGate } from './FeatureGate';
+
+// Export
+export { default as ExportButton } from './ExportButton';

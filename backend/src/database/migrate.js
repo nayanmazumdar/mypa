@@ -190,6 +190,24 @@ async function migrate() {
       'Migration 14'
     );
 
+    // Migration 15: Subscription system (plans + shop subscriptions)
+    await runMigrationFile(
+      path.join(__dirname, 'migrations', '015_subscriptions.sql'),
+      'Migration 15'
+    );
+
+    // Migration 16: Returns and exchanges
+    await runMigrationFile(
+      path.join(__dirname, 'migrations', '016_returns.sql'),
+      'Migration 16'
+    );
+
+    // Migration 17: Split payments + shift management
+    await runMigrationFile(
+      path.join(__dirname, 'migrations', '017_split_payments_shifts.sql'),
+      'Migration 17'
+    );
+
     console.log('✓ All tables created successfully');
 
     // Show created tables

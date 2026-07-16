@@ -12,6 +12,7 @@ import { inventoryApi } from '../api/inventory.api';
 import Modal from '../components/common/Modal';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { Pagination } from '../components/common/DataTable';
+import { ExportButton } from '../components/common';
 import { usePermission } from '../hooks/usePermission';
 import { usePageTitle } from '../hooks/usePageTitle';
 
@@ -178,6 +179,7 @@ export default function Inventory() {
           <p className="page-subtitle">Monitor stock levels, adjust quantities, and track movements</p>
         </div>
         <div className="flex items-center gap-2">
+          <ExportButton entity="inventory" />
           {lowStock.length > 0 && (
             <div className="flex items-center gap-1.5 bg-yellow-50 text-yellow-700 px-3 py-1.5 rounded-lg text-sm font-medium border border-yellow-200">
               <HiOutlineExclamationTriangle className="w-4 h-4" />

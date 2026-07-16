@@ -3,6 +3,7 @@ const router = express.Router();
 const { Op } = require('sequelize');
 const { Offer, Category, Product } = require('../models');
 const { authenticate, permit } = require('../middlewares/auth.middleware');
+const { requireFeature } = require('../middlewares/subscription.middleware');
 const ApiResponse = require('../utils/response');
 const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 
@@ -26,7 +27,7 @@ const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
  *     responses:
  *       200: { description: List of offers }
  */
-router.get('/', authenticate, permit('offers:read'), async (req, res, next) => {
+router.get('/', authenticate, permit('offers:read'), requireFeature('offers'), async (req, res, next) => {
   try {
     const { page, limit, offset } = parsePagination(req.query);
     const { active_only } = req.query;
@@ -137,7 +138,7 @@ router.get('/active', authenticate, permit('offers:read'), async (req, res, next
  *     responses:
  *       201: { description: Offer created }
  */
-router.post('/', authenticate, permit('offers:create'), async (req, res, next) => {
+router.post('/', authenticate, permit('offers:create'), requireFeature('offers'), async (req, res, next) => {
   try {
     const { name, description, discount_type, discount_value, min_purchase_amount, max_discount_amount, applicable_to, category_id, product_id, start_date, end_date } = req.body;
     if (!name || !discount_value || !start_date || !end_date) {

@@ -8,8 +8,10 @@ import {
   HiOutlineArrowPath,
 } from 'react-icons/hi2';
 import { posApi } from '../api/pos.api';
+import * as offlinePos from '../api/offlinePos.api';
 import api from '../api/axios';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useNetwork } from '../hooks/useNetwork';
 
 // ─── Hold/Park Bills Utility ─────────────────────────────────────
 const HELD_BILLS_KEY = 'mypa_held_bills';
@@ -25,6 +27,7 @@ function saveHeldBills(bills) {
 
 export default function POS() {
   usePageTitle('Point of Sale');
+  const { isOnline, pendingCount, isSyncing, triggerSync } = useNetwork();
 
   // Product state
   const [products, setProducts] = useState([]);
@@ -69,12 +72,24 @@ export default function POS() {
   const barcodeRef = useRef(null);
   const scalePort = useRef(null);
   const scaleReader = useRef(null);
-  const barcodeBuffer = useRef('');
-  const barcodeTimer = useRef(null);
   const searchInputRef = useRef(null);
 
   // ─── Load Products ────────────────────────────────────────────
   useEffect(() => { loadProducts(); }, [productsPage]);
+
+  // If cache is empty on mount, trigger a sync from server
+  useEffect(() => {
+    async function initCache() {
+      const { getCachedProducts } = await import('../utils/offlineDb');
+      const cached = await getCachedProducts();
+      if (cached.length === 0 && navigator.onLine) {
+        const { syncDataFromServer } = await import('../utils/syncService');
+        await syncDataFromServer();
+        loadProducts(); // reload after sync
+      }
+    }
+    initCache();
+  }, []);
 
   // Reset page and reload when search/category changes
   useEffect(() => {
@@ -89,7 +104,7 @@ export default function POS() {
   useEffect(() => {
     const loadCategories = async () => {
       try {
-        const res = await api.get('/categories');
+        const res = await offlinePos.getCategories();
         const data = res.data || res || [];
         if (Array.isArray(data) && data.length > 0) setCategories(data.map(c => ({ id: c.id, name: c.name })));
       } catch {}
@@ -116,12 +131,17 @@ export default function POS() {
       const params = { page: productsPage, limit: 50 };
       if (search.trim()) params.search = search.trim();
       if (categoryFilter) params.category_id = categoryFilter;
-      const response = await posApi.getProducts(params);
+      const response = await offlinePos.getProducts(params);
       // response = { success, data: [...products], pagination: {...} }
       const data = response.data || [];
       setProducts(Array.isArray(data) ? data : []);
       setProductsPagination(response.pagination || null);
-    } catch { toast.error('Failed to load products'); }
+    } catch (err) {
+      // Only show error if cache is completely empty
+      if (!products || products.length === 0) {
+        toast('No products cached. Please sync when online.', { icon: '📡' });
+      }
+    }
     finally { setProductsLoading(false); }
   };
 
@@ -134,7 +154,7 @@ export default function POS() {
     setShowCustomerDropdown(true); // keep dropdown open while searching
     customerSearchTimer.current = setTimeout(async () => {
       try {
-        const res = await api.get('/customers/search/quick', { params: { q: value } });
+        const res = await offlinePos.searchCustomers(value);
         const data = res.data || res || [];
         const results = Array.isArray(data) ? data : [];
         setCustomerResults(results);
@@ -181,22 +201,61 @@ export default function POS() {
   };
 
   // ─── Barcode Scanner ──────────────────────────────────────────
+  // USB/Bluetooth barcode scanners emulate keyboard input ending with Enter.
+  // We buffer rapid keystrokes (within 50ms each) and on Enter, treat as barcode.
   useEffect(() => {
+    let buffer = '';
+    let lastKeyTime = 0;
+
     const handleKeyDown = (e) => {
-      if (e.target.tagName === 'INPUT' && e.target !== barcodeRef.current) return;
-      if (e.key === 'Enter' && barcodeBuffer.current.length > 3) { e.preventDefault(); handleBarcodeScan(barcodeBuffer.current); barcodeBuffer.current = ''; setBarcodeInput(''); return; }
-      if (e.key.length === 1) { barcodeBuffer.current += e.key; clearTimeout(barcodeTimer.current); barcodeTimer.current = setTimeout(() => { barcodeBuffer.current = ''; }, 100); }
+      // Don't intercept if user is typing in a search/form input (except dedicated barcode field)
+      const tag = e.target.tagName;
+      const isFormInput = (tag === 'INPUT' || tag === 'TEXTAREA') && e.target !== barcodeRef.current;
+      if (isFormInput) return;
+
+      const now = Date.now();
+
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (buffer.length >= 3) {
+          handleBarcodeScan(buffer);
+        }
+        buffer = '';
+        setBarcodeInput('');
+        return;
+      }
+
+      // Only single printable characters from scanner
+      if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        // If more than 300ms since last key, start fresh buffer (user typing vs scanner)
+        if (now - lastKeyTime > 300) {
+          buffer = '';
+        }
+        buffer += e.key;
+        lastKeyTime = now;
+        setBarcodeInput(buffer);
+      }
     };
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const handleBarcodeScan = async (code) => {
-    try { const response = await posApi.lookupBarcode(code.trim()); addToCart(response.data || response); toast.success(`Scanned: ${(response.data || response).name}`); }
-    catch { toast.error(`Product not found: ${code}`); }
+    const trimmed = code.trim();
+    if (!trimmed) return;
+    try {
+      const response = await offlinePos.lookupBarcode(trimmed);
+      const product = response.data || response;
+      addToCart(product);
+      toast.success(`Scanned: ${product.name}`, { icon: '📦', duration: 2000 });
+    } catch {
+      toast.error(`Product not found: ${trimmed}`, { icon: '❌' });
+    }
   };
 
-  const handleBarcodeSubmit = (e) => { e.preventDefault(); if (barcodeInput.trim()) { handleBarcodeScan(barcodeInput.trim()); setBarcodeInput(''); } };
+  // Manual barcode input submit (for the text field)
+  const handleBarcodeSubmit = (e) => { e.preventDefault(); if (barcodeInput.trim().length >= 3) { handleBarcodeScan(barcodeInput.trim()); setBarcodeInput(''); } };
 
   // ─── Scale ────────────────────────────────────────────────────
   const connectScale = async () => {
@@ -211,10 +270,23 @@ export default function POS() {
   const addToCart = useCallback((product) => {
     const quantity = product.unit === 'kg' && scaleWeight > 0 ? scaleWeight : 1;
     const price = product.offer_price ? parseFloat(product.offer_price) : parseFloat(product.selling_price);
+    const stock = parseFloat(product.stock) || 0;
+
     setCart((prev) => {
       const idx = prev.findIndex((item) => item.product_id === product.id);
-      if (idx >= 0 && product.unit !== 'kg') return prev.map((item, i) => i === idx ? { ...item, quantity: item.quantity + 1 } : item);
-      return [...prev, { product_id: product.id, product_name: product.name, quantity, unit: product.unit || 'piece', unit_price: price, original_price: parseFloat(product.selling_price), has_offer: !!product.offer_price, stock: parseFloat(product.stock) || 0 }];
+      if (idx >= 0 && product.unit !== 'kg') {
+        const currentQty = prev[idx].quantity;
+        if (stock > 0 && currentQty + 1 > stock) {
+          toast.error(`Only ${stock} in stock`, { id: 'stock-limit-' + product.id, duration: 2000 });
+          return prev;
+        }
+        return prev.map((item, i) => i === idx ? { ...item, quantity: item.quantity + 1 } : item);
+      }
+      if (stock <= 0 && product.unit !== 'kg') {
+        toast.error('Out of stock', { id: 'oos-' + product.id, duration: 2000 });
+        return prev;
+      }
+      return [...prev, { product_id: product.id, product_name: product.name, quantity, unit: product.unit || 'piece', unit_price: price, original_price: parseFloat(product.selling_price), has_offer: !!product.offer_price, stock }];
     });
     if (product.unit === 'kg' && scaleWeight > 0) toast.success(`${product.name}: ${scaleWeight.toFixed(3)}kg`);
   }, [scaleWeight]);
@@ -278,22 +350,22 @@ export default function POS() {
     if (paymentMethod === 'cash' && !isCredit) { const received = parseFloat(amountReceived) || 0; if (received > 0 && received < total) { toast.error('Amount received is less than total'); return; } }
     setLoading(true);
     try {
-      const response = await posApi.checkout({
+      const checkoutData = {
         items: cart.map(({ product_id, product_name, quantity, unit, unit_price }) => ({ product_id, product_name, quantity, unit, unit_price })),
         customer_name: selectedCustomer?.name || customerSearch || undefined,
         customer_id: selectedCustomer?.id || undefined,
         discount: discountAmount || undefined,
         payment_method: isCredit ? 'credit' : paymentMethod,
         amount_received: isCredit ? 0 : (parseFloat(amountReceived) || total),
-      });
+      };
+      const response = await offlinePos.checkout(checkoutData);
       const receiptData = response.data || response;
-      if (isCredit && selectedCustomer?.id) {
-        try { await api.post(`/customers/${selectedCustomer.id}/credit`, { amount: total, reference: receiptData.receipt_number, notes: `POS Credit - ${receiptData.receipt_number}` }); } catch {}
-      }
       setLastReceipt(receiptData);
-      toast.success(`Sale complete! ${receiptData.receipt_number}`);
+      toast.success(`Sale recorded! ${receiptData.receipt_number}`, { duration: 2000 });
       clearCart(); setPaymentMethod('cash'); loadProducts();
-    } catch { toast.error('Checkout failed. Please try again.'); }
+    } catch (err) {
+      toast.error(err?.structured?.message || 'Checkout failed');
+    }
     finally { setLoading(false); }
   };
 

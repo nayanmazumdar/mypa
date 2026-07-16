@@ -3,3 +3,4 @@ logs/
 uploads/
 src/database/sqlite/*.db
 *.log
+.env

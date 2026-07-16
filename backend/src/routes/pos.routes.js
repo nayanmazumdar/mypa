@@ -5,6 +5,7 @@ const { authenticate, permit } = require('../middlewares/auth.middleware');
 const ApiResponse = require('../utils/response');
 const { generateId, localDateStr } = require('../utils/helper');
 const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
+const { broadcastToShop } = require('./sse.routes');
 
 // Generate receipt number
 const generateReceiptNumber = () => {
@@ -208,10 +209,26 @@ router.get('/barcode/:code', authenticate, permit('pos:read'), async (req, res, 
 router.post('/checkout', authenticate, permit('pos:checkout'), async (req, res, next) => {
   try {
     const pool = getPool();
-    const { items, customer_name, customer_id, discount, payment_method, amount_received } = req.body;
+    const { items, customer_name, customer_id, discount, payment_method, amount_received, payments } = req.body;
 
     if (!items || items.length === 0) {
       return ApiResponse.error(res, 'Cart is empty', 400);
+    }
+
+    // Idempotency check — prevent duplicate submissions from offline sync
+    const idempotencyKey = req.headers['x-idempotency-key'];
+    if (idempotencyKey) {
+      const [existing] = await pool.query(
+        'SELECT id, receipt_number FROM pos_transactions WHERE shop_id = ? AND uuid = ?',
+        [req.user.shop_id, idempotencyKey]
+      );
+      if (existing.length > 0) {
+        // Already processed — return success with existing data (don't duplicate)
+        return res.status(409).json({
+          success: true, message: 'Transaction already processed',
+          data: { id: existing[0].id, receipt_number: existing[0].receipt_number, duplicate: true },
+        });
+      }
     }
 
     const connection = await pool.getConnection();
@@ -228,24 +245,37 @@ router.post('/checkout', authenticate, permit('pos:checkout'), async (req, res, 
 
       const discountAmount = discount || 0;
       const netAmount = Math.round((totalAmount - discountAmount) * 100) / 100;
-      const changeAmount = amount_received ? Math.round((amount_received - netAmount) * 100) / 100 : 0;
 
-      const uuid = generateId();
+      // Multi-payment support: payments = [{ method: 'cash', amount: 500 }, { method: 'upi', amount: 200 }]
+      let resolvedPaymentMethod = payment_method || 'cash';
+      let resolvedAmountReceived = amount_received || netAmount;
+      let paymentsJson = null;
+
+      if (payments && Array.isArray(payments) && payments.length > 0) {
+        resolvedAmountReceived = payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+        resolvedPaymentMethod = payments.length > 1 ? 'split' : payments[0].method;
+        paymentsJson = JSON.stringify(payments);
+      }
+
+      const changeAmount = resolvedAmountReceived > netAmount
+        ? Math.round((resolvedAmountReceived - netAmount) * 100) / 100 : 0;
+
+      const uuid = idempotencyKey || generateId();
       const receiptNumber = generateReceiptNumber();
 
       // Insert transaction
       const [txResult] = await connection.query(
-        `INSERT INTO pos_transactions (uuid, user_id, shop_id, customer_name, customer_id, total_amount, discount, net_amount, payment_method, amount_received, change_amount, receipt_number)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [uuid, req.user.id, req.user.shop_id, customer_name || null, customer_id || null, totalAmount, discountAmount, netAmount, payment_method || 'cash', amount_received || netAmount, changeAmount > 0 ? changeAmount : 0, receiptNumber]
+        `INSERT INTO pos_transactions (uuid, user_id, shop_id, customer_name, customer_id, total_amount, discount, net_amount, payment_method, amount_received, change_amount, receipt_number, payments_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uuid, req.user.id, req.user.shop_id, customer_name || null, customer_id || null, totalAmount, discountAmount, netAmount, resolvedPaymentMethod, resolvedAmountReceived, changeAmount > 0 ? changeAmount : 0, receiptNumber, paymentsJson]
       );
       const transactionId = txResult.insertId;
 
-      // Insert items and update inventory with stock validation
+      // Insert items and update inventory with stock validation + row locking
       for (const item of processedItems) {
-        // Check current stock
+        // Lock row for update to prevent overselling
         const [stockRows] = await connection.query(
-          `SELECT COALESCE(quantity, 0) as quantity FROM inventory WHERE product_id = ? AND shop_id = ?`,
+          `SELECT COALESCE(quantity, 0) as quantity FROM inventory WHERE product_id = ? AND shop_id = ? FOR UPDATE`,
           [item.product_id, req.user.shop_id]
         );
         const currentStock = stockRows.length > 0 ? parseFloat(stockRows[0].quantity) : 0;
@@ -289,6 +319,13 @@ router.post('/checkout', authenticate, permit('pos:checkout'), async (req, res, 
 
       await connection.commit();
 
+      // Broadcast stock update to other devices
+      broadcastToShop(req.user.shop_id, {
+        type: 'stock_update',
+        items: processedItems.map(i => ({ product_id: i.product_id, quantity_sold: i.quantity })),
+        receipt_number: receiptNumber,
+      });
+
       return ApiResponse.created(res, {
         id: transactionId,
         uuid,
@@ -296,9 +333,10 @@ router.post('/checkout', authenticate, permit('pos:checkout'), async (req, res, 
         total_amount: totalAmount,
         discount: discountAmount,
         net_amount: netAmount,
-        payment_method: payment_method || 'cash',
-        amount_received: amount_received || netAmount,
+        payment_method: resolvedPaymentMethod,
+        amount_received: resolvedAmountReceived,
         change_amount: changeAmount > 0 ? changeAmount : 0,
+        payments: payments || null,
         items: processedItems,
         customer_name,
         created_at: new Date().toISOString(),

@@ -6,7 +6,7 @@ import { fetchProducts, createProduct, updateProduct, deleteProduct } from '../s
 import {
   PageHeader, SearchInput, DataTable, ActionButton, ActionGroup,
   Modal, FormField, FormRow, FormSection, Avatar, EmptyState,
-  PageError, LoadingSpinner,
+  PageError, LoadingSpinner, ExportButton,
 } from '../components/common';
 import api from '../api/axios';
 import { usePermission } from '../hooks/usePermission';
@@ -142,7 +142,9 @@ export default function Products() {
         subtitle={`${pagination?.total || 0} items in catalog`}
         action={can('products:create') ? 'Add Product' : null}
         onAction={openCreate}
-      />
+      >
+        <ExportButton entity="products" canImport />
+      </PageHeader>
 
       <SearchInput
         value={search}

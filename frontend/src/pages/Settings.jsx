@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   HiOutlineUser, HiOutlineBuildingStorefront, HiOutlineUserGroup,
   HiOutlinePlus, HiOutlineShieldCheck, HiOutlineCog6Tooth,
   HiOutlinePrinter, HiOutlineBell, HiOutlineReceiptPercent,
+  HiOutlineCreditCard, HiOutlineArrowUpRight,
 } from 'react-icons/hi2';
 import api from '../api/axios';
 import { PageHeader, FilterTabs, Modal, LoadingSpinner, FormField, FormRow } from '../components/common';
@@ -13,6 +15,7 @@ import { usePageTitle } from '../hooks/usePageTitle';
 export default function Settings() {
   usePageTitle('Settings');
   const { user } = useSelector((state) => state.auth);
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState(null);
@@ -26,9 +29,27 @@ export default function Settings() {
   const [passcodeForm, setPasscodeForm] = useState({ passcode: '', confirm_passcode: '', current_password: '' });
   const [passwordForm, setPasswordForm] = useState({ current_password: '', new_password: '', confirm_password: '' });
   const [posSettings, setPosSettings] = useState({ receipt_header: '', receipt_footer: '', auto_print: false, sound_enabled: true });
+  const [subscription, setSubscription] = useState(null);
+  const [subLimits, setSubLimits] = useState(null);
+  const [subLoading, setSubLoading] = useState(false);
 
   useEffect(() => { loadProfile(); }, []);
   useEffect(() => { if (activeTab === 'team') loadStaff(); }, [activeTab]);
+  useEffect(() => {
+    if (activeTab === 'billing') loadSubscription();
+  }, [activeTab]);
+
+  const loadSubscription = async () => {
+    setSubLoading(true);
+    try {
+      const [subRes, limitsRes] = await Promise.all([
+        api.get('/subscriptions/current'),
+        api.get('/subscriptions/limits'),
+      ]);
+      setSubscription(subRes.data);
+      setSubLimits(limitsRes.data);
+    } catch {} finally { setSubLoading(false); }
+  };
 
   const loadProfile = async () => {
     try {
@@ -124,6 +145,7 @@ export default function Settings() {
         { value: 'profile', label: 'Profile' },
         { value: 'security', label: 'Security' },
         { value: 'shop', label: 'Shop Details' },
+        { value: 'billing', label: 'Plan & Billing' },
         ...(isAdmin ? [{ value: 'team', label: 'Team' }] : []),
         { value: 'pos', label: 'POS & Billing' },
         { value: 'notifications', label: 'Notifications' },
@@ -274,6 +296,131 @@ export default function Settings() {
               <div className="md:col-span-2"><InfoRow label="Address" value={shopForm.address || 'Not set'} /></div>
               <InfoRow label="Status" value={<span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700"><span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>Active</span>} />
             </div>
+          )}
+        </div>
+      )}
+
+      {/* ========== PLAN & BILLING TAB ========== */}
+      {activeTab === 'billing' && (
+        <div className="max-w-3xl space-y-6">
+          {subLoading ? (
+            <LoadingSpinner />
+          ) : (
+            <>
+              {/* Current Plan Card */}
+              <div className="rounded-3xl p-6" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                    <HiOutlineCreditCard className="w-5 h-5" /> Current Plan
+                  </h3>
+                  {subscription && (
+                    <span className={`px-3 py-1 rounded-xl text-[10px] font-bold uppercase tracking-wider ${
+                      subscription.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
+                      subscription.status === 'trial' ? 'bg-amber-100 text-amber-700' :
+                      'bg-red-100 text-red-700'
+                    }`}>
+                      {subscription.status}
+                    </span>
+                  )}
+                </div>
+
+                {subscription ? (
+                  <div className="space-y-5">
+                    <div className="flex items-baseline gap-3">
+                      <span className="text-2xl font-bold text-gray-800">{subscription.plan_display_name}</span>
+                      <span className="text-sm text-gray-500 capitalize">({subscription.billing_cycle})</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      {[
+                        { label: 'Started', value: new Date(subscription.starts_at).toLocaleDateString('en-IN') },
+                        { label: 'Expires', value: new Date(subscription.expires_at).toLocaleDateString('en-IN') },
+                        { label: 'Amount', value: `₹${parseFloat(subscription.amount_paid).toLocaleString('en-IN')}` },
+                      ].map(item => (
+                        <div key={item.label} className="rounded-xl p-3 text-center" style={{ background: '#e8edf5', boxShadow: 'inset 2px 2px 4px #c8cfd8, inset -2px -2px 4px #ffffff' }}>
+                          <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">{item.label}</p>
+                          <p className="text-sm font-bold text-gray-800 mt-1">{item.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 rounded-2xl" style={{ background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }}>
+                    <HiOutlineCreditCard className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-500 font-medium">No active subscription</p>
+                    <p className="text-xs text-gray-400 mt-1">Choose a plan to unlock premium features</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Usage / Limits */}
+              {subLimits && subLimits.has_subscription && subLimits.limits && (
+                <div className="rounded-3xl p-6" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
+                  <h3 className="font-semibold text-gray-800 mb-4">Usage Overview</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {Object.entries(subLimits.limits).map(([key, val]) => {
+                      const pct = val.unlimited ? 0 : val.max > 0 ? (val.used / val.max) * 100 : 0;
+                      return (
+                        <div key={key} className="rounded-xl p-3" style={{ background: '#e8edf5', boxShadow: 'inset 2px 2px 4px #c8cfd8, inset -2px -2px 4px #ffffff' }}>
+                          <p className="text-[10px] text-gray-500 capitalize font-semibold uppercase tracking-wide mb-1">{key.replace('_', ' ')}</p>
+                          <p className="text-lg font-bold text-gray-800">
+                            {val.unlimited ? '∞' : val.used}<span className="text-xs font-normal text-gray-400">{!val.unlimited ? ` / ${val.max}` : ''}</span>
+                          </p>
+                          {!val.unlimited && val.max > 0 && (
+                            <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: '#e8edf5', boxShadow: 'inset 1px 1px 2px #c8cfd8, inset -1px -1px 2px #ffffff' }}>
+                              <div className={`h-full rounded-full ${pct > 90 ? 'bg-red-500' : pct > 70 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                                style={{ width: `${Math.min(pct, 100)}%` }} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Features */}
+              {subLimits && subLimits.features && (
+                <div className="rounded-3xl p-6" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
+                  <h3 className="font-semibold text-gray-800 mb-4">Plan Features</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {Object.entries(subLimits.features).map(([feat, enabled]) => (
+                      <div key={feat} className="flex items-center gap-2.5 rounded-xl p-2.5"
+                        style={enabled ? { background: '#e8edf5', boxShadow: 'inset 2px 2px 4px #c8cfd8, inset -2px -2px 4px #ffffff' } : {}}>
+                        <div className={`w-5 h-5 rounded-md flex items-center justify-center ${enabled ? 'bg-emerald-100' : 'bg-gray-100'}`}>
+                          {enabled ? <span className="text-emerald-600 text-xs">✓</span> : <span className="text-gray-400 text-xs">✗</span>}
+                        </div>
+                        <span className={`text-xs font-medium ${enabled ? 'text-gray-700' : 'text-gray-400 line-through'}`}>
+                          {feat.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Upgrade CTA */}
+              <div className="rounded-3xl p-6" style={{ background: 'linear-gradient(145deg, #e8edf5, #dfe5ef)', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div>
+                    <h3 className="font-semibold text-gray-800">
+                      {subscription ? 'Want more features?' : 'Get started with a plan'}
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {subscription
+                        ? 'Upgrade your plan to unlock higher limits and premium features.'
+                        : 'Choose from flexible plans tailored for businesses of all sizes.'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => navigate('/subscription')}
+                    className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white whitespace-nowrap transition-all"
+                    style={{ background: 'linear-gradient(145deg, #5a4dd4, #4f46e5)', boxShadow: '4px 4px 8px #c8cfd8, -4px -4px 8px #ffffff' }}>
+                    {subscription ? 'Change Plan' : 'View Plans'}
+                    <HiOutlineArrowUpRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </>
           )}
         </div>
       )}

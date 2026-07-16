@@ -2,11 +2,22 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { HiOutlinePlus, HiOutlineTrash, HiOutlineGift, HiOutlinePencil } from 'react-icons/hi2';
 import api from '../api/axios';
-import { PageHeader, Modal, LoadingSpinner, Pagination, FormField, FormRow } from '../components/common';
+import { PageHeader, Modal, LoadingSpinner, Pagination, FormField, FormRow, FeatureGate } from '../components/common';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useSubscription } from '../hooks/useSubscription';
 
 export default function Offers() {
   usePageTitle('Offers & Discounts');
+  const { hasFeature } = useSubscription();
+
+  if (!hasFeature('offers')) {
+    return <FeatureGate feature="offers" available={false} />;
+  }
+
+  return <OffersContent />;
+}
+
+function OffersContent() {
   const [offers, setOffers] = useState([]);
   const [pagination, setPagination] = useState(null);
   const [page, setPage] = useState(1);
