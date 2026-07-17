@@ -119,12 +119,18 @@ async function seed() {
     const productIds = [];
     for (const p of products) {
       const uuid = uuidv4();
-      const [result] = await connection.execute(
-        `INSERT INTO products (uuid, user_id, shop_id, category_id, name, sku, description, purchase_price, selling_price, unit, tax_rate)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [uuid, userId, shopId, catMap[p.cat], p.name, p.sku, p.desc, p.pp, p.sp, p.unit, p.tax]
-      );
-      productIds.push(result.insertId);
+      try {
+        const [result] = await connection.execute(
+          `INSERT INTO products (uuid, user_id, shop_id, category_id, name, sku, description, purchase_price, selling_price, unit, tax_rate)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [uuid, userId, shopId, catMap[p.cat], p.name, p.sku, p.desc, p.pp, p.sp, p.unit, p.tax]
+        );
+        productIds.push(result.insertId);
+      } catch (e) {
+        // Duplicate — get existing ID
+        const [[existing]] = await connection.execute('SELECT id FROM products WHERE shop_id = ? AND sku = ?', [shopId, p.sku]);
+        if (existing) productIds.push(existing.id);
+      }
     }
     console.log(`  ✓ ${products.length} products seeded`);
 
@@ -135,7 +141,7 @@ async function seed() {
 
     for (let i = 0; i < productIds.length; i++) {
       await connection.execute(
-        'INSERT INTO inventory (product_id, user_id, shop_id, quantity, min_stock_level, max_stock_level) VALUES (?, ?, ?, ?, ?, ?)',
+        'INSERT IGNORE INTO inventory (product_id, user_id, shop_id, quantity, min_stock_level, max_stock_level) VALUES (?, ?, ?, ?, ?, ?)',
         [productIds[i], userId, shopId, stockLevels[i], minLevels[i], stockLevels[i] * 3]
       );
     }
@@ -153,11 +159,16 @@ async function seed() {
     const customerIds = [];
     for (const c of customers) {
       const uuid = uuidv4();
-      const [result] = await connection.execute(
-        'INSERT INTO customers (uuid, user_id, shop_id, name, email, phone, address, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [uuid, userId, shopId, c[0], c[1], c[2], c[3], c[4]]
-      );
-      customerIds.push(result.insertId);
+      try {
+        const [result] = await connection.execute(
+          'INSERT INTO customers (uuid, user_id, shop_id, name, email, phone, address, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          [uuid, userId, shopId, c[0], c[1], c[2], c[3], c[4]]
+        );
+        customerIds.push(result.insertId);
+      } catch {
+        const [[existing]] = await connection.execute('SELECT id FROM customers WHERE shop_id = ? AND name = ?', [shopId, c[0]]);
+        if (existing) customerIds.push(existing.id);
+      }
     }
     console.log(`  ✓ ${customers.length} customers seeded`);
 
@@ -172,11 +183,16 @@ async function seed() {
     const supplierIds = [];
     for (const s of suppliers) {
       const uuid = uuidv4();
-      const [result] = await connection.execute(
-        'INSERT INTO suppliers (uuid, user_id, shop_id, name, email, phone, company, address, gst_number, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [uuid, userId, shopId, s[0], s[1], s[2], s[3], s[4], s[5], s[6]]
-      );
-      supplierIds.push(result.insertId);
+      try {
+        const [result] = await connection.execute(
+          'INSERT INTO suppliers (uuid, user_id, shop_id, name, email, phone, company, address, gst_number, balance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [uuid, userId, shopId, s[0], s[1], s[2], s[3], s[4], s[5], s[6]]
+        );
+        supplierIds.push(result.insertId);
+      } catch {
+        const [[existing]] = await connection.execute('SELECT id FROM suppliers WHERE shop_id = ? AND name = ?', [shopId, s[0]]);
+        if (existing) supplierIds.push(existing.id);
+      }
     }
     console.log(`  ✓ ${suppliers.length} suppliers seeded`);
 
@@ -193,12 +209,18 @@ async function seed() {
     for (const s of sales) {
       const uuid = uuidv4();
       const custId = s.cust !== null ? customerIds[s.cust] : null;
-      const [result] = await connection.execute(
-        `INSERT INTO sales (uuid, user_id, shop_id, customer_id, invoice_number, total_amount, discount, tax_amount, net_amount, payment_status, payment_method, status, sale_date)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [uuid, userId, shopId, custId, s.inv, s.total, s.disc, s.tax, s.net, s.pstatus, s.pm, s.status, s.date]
-      );
-      saleIds.push(result.insertId);
+      try {
+        const [result] = await connection.execute(
+          `INSERT INTO sales (uuid, user_id, shop_id, customer_id, invoice_number, total_amount, discount, tax_amount, net_amount, payment_status, payment_method, status, sale_date)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [uuid, userId, shopId, custId, s.inv, s.total, s.disc, s.tax, s.net, s.pstatus, s.pm, s.status, s.date]
+        );
+        saleIds.push(result.insertId);
+      } catch (e) {
+        // Duplicate — get existing
+        const [[existing]] = await connection.execute('SELECT id FROM sales WHERE invoice_number = ?', [s.inv]);
+        if (existing) saleIds.push(existing.id);
+      }
     }
     console.log(`  ✓ ${sales.length} sales seeded`);
 
@@ -213,9 +235,8 @@ async function seed() {
       [saleIds[4], productIds[2], 1, 155, 0, 155],
     ];
     for (const si of saleItems) {
-      await connection.execute(
-        'INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, discount, total) VALUES (?, ?, ?, ?, ?, ?)', si
-      );
+      try { await connection.execute('INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, discount, total) VALUES (?, ?, ?, ?, ?, ?)', si); }
+      catch { /* skip duplicate */ }
     }
     console.log(`  ✓ ${saleItems.length} sale items seeded`);
 
@@ -229,12 +250,17 @@ async function seed() {
     const purchaseIds = [];
     for (const p of purchases) {
       const uuid = uuidv4();
-      const [result] = await connection.execute(
-        `INSERT INTO purchases (uuid, user_id, shop_id, supplier_id, invoice_number, total_amount, discount, tax_amount, net_amount, payment_status, payment_method, status, purchase_date)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [uuid, userId, shopId, supplierIds[p.sup], p.inv, p.total, p.disc, p.tax, p.net, p.pstatus, p.pm, p.status, p.date]
-      );
-      purchaseIds.push(result.insertId);
+      try {
+        const [result] = await connection.execute(
+          `INSERT INTO purchases (uuid, user_id, shop_id, supplier_id, invoice_number, total_amount, discount, tax_amount, net_amount, payment_status, payment_method, status, purchase_date)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [uuid, userId, shopId, supplierIds[p.sup], p.inv, p.total, p.disc, p.tax, p.net, p.pstatus, p.pm, p.status, p.date]
+        );
+        purchaseIds.push(result.insertId);
+      } catch {
+        const [[existing]] = await connection.execute('SELECT id FROM purchases WHERE invoice_number = ?', [p.inv]);
+        if (existing) purchaseIds.push(existing.id);
+      }
     }
     console.log(`  ✓ ${purchases.length} purchases seeded`);
 
@@ -248,9 +274,8 @@ async function seed() {
       [purchaseIds[2], productIds[5], 50, 72, 3600],
     ];
     for (const pi of purchaseItems) {
-      await connection.execute(
-        'INSERT INTO purchase_items (purchase_id, product_id, quantity, unit_price, total) VALUES (?, ?, ?, ?, ?)', pi
-      );
+      try { await connection.execute('INSERT INTO purchase_items (purchase_id, product_id, quantity, unit_price, total) VALUES (?, ?, ?, ?, ?)', pi); }
+      catch { /* skip duplicate */ }
     }
     console.log(`  ✓ ${purchaseItems.length} purchase items seeded`);
 
@@ -265,9 +290,8 @@ async function seed() {
       [userId, shopId, 'purchase', purchaseIds[1], 2300, 'upi'],
     ];
     for (const pay of payments) {
-      await connection.execute(
-        'INSERT INTO payments (user_id, shop_id, reference_type, reference_id, amount, payment_method) VALUES (?, ?, ?, ?, ?, ?)', pay
-      );
+      try { await connection.execute('INSERT INTO payments (user_id, shop_id, reference_type, reference_id, amount, payment_method) VALUES (?, ?, ?, ?, ?, ?)', pay); }
+      catch { /* skip duplicate */ }
     }
     console.log(`  ✓ ${payments.length} payments seeded`);
 
