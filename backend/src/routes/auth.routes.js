@@ -286,4 +286,20 @@ router.get('/staff', authenticate, authorize('admin'), authController.getStaff);
  */
 router.post('/staff', authenticate, authorize('admin'), authController.addStaff);
 
+/**
+ * @swagger
+ * /api/auth/check-email:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Check if an email already has an account
+ *     security: [{ bearerAuth: [] }]
+ */
+router.post('/check-email', authenticate, authController.checkEmail);
+
+// Remove a staff member from this shop (admin only)
+router.delete('/staff/:userId', authenticate, authorize('admin'), authController.removeStaff);
+
+// Toggle shop open/closed status (admin only)
+router.patch('/shop/status', authenticate, authorize('admin'), authController.toggleShopStatus);
+
 module.exports = router;

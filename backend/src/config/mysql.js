@@ -15,6 +15,7 @@ const getPool = () => {
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,
+      timezone: '+05:30',
     });
     logger.info('MySQL connection pool created');
   }

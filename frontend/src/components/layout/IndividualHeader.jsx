@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import {
   HiOutlineBars3,
   HiOutlineArrowRightOnRectangle,
+  HiOutlineCheckBadge,
+  HiOutlineExclamationCircle,
 } from 'react-icons/hi2';
 import { logout } from '../../store/authSlice';
 
@@ -41,11 +43,29 @@ export default function IndividualHeader({ onMenuClick }) {
         </button>
         <div>
           <h1 className="text-sm font-bold text-primary-700">Personal Dashboard</h1>
-          <p className="text-[11px] text-gray-500">Welcome, {user?.name}</p>
+          <p className="text-[11px] text-gray-500 mt-0.5">Welcome, {user?.name}</p>
         </div>
       </div>
 
       <div className="flex items-center gap-3">
+        {/* Verified / Unverified badge */}
+        {user?.is_active ? (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700">
+            <HiOutlineCheckBadge className="w-3 h-3" />Verified
+          </span>
+        ) : (
+          <span
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 cursor-default relative group"
+            title="Verify your credentials!"
+          >
+            <HiOutlineExclamationCircle className="w-3 h-3" />Unverified
+            <span className="pointer-events-none absolute right-0 top-full mt-2 w-44 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              <span className="block rounded-xl px-3 py-2 text-xs text-gray-700 font-medium" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
+                Verify your credentials!
+              </span>
+            </span>
+          </span>
+        )}
         {/* User avatar + logout */}
         <div className="flex items-center gap-3">
           <div

@@ -33,7 +33,7 @@ const ALL_CATEGORIES = EXPENSE_CATEGORIES.flatMap((g) => g.items);
 const PAYMENT_METHODS = ['cash', 'upi', 'card', 'bank_transfer', 'other'];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const today       = () => new Date().toISOString().split('T')[0];
+const today       = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 const firstOfMonth = () => today().substring(0, 8) + '01';
 const firstOfYear  = () => today().substring(0, 5) + '01-01';
 
@@ -41,14 +41,17 @@ function prevMonthRange() {
   const d = new Date();
   const first = new Date(d.getFullYear(), d.getMonth() - 1, 1);
   const last  = new Date(d.getFullYear(), d.getMonth(), 0);
-  return { from: first.toISOString().split('T')[0], to: last.toISOString().split('T')[0] };
+  const fmt = (dt) => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+  return { from: fmt(first), to: fmt(last) };
 }
 
 function fmtDateTime(dateRaw, createdAt) {
   const date = (() => {
     if (!dateRaw) return '—';
-    const part = dateRaw.length > 10 ? dateRaw.substring(0, 10) : dateRaw;
+    // Always extract YYYY-MM-DD and build local date to avoid UTC timezone shift
+    const part = String(dateRaw).slice(0, 10);
     const [y, m, d] = part.split('-').map(Number);
+    if (!y || !m || !d) return '—';
     return new Date(y, m - 1, d).toLocaleDateString('en-IN', {
       day: '2-digit', month: 'short', year: 'numeric',
     });
@@ -199,24 +202,26 @@ export default function PersonalExpenses() {
 
       {/* ── Page header ── */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">My Expenses</h1>
-            <p className="text-gray-500 text-sm mt-0.5">Track and manage your personal spending</p>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">My Expenses</h1>
+          <p className="text-gray-500 text-sm mt-0.5">Track and manage your personal spending</p>
+        </div>
+        <div className="flex items-center gap-2">
           <button
             onClick={() => setShowAmounts(v => !v)}
-            className="p-2 rounded-xl text-gray-400 hover:text-primary-600 transition-all self-start mt-1"
-            style={{ background: '#e8edf5', boxShadow: showAmounts ? 'inset 2px 2px 4px #c8cfd8, inset -2px -2px 4px #ffffff' : '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}
-            aria-label={showAmounts ? 'Hide amounts' : 'Show amounts'}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+              showAmounts ? 'text-primary-700' : 'text-gray-500 hover:text-gray-700'
+            }`}
+            style={{ background: '#e8edf5', boxShadow: showAmounts ? 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' : '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}
             title={showAmounts ? 'Hide amounts' : 'Show amounts'}
           >
             {showAmounts ? <HiOutlineEyeSlash className="w-4 h-4" /> : <HiOutlineEye className="w-4 h-4" />}
+            {showAmounts ? 'Hide' : 'Show'}
+          </button>
+          <button onClick={openCreate} className="btn-primary flex items-center gap-2">
+            <HiOutlinePlus className="w-4 h-4" /> Add Expense
           </button>
         </div>
-        <button onClick={openCreate} className="btn-primary flex items-center gap-2">
-          <HiOutlinePlus className="w-4 h-4" /> Add Expense
-        </button>
       </div>
 
       {/* ── Summary cards ── */}
@@ -346,7 +351,7 @@ export default function PersonalExpenses() {
                   <th className="text-left px-4 py-3 font-semibold text-gray-600 text-[11px] uppercase tracking-wider hidden sm:table-cell">Description</th>
                   <th className="text-right px-4 py-3 font-semibold text-gray-600 text-[11px] uppercase tracking-wider">Amount</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-600 text-[11px] uppercase tracking-wider hidden md:table-cell">Method</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-600 text-[11px] uppercase tracking-wider">Date</th>
+                  <th className="text-center px-4 py-3 font-semibold text-gray-600 text-[11px] uppercase tracking-wider">Date</th>
                   <th className="text-center px-4 py-3 font-semibold text-gray-600 text-[11px] uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
@@ -369,8 +374,8 @@ export default function PersonalExpenses() {
                         {pmLabel(exp.payment_method)}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                      {(() => { const { date, time } = fmtDateTime(exp.expense_date, exp.created_at); return (<><span>{date}</span>{time && <span className="block text-[11px] text-gray-400">{time}</span>}</>); })()}
+                    <td className="px-4 py-3 whitespace-nowrap text-center">
+                      {(() => { const { date, time } = fmtDateTime(exp.expense_date, exp.created_at); return (<div className="flex flex-col items-center"><span className="text-sm font-medium text-gray-700">{date}</span>{time && <span className="text-xs text-gray-400">{time}</span>}</div>); })()}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-1.5">

@@ -263,11 +263,11 @@ router.post('/checkout', authenticate, permit('pos:checkout'), async (req, res, 
       const uuid = idempotencyKey || generateId();
       const receiptNumber = generateReceiptNumber();
 
-      // Insert transaction
+      // Insert transaction — biller_id captures who processed this sale (staff/manager/admin)
       const [txResult] = await connection.query(
-        `INSERT INTO pos_transactions (uuid, user_id, shop_id, customer_name, customer_id, total_amount, discount, net_amount, payment_method, amount_received, change_amount, receipt_number, payments_json)
+        `INSERT INTO pos_transactions (uuid, user_id, biller_id, shop_id, customer_name, customer_id, total_amount, discount, net_amount, payment_method, amount_received, change_amount, receipt_number, payments_json)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [uuid, req.user.id, req.user.shop_id, customer_name || null, customer_id || null, totalAmount, discountAmount, netAmount, resolvedPaymentMethod, resolvedAmountReceived, changeAmount > 0 ? changeAmount : 0, receiptNumber, paymentsJson]
+        [uuid, req.user.id, req.user.id, req.user.shop_id, customer_name || null, customer_id || null, totalAmount, discountAmount, netAmount, resolvedPaymentMethod, resolvedAmountReceived, changeAmount > 0 ? changeAmount : 0, receiptNumber, paymentsJson]
       );
       const transactionId = txResult.insertId;
 
@@ -302,18 +302,23 @@ router.post('/checkout', authenticate, permit('pos:checkout'), async (req, res, 
           [newQty, item.product_id, req.user.shop_id]
         );
 
-        // Log stock movement
-        const [[product]] = await connection.query(
-          `SELECT user_id FROM products WHERE id = ? AND shop_id = ?`,
-          [item.product_id, req.user.shop_id]
-        );
-        if (product) {
-          const movementUserId = product.user_id || req.user.id;
-          await connection.query(
-            `INSERT INTO stock_movements (product_id, user_id, shop_id, type, quantity, reference_type, reference_id, notes)
-             VALUES (?, ?, ?, 'out', ?, 'pos_transaction', ?, ?)`,
-            [item.product_id, movementUserId, req.user.shop_id, item.quantity, transactionId, `POS Sale: ${receiptNumber}`]
+        // Log stock movement — non-fatal, don't let a logging failure kill the sale
+        try {
+          const [[product]] = await connection.query(
+            `SELECT user_id FROM products WHERE id = ? AND shop_id = ?`,
+            [item.product_id, req.user.shop_id]
           );
+          if (product) {
+            const movementUserId = product.user_id || req.user.id;
+            await connection.query(
+              `INSERT INTO stock_movements (product_id, user_id, shop_id, type, quantity, reference_type, reference_id, notes)
+               VALUES (?, ?, ?, 'out', ?, 'pos_transaction', ?, ?)`,
+              [item.product_id, movementUserId, req.user.shop_id, item.quantity, transactionId, `POS Sale: ${receiptNumber}`]
+            );
+          }
+        } catch (movErr) {
+          // Log but don't rollback — the sale is valid even if movement logging fails
+          require('../config/logger').warn(`Stock movement log failed for product ${item.product_id}: ${movErr.message}`);
         }
       }
 
@@ -330,6 +335,8 @@ router.post('/checkout', authenticate, permit('pos:checkout'), async (req, res, 
         id: transactionId,
         uuid,
         receipt_number: receiptNumber,
+        biller_id: req.user.id,
+        biller_name: req.user.email, // resolved to name on fetch; email as fallback here
         total_amount: totalAmount,
         discount: discountAmount,
         net_amount: netAmount,
@@ -378,22 +385,25 @@ router.get('/transactions', authenticate, permit('pos:read'), async (req, res, n
     const { page, limit, offset } = parsePagination(req.query);
     const { date, start_date, end_date, search } = req.query;
 
-    let query = 'SELECT * FROM pos_transactions WHERE shop_id = ?';
+    let query = `SELECT t.*, u.name AS biller_name, u.email AS biller_email
+                 FROM pos_transactions t
+                 LEFT JOIN users u ON t.biller_id = u.id
+                 WHERE t.shop_id = ?`;
     let countQuery = 'SELECT COUNT(*) as total FROM pos_transactions WHERE shop_id = ?';
     const params = [req.user.shop_id];
 
     if (date) {
-      query += ' AND DATE(created_at) = ?';
+      query += ' AND DATE(t.created_at) = ?';
       countQuery += ' AND DATE(created_at) = ?';
       params.push(date);
     } else {
       if (start_date) {
-        query += ' AND DATE(created_at) >= ?';
+        query += ' AND DATE(t.created_at) >= ?';
         countQuery += ' AND DATE(created_at) >= ?';
         params.push(start_date);
       }
       if (end_date) {
-        query += ' AND DATE(created_at) <= ?';
+        query += ' AND DATE(t.created_at) <= ?';
         countQuery += ' AND DATE(created_at) <= ?';
         params.push(end_date);
       }
@@ -401,13 +411,13 @@ router.get('/transactions', authenticate, permit('pos:read'), async (req, res, n
 
     if (search) {
       const like = `%${search}%`;
-      query += ' AND (receipt_number LIKE ? OR customer_name LIKE ?)';
+      query += ' AND (t.receipt_number LIKE ? OR t.customer_name LIKE ?)';
       countQuery += ' AND (receipt_number LIKE ? OR customer_name LIKE ?)';
       params.push(like, like);
     }
 
     const countParams = [...params];
-    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    query += ' ORDER BY t.created_at DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
 
     const [rows] = await pool.query(query, params);
@@ -440,7 +450,10 @@ router.get('/transactions/:id', authenticate, permit('pos:read'), async (req, re
   try {
     const pool = getPool();
     const [rows] = await pool.query(
-      'SELECT * FROM pos_transactions WHERE id = ? AND shop_id = ?',
+      `SELECT t.*, u.name AS biller_name, u.email AS biller_email
+       FROM pos_transactions t
+       LEFT JOIN users u ON t.biller_id = u.id
+       WHERE t.id = ? AND t.shop_id = ?`,
       [req.params.id, req.user.shop_id]
     );
     if (rows.length === 0) return ApiResponse.notFound(res, 'Transaction not found');

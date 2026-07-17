@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useSelector } from 'react-redux';
 import toast from 'react-hot-toast';
-import { HiOutlineChartBar, HiOutlineCalendar, HiOutlineTrophy, HiOutlineCurrencyRupee } from 'react-icons/hi2';
+import { HiOutlineClock, HiOutlineCheckCircle } from 'react-icons/hi2';
 import api from '../api/axios';
 import { PageHeader, FilterTabs, FeatureGate } from '../components/common';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -18,6 +19,8 @@ export default function Reports() {
 }
 
 function ReportsContent() {
+  const { user } = useSelector((state) => state.auth);
+  const isAdmin = user?.role === 'admin';
   const [activeTab, setActiveTab] = useState('daily');
   const [dailySales, setDailySales] = useState(null);
   const [monthlySales, setMonthlySales] = useState([]);
@@ -26,6 +29,9 @@ function ReportsContent() {
   const [dateFilter, setDateFilter] = useState(new Date().toISOString().split('T')[0]);
   const [monthFilter, setMonthFilter] = useState({ year: new Date().getFullYear(), month: new Date().getMonth() + 1 });
   const [profitRange, setProfitRange] = useState({ start_date: getFirstOfMonth(), end_date: new Date().toISOString().split('T')[0] });
+  const [logsDate, setLogsDate] = useState(new Date().toISOString().split('T')[0]);
+  const [logs, setLogs] = useState([]);
+  const [logsLoading, setLogsLoading] = useState(false);
 
   function getFirstOfMonth() {
     const d = new Date();
@@ -35,6 +41,8 @@ function ReportsContent() {
   useEffect(() => { loadDailySales(); }, [dateFilter]);
   useEffect(() => { loadMonthlySales(); }, [monthFilter]);
   useEffect(() => { loadTopProducts(); loadProfitReport(); }, [profitRange]);
+  useEffect(() => { if (activeTab === 'logs') loadLogs(logsDate); }, [activeTab]);
+  useEffect(() => { if (activeTab === 'logs') loadLogs(logsDate); }, [logsDate]);
 
   const loadDailySales = async () => {
     try {
@@ -64,6 +72,15 @@ function ReportsContent() {
     } catch { /* silent */ }
   };
 
+  const loadLogs = async (date) => {
+    setLogsLoading(true);
+    try {
+      const res = await api.get('/login-logs', { params: { date } });
+      setLogs(res.data?.logs || []);
+    } catch { setLogs([]); }
+    finally { setLogsLoading(false); }
+  };
+
   return (
     <div className="space-y-8">
       <PageHeader title="Reports" subtitle="Sales analytics and business insights" />
@@ -74,6 +91,7 @@ function ReportsContent() {
         { value: 'monthly', label: 'Monthly Sales' },
         { value: 'products', label: 'Top Products' },
         { value: 'profit', label: 'Profit' },
+        ...(isAdmin ? [{ value: 'logs', label: 'Login Logs' }] : []),
       ]} />
 
       {/* Daily Sales */}
@@ -230,6 +248,140 @@ function ReportsContent() {
           )}
         </div>
       )}
+      {/* Login Logs — admin only */}
+      {activeTab === 'logs' && isAdmin && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-medium text-gray-700">Date:</label>
+            <input
+              type="date"
+              value={logsDate}
+              onChange={(e) => setLogsDate(e.target.value)}
+              className="input"
+            />
+            {logsLoading && (
+              <span className="w-4 h-4 border-2 border-primary-300 border-t-primary-600 rounded-full animate-spin" />
+            )}
+          </div>
+
+          <div className="rounded-3xl overflow-hidden" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
+            {/* Mobile: card list */}
+            <div className="sm:hidden divide-y divide-gray-100/60">
+              {!logsLoading && logs.length === 0 && (
+                <p className="px-5 py-12 text-center text-sm text-gray-400">No login activity for this date.</p>
+              )}
+              {logsLoading && (
+                <div className="flex justify-center py-12">
+                  <div className="w-5 h-5 border-2 border-primary-200 border-t-primary-600 rounded-full animate-spin" />
+                </div>
+              )}
+              {logs.map((log) => (
+                <div key={log.id} className="p-4 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-gray-900">{log.user_name}</p>
+                    <LogRoleBadge role={log.role} />
+                  </div>
+                  <p className="text-xs text-gray-400">{log.user_email}</p>
+                  <div className="flex items-center gap-4 text-xs text-gray-500 pt-1">
+                    <span className="flex items-center gap-1">
+                      <HiOutlineClock className="w-3.5 h-3.5 text-green-500" />
+                      {new Date(log.login_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    {log.logout_at ? (
+                      <span className="flex items-center gap-1">
+                        <HiOutlineClock className="w-3.5 h-3.5 text-red-400" />
+                        {new Date(log.logout_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-green-600 font-medium">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> Active
+                      </span>
+                    )}
+                    {log.duration_minutes != null && (
+                      <span className="text-gray-400">{log.duration_minutes}m</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop: table */}
+            <table className="hidden sm:table w-full text-sm">
+              <thead style={{ background: 'rgba(200,207,216,0.2)' }}>
+                <tr>
+                  <th className="text-left px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Staff Member</th>
+                  <th className="text-left px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Role</th>
+                  <th className="text-left px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Login</th>
+                  <th className="text-left px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Logout</th>
+                  <th className="text-right px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Duration</th>
+                  <th className="text-center px-5 py-3.5 text-[11px] font-semibold uppercase tracking-wider text-gray-500">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {logsLoading ? (
+                  <tr>
+                    <td colSpan="6" className="px-5 py-14 text-center">
+                      <div className="w-5 h-5 border-2 border-primary-200 border-t-primary-600 rounded-full animate-spin mx-auto" />
+                    </td>
+                  </tr>
+                ) : logs.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="px-5 py-14 text-center text-sm text-gray-400">
+                      No login activity for this date.
+                    </td>
+                  </tr>
+                ) : logs.map((log) => (
+                  <tr key={log.id} style={{ borderBottom: '1px solid rgba(200,207,216,0.15)' }}>
+                    <td className="px-5 py-4">
+                      <p className="font-medium text-gray-900">{log.user_name}</p>
+                      <p className="text-xs text-gray-400">{log.user_email}</p>
+                    </td>
+                    <td className="px-5 py-4"><LogRoleBadge role={log.role} /></td>
+                    <td className="px-5 py-4 text-gray-700 tabular-nums">
+                      {new Date(log.login_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </td>
+                    <td className="px-5 py-4 text-gray-500 tabular-nums">
+                      {log.logout_at
+                        ? new Date(log.logout_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                        : <span className="flex items-center gap-1.5 text-green-600 font-medium text-xs"><span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />Still active</span>}
+                    </td>
+                    <td className="px-5 py-4 text-right tabular-nums text-gray-500">
+                      {log.duration_minutes != null ? `${log.duration_minutes} min` : '—'}
+                    </td>
+                    <td className="px-5 py-4 text-center">
+                      {log.logout_at
+                        ? <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Logged out</span>
+                        : <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">Online</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              {logs.length > 0 && (
+                <tfoot style={{ background: 'rgba(200,207,216,0.1)', borderTop: '1px solid rgba(200,207,216,0.3)' }}>
+                  <tr>
+                    <td colSpan="4" className="px-5 py-3 text-xs text-gray-500">
+                      {logs.length} session{logs.length !== 1 ? 's' : ''} on {logsDate}
+                    </td>
+                    <td className="px-5 py-3 text-right text-xs font-medium text-gray-700">
+                      {(() => {
+                        const total = logs.reduce((s, l) => s + (l.duration_minutes || 0), 0);
+                        return total > 0 ? `${total} min total` : '—';
+                      })()}
+                    </td>
+                    <td />
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+function LogRoleBadge({ role }) {
+  const colors = { admin: 'bg-purple-100 text-purple-700', manager: 'bg-blue-100 text-blue-700', staff: 'bg-gray-100 text-gray-700' };
+  const labels = { admin: 'Owner', manager: 'Manager', staff: 'Staff' };
+  return <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${colors[role] || colors.staff}`}>{labels[role] || role}</span>;
 }

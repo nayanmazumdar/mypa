@@ -30,15 +30,18 @@ const ALL_CATEGORIES = EXPENSE_CATEGORIES.flatMap((g) => g.items);
 const PAYMENT_METHODS = ['cash', 'upi', 'card', 'bank_transfer', 'other'];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const today       = () => new Date().toISOString().split('T')[0];
+const today       = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 const firstOfMonth = () => today().substring(0, 8) + '01';
 const firstOfYear  = () => today().substring(0, 5) + '01-01';
 
 function prevMonthRange() {
   const d = new Date();
+function prevMonthRange() {
+  const d = new Date();
   const first = new Date(d.getFullYear(), d.getMonth() - 1, 1);
   const last  = new Date(d.getFullYear(), d.getMonth(), 0);
-  return { from: first.toISOString().split('T')[0], to: last.toISOString().split('T')[0] };
+  const fmt = (dt) => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+  return { from: fmt(first), to: fmt(last) };
 }
 
 function fmtDateTime(dateRaw, createdAt) {

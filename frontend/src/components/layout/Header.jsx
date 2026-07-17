@@ -2,6 +2,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { HiOutlineBars3, HiOutlineArrowRightOnRectangle, HiOutlineArrowsRightLeft, HiOutlineArrowPath, HiOutlineSignal, HiOutlineSignalSlash } from 'react-icons/hi2';
 import { logout, switchShop } from '../../store/authSlice';
+import api from '../../api/axios';
 import { useNetwork } from '../../hooks/useNetwork';
 
 export default function Header({ onMenuClick }) {
@@ -10,15 +11,29 @@ export default function Header({ onMenuClick }) {
   const { user } = useSelector((state) => state.auth);
   const { isOnline, pendingCount, isSyncing, triggerSync } = useNetwork();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Record logout time in the activity log before clearing state
+    const logId = user?.log_id;
+    if (logId) {
+      try { await api.post('/login-logs/logout', { log_id: logId }); } catch (_) {}
+    }
     dispatch(logout());
     navigate('/login');
   };
 
-  const handleSwitchShop = () => {
+  const handleSwitchShop = async () => {
+    // Record logout when switching shop too
+    const logId = user?.log_id;
+    if (logId) {
+      try { await api.post('/login-logs/logout', { log_id: logId }); } catch (_) {}
+    }
     dispatch(switchShop());
     navigate('/select-shop');
   };
+
+  // Derive open/closed status from the active shop in the user.shops list
+  const activeShop = user?.shops?.find((s) => s.id === user?.shop_id);
+  const isOpen = activeShop ? !!activeShop.is_open : null;
 
   return (
     <header className="h-16 flex items-center justify-between px-4 sm:px-6 sticky top-0 z-10" style={{ background: '#e8edf5', boxShadow: '0 4px 8px rgba(200,207,216,0.6)' }}>
@@ -32,7 +47,15 @@ export default function Header({ onMenuClick }) {
           <HiOutlineBars3 className="w-5 h-5" />
         </button>
         <div>
-          <h1 className="text-sm font-semibold text-gray-800">{user?.shop_name || 'My Shop'}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-sm font-semibold text-gray-800">{user?.shop_name || 'My Shop'}</h1>
+            {isOpen !== null && (
+              <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${isOpen ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-500'}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${isOpen ? 'bg-green-500' : 'bg-orange-400'}`} />
+                {isOpen ? 'Open' : 'Closed'}
+              </span>
+            )}
+          </div>
           <p className="text-[11px] text-gray-400 hidden sm:block">Welcome back, {user?.name}</p>
         </div>
       </div>

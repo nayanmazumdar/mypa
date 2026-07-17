@@ -105,20 +105,7 @@ export default function IndividualSidebar({ open, onClose }) {
               <p className="text-[10px] text-gray-400">Personal mode</p>
             </div>
           </div>
-          {/* Verified / Unverified badge */}
-          <div className="mt-2 flex justify-center">
-            {user?.is_active ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">
-                <HiOutlineCheckBadge className="w-3.5 h-3.5" />
-                Verified Account
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
-                <HiOutlineExclamationCircle className="w-3.5 h-3.5" />
-                Unverified Account
-              </span>
-            )}
-          </div>
+
         </div>
       </aside>
     </>

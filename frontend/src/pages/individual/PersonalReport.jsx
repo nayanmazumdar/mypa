@@ -21,7 +21,10 @@ function getFirstOfMonth() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
 }
-function getToday() { return new Date().toISOString().split('T')[0]; }
+function getToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
 
 function fmtDate(raw) {
   if (!raw) return '';
@@ -32,20 +35,23 @@ function fmtDate(raw) {
   });
 }
 
+const localDate = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
 const PRESET_RANGES = [
   { label: 'This Month',   getRange: () => ({ from: getFirstOfMonth(), to: getToday() }) },
   {
     label: 'Last Month', getRange: () => {
-      const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1);
-      const from = d.toISOString().split('T')[0];
-      d.setMonth(d.getMonth() + 1); d.setDate(0);
-      return { from, to: d.toISOString().split('T')[0] };
+      const d = new Date();
+      const first = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+      const last  = new Date(d.getFullYear(), d.getMonth(), 0);
+      return { from: localDate(first), to: localDate(last) };
     },
   },
   {
     label: 'Last 3 Months', getRange: () => {
-      const d = new Date(); d.setMonth(d.getMonth() - 2); d.setDate(1);
-      return { from: d.toISOString().split('T')[0], to: getToday() };
+      const d = new Date();
+      const first = new Date(d.getFullYear(), d.getMonth() - 2, 1);
+      return { from: localDate(first), to: getToday() };
     },
   },
   {
@@ -619,14 +625,14 @@ export default function PersonalReport() {
         </div>
         <button
           onClick={() => setShowAmounts(v => !v)}
-          className="p-2 rounded-xl text-gray-400 hover:text-indigo-600 transition-all flex-shrink-0"
-          style={{ background: '#e8edf5', boxShadow: showAmounts ? 'inset 2px 2px 4px #c8cfd8, inset -2px -2px 4px #ffffff' : '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-gray-500 hover:text-indigo-600 transition-all flex-shrink-0"
+          style={{ background: '#e8edf5', boxShadow: showAmounts ? 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' : '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}
           aria-label={showAmounts ? 'Hide amounts' : 'Show amounts'}
           title={showAmounts ? 'Hide amounts' : 'Show amounts'}
         >
           {showAmounts
-            ? <HiOutlineEyeSlash className="w-5 h-5" />
-            : <HiOutlineEye className="w-5 h-5" />
+            ? <><HiOutlineEyeSlash className="w-4 h-4" /> Hide</>
+            : <><HiOutlineEye className="w-4 h-4" /> Show</>
           }
         </button>
       </div>
@@ -668,23 +674,21 @@ export default function PersonalReport() {
             <label className="block text-xs font-medium text-gray-500 mb-1">To</label>
             <input
               type="date" value={to}
-              onChange={(e) => {
-                setActivePreset('');
-                const newTo = e.target.value;
-                setTo(newTo);
-                if (from && newTo && from <= newTo) {
-                  fetchReport(from, newTo);
-                }
-              }}
+              onChange={(e) => { setActivePreset(''); setTo(e.target.value); }}
               className="input-field text-sm py-1.5"
             />
           </div>
-          {loading && (
-            <div className="flex items-center gap-2 text-sm text-gray-400 py-1.5">
-              <span className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-              Loading…
-            </div>
-          )}
+          <button
+            onClick={() => { if (from && to && from <= to) fetchReport(from, to); }}
+            disabled={loading || !from || !to || from > to}
+            className="flex items-center gap-2 text-sm py-1.5 px-4 rounded-lg border border-gray-300 bg-white text-gray-700 font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            {loading
+              ? <span className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+              : <HiOutlineArrowDownTray className="w-4 h-4" />
+            }
+            {loading ? 'Loading…' : 'Generate'}
+          </button>
           {report && !loading && (
             <button
               onClick={handleDownloadPDF}

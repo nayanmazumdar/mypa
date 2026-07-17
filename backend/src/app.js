@@ -33,6 +33,8 @@ const returnRoutes = require('./routes/return.routes');
 const shiftRoutes = require('./routes/shift.routes');
 const exportRoutes = require('./routes/export.routes');
 const sseRoutes = require('./routes/sse.routes');
+const attendanceRoutes = require('./routes/attendance.routes');
+const loginLogRoutes = require('./routes/loginLog.routes');
 
 const app = express();
 
@@ -142,6 +144,8 @@ app.use('/api/shifts', shiftRoutes);
 app.use('/api/export', exportRoutes);
 app.use('/api/import', exportRoutes);
 app.use('/api/events', sseRoutes);
+app.use('/api/attendance', attendanceRoutes);
+app.use('/api/login-logs', loginLogRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

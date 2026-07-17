@@ -5,6 +5,7 @@ module.exports = (sequelize) => {
     id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
     uuid: { type: DataTypes.STRING(36), unique: true, allowNull: false },
     user_id: { type: DataTypes.INTEGER, allowNull: false },
+    biller_id: { type: DataTypes.INTEGER, defaultValue: null },
     shop_id: { type: DataTypes.INTEGER },
     customer_name: { type: DataTypes.STRING(100) },
     customer_id: { type: DataTypes.INTEGER },

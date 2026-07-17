@@ -190,22 +190,46 @@ async function migrate() {
       'Migration 14'
     );
 
+    // Migration 15: is_open column for shops (shop open/closed status)
+    await runMigrationFile(
+      path.join(__dirname, 'migrations', '015_shop_open_status.sql'),
+      'Migration 15'
+    );
+
+    // Migration 16: staff attendance tracking
+    await runMigrationFile(
+      path.join(__dirname, 'migrations', '016_staff_attendance.sql'),
+      'Migration 16'
+    );
+
+    // Migration 17: shop staff login/logout activity log
+    await runMigrationFile(
+      path.join(__dirname, 'migrations', '017_login_logs.sql'),
+      'Migration 17'
+    );
+
+    // Migration 18: biller_id on pos_transactions
+    await runMigrationFile(
+      path.join(__dirname, 'migrations', '018_pos_biller_id.sql'),
+      'Migration 18'
+    );
+
     // Migration 15: Subscription system (plans + shop subscriptions)
     await runMigrationFile(
       path.join(__dirname, 'migrations', '015_subscriptions.sql'),
-      'Migration 15'
+      'Migration 18'
     );
 
     // Migration 16: Returns and exchanges
     await runMigrationFile(
       path.join(__dirname, 'migrations', '016_returns.sql'),
-      'Migration 16'
+      'Migration 19'
     );
 
     // Migration 17: Split payments + shift management
     await runMigrationFile(
       path.join(__dirname, 'migrations', '017_split_payments_shifts.sql'),
-      'Migration 17'
+      'Migration 20'
     );
 
     console.log('✓ All tables created successfully');

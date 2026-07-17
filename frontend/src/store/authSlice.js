@@ -86,9 +86,16 @@ const authSlice = createSlice({
       }
     },
     setActiveShop(state, action) {
-      const { shop_id, shop_name, role } = action.payload;
+      const { shop_id, shop_name, role, default_module, log_id } = action.payload;
       if (state.user) {
-        state.user = { ...state.user, shop_id, shop_name, role };
+        state.user = {
+          ...state.user,
+          shop_id,
+          shop_name,
+          role,
+          ...(default_module !== undefined && { default_module }),
+          ...(log_id !== undefined && { log_id }),
+        };
         localStorage.setItem('user', JSON.stringify(state.user));
       }
     },
@@ -118,6 +125,20 @@ const authSlice = createSlice({
       // Merge partial user fields (name, phone, avatar, etc.) into state
       if (state.user) {
         state.user = { ...state.user, ...action.payload };
+        localStorage.setItem('user', JSON.stringify(state.user));
+      }
+    },
+    updateShopStatus(state, action) {
+      // Update is_open on the matching shop in the user.shops array
+      // payload: { shop_id: number, is_open: boolean }
+      const { shop_id, is_open } = action.payload;
+      if (state.user?.shops) {
+        state.user = {
+          ...state.user,
+          shops: state.user.shops.map((s) =>
+            s.id === shop_id ? { ...s, is_open: is_open ? 1 : 0 } : s
+          ),
+        };
         localStorage.setItem('user', JSON.stringify(state.user));
       }
     },
@@ -179,5 +200,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { logout, switchShop, setActiveShop, setRole, setDefaultModule, setRoleAndModule, updateUser, loadUser, clearError } = authSlice.actions;
+export const { logout, switchShop, setActiveShop, setRole, setDefaultModule, setRoleAndModule, updateUser, updateShopStatus, loadUser, clearError } = authSlice.actions;
 export default authSlice.reducer;

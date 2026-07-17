@@ -364,7 +364,8 @@ export default function POS() {
       toast.success(`Sale recorded! ${receiptData.receipt_number}`, { duration: 2000 });
       clearCart(); setPaymentMethod('cash'); loadProducts();
     } catch (err) {
-      toast.error(err?.structured?.message || 'Checkout failed');
+      const msg = err.structured?.message || err.response?.data?.message || err.message || 'Checkout failed. Please try again.';
+      toast.error(msg);
     }
     finally { setLoading(false); }
   };
@@ -459,6 +460,7 @@ td.item-name { font-weight: 500; }
 <div class="row meta"><span>Date:</span><span><b>${dateStr}</b> at ${timeStr}</span></div>
 ${data.customer_name ? `<div class="row meta" style="margin-top:3px"><span>Customer:</span><span><b>${data.customer_name}</b></span></div>` : ''}
 ${data.customer_name && data.customer_phone ? `<div class="row meta"><span>Phone:</span><span>${data.customer_phone}</span></div>` : ''}
+${data.biller_name ? `<div class="row meta" style="margin-top:3px"><span>Billed by:</span><span><b>${data.biller_name}</b></span></div>` : ''}
 
 <div class="line"></div>
 
@@ -710,6 +712,7 @@ ${data.customer_name && data.customer_phone ? `<div class="row meta"><span>Phone
                     <div className="min-w-0">
                       <p className="text-xs font-medium text-gray-900">{tx.receipt_number}</p>
                       <p className="text-[10px] text-gray-400">{new Date(tx.created_at).toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}{tx.customer_name ? ` · ${tx.customer_name}` : ''}</p>
+                      {tx.biller_name && <p className="text-[10px] text-primary-500">Billed by {tx.biller_name}</p>}
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold text-gray-900">₹{parseFloat(tx.net_amount || tx.total_amount).toFixed(0)}</span>

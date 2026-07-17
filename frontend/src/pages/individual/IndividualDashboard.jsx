@@ -45,7 +45,7 @@ export default function IndividualDashboard() {
   const [summary,    setSummary]    = useState(null);
   const [notesCount, setNotesCount] = useState(null);
 
-  const today        = new Date().toISOString().split('T')[0];
+  const today        = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
   const firstOfMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
   const firstOfYear  = `${new Date().getFullYear()}-01-01`;
 
@@ -154,15 +154,14 @@ export default function IndividualDashboard() {
           {/* Toggle amount visibility */}
           <button
             onClick={() => setShowAmounts(v => !v)}
-            className="px-3.5 py-2 rounded-xl text-gray-400 hover:text-primary-600 transition-all flex-shrink-0"
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all flex-shrink-0 ${
+              showAmounts ? 'text-primary-700' : 'text-gray-500 hover:text-gray-700'
+            }`}
             style={{ background: '#e8edf5', boxShadow: showAmounts ? 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' : '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}
-            aria-label={showAmounts ? 'Hide amounts' : 'Show amounts'}
             title={showAmounts ? 'Hide amounts' : 'Show amounts'}
           >
-            {showAmounts
-              ? <HiOutlineEyeSlash className="w-5 h-5" />
-              : <HiOutlineEye className="w-5 h-5" />
-            }
+            {showAmounts ? <HiOutlineEyeSlash className="w-4 h-4" /> : <HiOutlineEye className="w-4 h-4" />}
+            {showAmounts ? 'Hide' : 'Show'}
           </button>
         </div>
       </div>
