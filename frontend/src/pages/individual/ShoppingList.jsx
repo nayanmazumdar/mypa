@@ -39,6 +39,7 @@ export default function ShoppingList() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [search,     setSearch]     = useState('');
   const [form,       setForm]       = useState({ name: '', qty: '', unit: '', category: 'Grocery', note: '', date: new Date().toISOString().slice(0, 10) });
+  const [lastAdded,  setLastAdded]  = useState('');
 
   // Persist to localStorage on every change
   useEffect(() => { saveItems(items); }, [items]);
@@ -62,12 +63,14 @@ export default function ShoppingList() {
     if (editingId) {
       setItems(prev => prev.map(i => i.id === editingId ? { ...i, ...form, name: form.name.trim() } : i));
       toast.success('Item updated');
+      setShowModal(false);
     } else {
       const newItem = { id: generateId(), ...form, name: form.name.trim(), status: 'pending', createdAt: new Date().toISOString() };
       setItems(prev => [newItem, ...prev]);
       toast.success('Item added');
+      setLastAdded(form.name.trim());
+      setForm({ name: '', qty: '', unit: '', category: form.category, note: '', date: new Date().toISOString().slice(0, 10) });
     }
-    setShowModal(false);
   };
 
   const setStatus = (id, status) => {
@@ -114,6 +117,7 @@ export default function ShoppingList() {
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <HiOutlineShoppingCart className="w-6 h-6 text-primary-600" />
             My Cart
+            <span className="text-sm font-normal text-gray-400">(Temporary Item List)</span>
           </h1>
           <p className="text-gray-500 text-sm mt-0.5">
             {counts.pending} pending · {counts.completed} completed · {counts.cancelled} cancelled
@@ -175,6 +179,11 @@ export default function ShoppingList() {
         </div>
       )}
 
+      {/* ── Tick hint ── */}
+      {items.length > 0 && (
+        <p className="text-xs text-primary-500">☑ Tick if completed!</p>
+      )}
+
       {/* ── List ── */}
       <div className="rounded-3xl overflow-hidden" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
         {items.length === 0 ? (
@@ -195,9 +204,9 @@ export default function ShoppingList() {
               const isDone      = item.status === 'completed';
               const isCancelled = item.status === 'cancelled';
               return (
-                <li key={item.id} className={`flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-white/20 ${isDone ? 'opacity-60' : ''}`}>
+                <li key={item.id} className={`flex items-center gap-4 px-5 py-4 transition-colors hover:bg-white/30 ${isDone || isCancelled ? 'opacity-55' : ''}`}>
 
-                  {/* Status dot / quick-complete toggle */}
+                  {/* Quick-complete toggle */}
                   <button
                     onClick={() => setStatus(item.id, item.status === 'completed' ? 'pending' : 'completed')}
                     className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
@@ -211,72 +220,60 @@ export default function ShoppingList() {
                   {/* Item info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-sm font-semibold text-gray-800 ${isDone ? 'line-through' : ''} ${isCancelled ? 'line-through text-gray-400' : ''}`}>
+                      <span className={`text-sm font-bold text-gray-800 ${
+                        isDone ? 'line-through text-gray-400' : isCancelled ? 'line-through text-gray-400' : ''
+                      }`}>
                         {item.name}
                       </span>
                       {(item.qty || item.unit) && (
-                        <span className="text-xs text-gray-400">
+                        <span className="text-xs font-semibold text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full">
                           {item.qty}{item.unit ? ` ${item.unit}` : ''}
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
                       {item.category && (
-                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 uppercase tracking-wide">
                           {item.category}
                         </span>
                       )}
                       {item.note && (
-                        <span className="text-[11px] text-gray-400 italic truncate max-w-[180px]">{item.note}</span>
+                        <span className="text-xs text-gray-400 italic">· {item.note}</span>
                       )}
                       {item.date && (
-                        <span className="text-[10px] text-gray-400">{item.date}</span>
+                        <span className="text-[10px] font-semibold text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-full ml-auto">
+                          📅 {new Date(item.date + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </span>
                       )}
                     </div>
                   </div>
 
                   {/* Status badge */}
-                  <span className={`hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${sc.badge} flex-shrink-0`}>
+                  <span className={`hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold border ${sc.badge} flex-shrink-0`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
                     {sc.label}
                   </span>
 
                   {/* Actions */}
                   <div className="flex items-center gap-0.5 flex-shrink-0">
-                    {/* Mark pending */}
                     {item.status !== 'pending' && (
-                      <button
-                        onClick={() => setStatus(item.id, 'pending')}
-                        className="p-1.5 text-gray-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-colors"
-                        title="Mark Pending"
-                      >
+                      <button onClick={() => setStatus(item.id, 'pending')}
+                        className="p-1.5 text-gray-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-colors" title="Mark Pending">
                         <HiOutlineArrowPath className="w-3.5 h-3.5" />
                       </button>
                     )}
-                    {/* Mark cancelled */}
                     {item.status !== 'cancelled' && (
-                      <button
-                        onClick={() => setStatus(item.id, 'cancelled')}
-                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Cancel"
-                      >
+                      <button onClick={() => setStatus(item.id, 'cancelled')}
+                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Cancel">
                         <HiOutlineXMark className="w-3.5 h-3.5" />
                       </button>
                     )}
-                    {/* Edit */}
-                    <button
-                      onClick={() => openEdit(item)}
-                      className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                      title="Edit"
-                    >
+                    <button onClick={() => openEdit(item)}
+                      className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Edit">
                       <HiOutlinePencil className="w-3.5 h-3.5" />
                     </button>
-                    {/* Delete */}
-                    <button
-                      onClick={() => deleteItem(item.id, item.name)}
-                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Remove"
-                    >
+                    <button onClick={() => deleteItem(item.id, item.name)}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Remove">
                       <HiOutlineTrash className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -315,105 +312,69 @@ export default function ShoppingList() {
       {/* ── Add / Edit Modal ── */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-            {/* Modal header */}
-            <div className="flex items-center justify-between px-5 py-4 rounded-t-2xl bg-primary-50">
-              <h2 className="text-base font-semibold text-primary-800 flex items-center gap-2">
-                <HiOutlineShoppingCart className="w-5 h-5" />
-                {editingId ? 'Edit Item' : 'Add Item'}
-              </h2>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-800">
+                  {editingId ? 'Edit Item' : 'Add Item'}
+                </h2>
+                {lastAdded && !editingId && (
+                  <p className="text-xs text-primary-600 font-medium flex items-center gap-1 mt-0.5">
+                    <HiOutlineCheck className="w-3.5 h-3.5" /> <span className="text-red-500">"{lastAdded}"</span> added — keep adding or close when done
+                  </p>
+                )}
+              </div>
               <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">
                 <HiOutlineXMark className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSave} className="p-5 space-y-4">
-              {/* Name */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Item Name *</label>
-                <input
-                  type="text" required autoFocus
-                  placeholder="e.g. Milk, Bread, Apples"
-                  value={form.name}
-                  onChange={e => setForm({ ...form, name: e.target.value })}
-                  className="input-field"
-                />
-              </div>
-
-              {/* Qty + Unit */}
+            <form onSubmit={handleSave} className="p-5 space-y-3">
+              <input
+                type="text" required autoFocus
+                placeholder="Item name *"
+                value={form.name}
+                onChange={e => setForm({ ...form, name: e.target.value })}
+                className="input-field"
+              />
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Quantity</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 2, 500"
-                    value={form.qty}
-                    onChange={e => setForm({ ...form, qty: e.target.value })}
-                    className="input-field"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Unit</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. kg, L, pcs"
-                    value={form.unit}
-                    onChange={e => setForm({ ...form, unit: e.target.value })}
-                    className="input-field"
-                  />
-                </div>
-              </div>
-
-              {/* Category */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Category</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {CATEGORIES.map(cat => (
-                    <button
-                      key={cat} type="button"
-                      onClick={() => setForm({ ...form, category: cat })}
-                      className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
-                        form.category === cat ? 'text-primary-700 font-semibold' : 'text-gray-600'
-                      }`}
-                      style={form.category === cat
-                        ? { background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }
-                        : { background: '#e8edf5', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }
-                      }
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Note */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Note</label>
                 <input
-                  type="text"
-                  placeholder="Optional note (brand, store, etc.)"
-                  value={form.note}
-                  onChange={e => setForm({ ...form, note: e.target.value })}
+                  type="text" placeholder="Qty (e.g. 2)"
+                  value={form.qty}
+                  onChange={e => setForm({ ...form, qty: e.target.value })}
+                  className="input-field"
+                />
+                <input
+                  type="text" placeholder="Unit (e.g. kg)"
+                  value={form.unit}
+                  onChange={e => setForm({ ...form, unit: e.target.value })}
                   className="input-field"
                 />
               </div>
-
-              {/* Date */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Date</label>
-                <input
-                  type="date"
-                  value={form.date}
-                  onChange={e => setForm({ ...form, date: e.target.value })}
-                  className="input-field"
-                />
-              </div>
-
+              <select
+                value={form.category}
+                onChange={e => setForm({ ...form, category: e.target.value })}
+                className="input-field"
+              >
+                {CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+              </select>
+              <input
+                type="text" placeholder="Note (optional)"
+                value={form.note}
+                onChange={e => setForm({ ...form, note: e.target.value })}
+                className="input-field"
+              />
+              <input
+                type="date"
+                value={form.date}
+                onChange={e => setForm({ ...form, date: e.target.value })}
+                className="input-field"
+              />
               <div className="flex justify-end gap-3 pt-1">
                 <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Cancel</button>
                 <button type="submit" className="btn-primary flex items-center gap-1.5">
                   <HiOutlineCheck className="w-4 h-4" />
-                  {editingId ? 'Update' : 'Add to List'}
+                  {editingId ? 'Update' : 'Add'}
                 </button>
               </div>
             </form>

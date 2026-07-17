@@ -3,6 +3,7 @@ const { hashPassword, comparePassword } = require('../utils/hash');
 const { generateToken } = require('../utils/jwt');
 const { generateId } = require('../utils/helper');
 const logger = require('../config/logger');
+const loginLogService = require('./loginLog.service');
 
 class AuthService {
   async register({ name, email, password, phone }) {
@@ -97,11 +98,11 @@ class AuthService {
       const e = new Error('Password or passcode required'); e.statusCode = 400; throw e;
     }
 
-    // Get user's shops
+    // Get user's shops (include inactive so disabled shops are visible)
     const [shops] = await pool.query(
-      `SELECT s.id, s.uuid, s.name, s.address, s.phone, us.role as user_role
+      `SELECT s.id, s.uuid, s.name, s.address, s.phone, us.role as user_role, s.is_active, s.is_open
        FROM user_shops us JOIN shops s ON us.shop_id = s.id
-       WHERE us.user_id = ? AND us.is_active = 1 AND s.is_active = 1`,
+       WHERE us.user_id = ? AND us.is_active = 1`,
       [user.id]
     );
 
@@ -128,19 +129,33 @@ class AuthService {
       const error = new Error('You do not have access to this shop'); error.statusCode = 403; throw error;
     }
 
-    const [[user]] = await pool.query('SELECT id, uuid, email, name FROM users WHERE id = ?', [userId]);
-    const [[shop]] = await pool.query('SELECT id, uuid, name FROM shops WHERE id = ?', [shopId]);
+    const [[user]] = await pool.query('SELECT id, uuid, email, name, default_module FROM users WHERE id = ?', [userId]);
+    const [[shop]] = await pool.query('SELECT id, uuid, name, is_active, is_open FROM shops WHERE id = ?', [shopId]);
+
+    if (!shop.is_active) {
+      const error = new Error('This shop is currently disabled'); error.statusCode = 403; throw error;
+    }
+    // Owners (admin role) can always log into their shop even when it is closed
+    if (!shop.is_open && membership.role !== 'admin') {
+      const error = new Error('This shop is currently closed'); error.statusCode = 403; throw error;
+    }
 
     const token = generateToken({
       id: user.id, uuid: user.uuid, email: user.email,
       role: membership.role, shop_id: shopId,
+      default_module: user.default_module || null,
     });
+
+    // Record login event — log_id is sent to the client so it can post logout later
+    const logId = await loginLogService.recordLogin(user.id, shopId, membership.role);
 
     logger.info(`User ${user.email} selected shop: ${shop.name} (${shopId})`);
     return {
       token,
       shop: { id: shop.id, uuid: shop.uuid, name: shop.name },
       role: membership.role,
+      default_module: user.default_module || null,
+      log_id: logId,
     };
   }
 
@@ -152,7 +167,7 @@ class AuthService {
     const shopUuid = generateId();
 
     const [shopResult] = await pool.query(
-      'INSERT INTO shops (uuid, name, address, phone, email, gst_number, owner_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO shops (uuid, name, address, phone, email, gst_number, owner_id, is_open) VALUES (?, ?, ?, ?, ?, ?, ?, 0)',
       [shopUuid, name, address || null, phone || null, email || null, gst_number || null, userId]
     );
     const shopId = shopResult.insertId;
@@ -183,17 +198,68 @@ class AuthService {
     return { success: true };
   }
 
+  async toggleShopStatus(shopId) {
+    const pool = getPool();
+    const [[shop]] = await pool.query('SELECT id, name, is_open FROM shops WHERE id = ?', [shopId]);
+    if (!shop) { const e = new Error('Shop not found'); e.statusCode = 404; throw e; }
+    const newStatus = shop.is_open ? 0 : 1;
+
+    // Update shop open/closed flag
+    await pool.query('UPDATE shops SET is_open = ? WHERE id = ?', [newStatus, shopId]);
+
+    // Disable all non-admin staff when closing, re-enable them when opening
+    await pool.query(
+      `UPDATE user_shops SET is_active = ? WHERE shop_id = ? AND role != 'admin'`,
+      [newStatus, shopId]
+    );
+
+    const [affected] = await pool.query(
+      `SELECT COUNT(*) as count FROM user_shops WHERE shop_id = ? AND role != 'admin'`,
+      [shopId]
+    );
+
+    logger.info(
+      `Shop ${shop.name} (${shopId}) ${newStatus ? 'opened' : 'closed'} — ` +
+      `${affected[0].count} staff member(s) ${newStatus ? 'enabled' : 'disabled'}`
+    );
+    return { is_open: !!newStatus, staff_updated: affected[0].count };
+  }
+
+  async removeStaff(shopId, userId) {
+    const pool = getPool();
+    // Prevent removing yourself or another admin
+    const [[membership]] = await pool.query(
+      'SELECT role FROM user_shops WHERE user_id = ? AND shop_id = ?',
+      [userId, shopId]
+    );
+    if (!membership) {
+      const e = new Error('Staff member not found in this shop'); e.statusCode = 404; throw e;
+    }
+    if (membership.role === 'admin') {
+      const e = new Error('Cannot remove a shop owner'); e.statusCode = 403; throw e;
+    }
+    await pool.query(
+      'DELETE FROM user_shops WHERE user_id = ? AND shop_id = ?',
+      [userId, shopId]
+    );
+    logger.info(`Staff user ${userId} removed from shop ${shopId}`);
+    return { success: true };
+  }
+
   async addStaff({ name, email, password, phone, role, designation, shop_id }) {
     const pool = getPool();
-    const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
+    const [existing] = await pool.query('SELECT id, name FROM users WHERE email = ?', [email]);
 
     let userId;
+    let isExisting = false;
     if (existing.length > 0) {
       userId = existing[0].id;
+      isExisting = true;
       // Check if already in this shop
       const [[inShop]] = await pool.query('SELECT id FROM user_shops WHERE user_id = ? AND shop_id = ?', [userId, shop_id]);
-      if (inShop) { const e = new Error('User is already in this shop'); e.statusCode = 409; throw e; }
+      if (inShop) { const e = new Error('This user is already a member of this shop'); e.statusCode = 409; throw e; }
     } else {
+      if (!password) { const e = new Error('Password is required for new staff'); e.statusCode = 400; throw e; }
       const hashedPassword = await hashPassword(password);
       const uuid = generateId();
       const [result] = await pool.query(
@@ -208,8 +274,17 @@ class AuthService {
       'INSERT INTO user_shops (user_id, shop_id, role, designation) VALUES (?, ?, ?, ?)',
       [userId, shop_id, staffRole, designation || null]
     );
-    logger.info(`Staff ${email} added to shop ${shop_id}`);
-    return { id: userId, name, email, role: staffRole, designation: designation || null, shop_id };
+    const displayName = isExisting ? existing[0].name : name;
+    logger.info(`Staff ${email} added to shop ${shop_id} (existing account: ${isExisting})`);
+    return {
+      id: userId,
+      name: displayName,
+      email,
+      role: staffRole,
+      designation: designation || null,
+      shop_id,
+      existing_account: isExisting,
+    };
   }
 
   async getProfile(userId) {
@@ -219,7 +294,7 @@ class AuthService {
     );
     if (!user) return null;
     const [shops] = await pool.query(
-      `SELECT s.id, s.uuid, s.name, s.address, s.phone, s.gst_number, us.role as user_role
+      `SELECT s.id, s.uuid, s.name, s.address, s.phone, s.gst_number, s.is_open, us.role as user_role
        FROM user_shops us JOIN shops s ON us.shop_id = s.id WHERE us.user_id = ?`, [userId]
     );
     return { ...user, shops };

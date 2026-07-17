@@ -77,12 +77,15 @@ export default function Sidebar({ open, onClose }) {
       >
         {/* Logo header */}
         <div className="flex items-center justify-between h-16 px-5 flex-shrink-0" style={{ borderBottom: '1px solid rgba(200,207,216,0.4)' }}>
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(145deg, #5a4dd4, #4f46e5)', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}>
-              <span className="text-white text-sm font-bold">M</span>
-            </div>
+          <a href="/" className="flex items-center gap-2.5 cursor-pointer">
+            <img
+              src="/logo.png"
+              alt="MyPA Logo"
+              className="w-9 h-9 rounded-xl object-cover flex-shrink-0"
+              style={{ boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}
+            />
             <span className="text-lg font-bold text-gray-800 tracking-tight">MyPA</span>
-          </div>
+          </a>
           <button
             onClick={onClose}
             className="md:hidden p-1.5 rounded-xl text-gray-400 hover:text-gray-600 transition-all"

@@ -33,21 +33,21 @@ const STATUS = {
 
 const PRIORITY_ORDER = ['high', 'medium', 'low'];
 
-const emptyForm = { title: '', description: '', priority: 'medium', status: 'pending', due_date: '' };
+const emptyForm = { title: '', description: '', priority: 'medium', status: 'pending', due_date: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const todayStr = () => new Date().toISOString().split('T')[0];
+const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 
 function fmtDate(raw) {
   if (!raw) return null;
-  const part = raw.length > 10 ? raw.substring(0, 10) : raw;
-  const [y, m, d] = part.split('-').map(Number);
+  // due_date arrives as plain YYYY-MM-DD from backend (DATE_FORMAT)
+  const [y, m, d] = String(raw).slice(0, 10).split('-').map(Number);
   return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function dueDateStatus(raw, status) {
   if (!raw || status === 'completed' || status === 'cancelled') return 'none';
-  const part = raw.length > 10 ? raw.substring(0, 10) : raw;
+  const part = String(raw).slice(0, 10);
   const today = todayStr();
   if (part < today) return 'overdue';
   if (part === today) return 'today';
@@ -93,7 +93,7 @@ export default function PersonalTasks() {
   };
 
   // ── Modal ─────────────────────────────────────────────────────────────────
-  const openCreate = () => { setEditingId(null); setForm(emptyForm); setShowModal(true); };
+  const openCreate = () => { setEditingId(null); setForm({ ...emptyForm, due_date: todayStr() }); setShowModal(true); };
   const openEdit   = (task) => {
     setEditingId(task.id);
     setForm({
@@ -101,7 +101,7 @@ export default function PersonalTasks() {
       description: task.description || '',
       priority:    task.priority,
       status:      task.status,
-      due_date:    task.due_date ? (task.due_date.length > 10 ? task.due_date.substring(0, 10) : task.due_date) : '',
+      due_date:    task.due_date ? String(task.due_date).slice(0, 10) : '',
     });
     setShowModal(true);
   };
@@ -195,40 +195,63 @@ export default function PersonalTasks() {
 
       {/* ── Filters + view toggle ── */}
       <div className="rounded-2xl" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
-        <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-2 px-4 pt-3 pb-2">
           <HiOutlineFunnel className="w-4 h-4 text-gray-400 flex-shrink-0" />
 
-          {/* Status filter */}
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="input-field text-sm py-1.5 w-auto"
-          >
-            <option value="">All statuses</option>
-            <option value="pending">Pending</option>
-            <option value="in_progress">In Progress</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
+          {/* Status filter buttons */}
+          {[
+            { value: '',            label: 'All' },
+            { value: 'pending',     label: 'Pending' },
+            { value: 'in_progress', label: 'In Progress' },
+            { value: 'completed',   label: 'Completed' },
+            { value: 'cancelled',   label: 'Cancelled' },
+          ].map((s) => (
+            <button
+              key={s.value}
+              onClick={() => setFilterStatus(s.value)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                filterStatus === s.value ? 'text-indigo-700' : 'text-gray-500 hover:text-gray-800'
+              }`}
+              style={filterStatus === s.value
+                ? { background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }
+                : { background: '#e8edf5', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }
+              }
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
 
-          {/* Priority filter */}
-          <select
-            value={filterPriority}
-            onChange={(e) => setFilterPriority(e.target.value)}
-            className="input-field text-sm py-1.5 w-auto"
-          >
-            <option value="">All priorities</option>
-            <option value="high">🔴 High</option>
-            <option value="medium">🟡 Medium</option>
-            <option value="low">🟢 Low</option>
-          </select>
+        <div className="flex flex-wrap items-center gap-2 px-4 pb-3">
+          {/* Priority filter buttons */}
+          {[
+            { value: '',       label: 'All Priorities' },
+            { value: 'high',   label: '🔴 High' },
+            { value: 'medium', label: '🟡 Medium' },
+            { value: 'low',    label: '🟢 Low' },
+          ].map((p) => (
+            <button
+              key={p.value}
+              onClick={() => setFilterPriority(p.value)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                filterPriority === p.value ? 'text-indigo-700' : 'text-gray-500 hover:text-gray-800'
+              }`}
+              style={filterPriority === p.value
+                ? { background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }
+                : { background: '#e8edf5', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }
+              }
+            >
+              {p.label}
+            </button>
+          ))}
 
           {(filterStatus || filterPriority) && (
             <button
               onClick={() => { setFilterStatus(''); setFilterPriority(''); }}
-              className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-500 py-1.5 px-2.5 border border-gray-200 rounded-lg"
+              className="flex items-center gap-1 text-xs text-red-400 hover:text-red-600 py-1.5 px-2.5 rounded-xl transition-all"
+              style={{ background: '#e8edf5', boxShadow: '2px 2px 4px #c8cfd8, -2px -2px 4px #ffffff' }}
             >
-              <HiOutlineXMark className="w-3.5 h-3.5" /> Clear
+              <HiOutlineXMark className="w-3.5 h-3.5" /> Reset
             </button>
           )}
 

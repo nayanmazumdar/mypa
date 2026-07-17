@@ -6,6 +6,9 @@ import { loginUser, clearError } from '../store/authSlice';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { resolveDefaultRoute } from './RoleSelector';
 
+const LOCKOUT_MINUTES = 15;
+const LOCKOUT_KEY = 'login_lockout_until';
+
 export default function Login() {
   usePageTitle('Login');
   const dispatch = useDispatch();
@@ -18,6 +21,29 @@ export default function Login() {
   const [form, setForm] = useState({ email: '', password: '' });
   const [passcode, setPasscode] = useState(['', '', '', '']);
   const passcodeRefs = [useRef(), useRef(), useRef(), useRef()];
+
+  // Rate-limit lockout state
+  const [lockedOut, setLockedOut] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+
+  // Check for existing lockout on mount and tick countdown
+  useEffect(() => {
+    const check = () => {
+      const until = parseInt(localStorage.getItem(LOCKOUT_KEY) || '0', 10);
+      const remaining = Math.ceil((until - Date.now()) / 1000);
+      if (remaining > 0) {
+        setLockedOut(true);
+        setCountdown(remaining);
+      } else {
+        setLockedOut(false);
+        setCountdown(0);
+        localStorage.removeItem(LOCKOUT_KEY);
+      }
+    };
+    check();
+    const interval = setInterval(check, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     // Check if we have a remembered account
@@ -64,6 +90,7 @@ export default function Login() {
   };
 
   const handlePasscodeSubmit = async (pin) => {
+    if (lockedOut) return;
     const result = await dispatch(loginUser({ email: form.email, passcode: pin }));
     if (loginUser.fulfilled.match(result)) {
       // Remember account for quick login
@@ -75,6 +102,9 @@ export default function Login() {
       toast.success('Welcome back!');
       navigateAfterLogin(result.payload.user);
     } else {
+      if (result.payload?.includes?.('15 minutes') || result.meta?.baseQueryMeta?.status === 429) {
+        localStorage.setItem(LOCKOUT_KEY, Date.now() + LOCKOUT_MINUTES * 60 * 1000);
+      }
       setPasscode(['', '', '', '']);
       passcodeRefs[0].current?.focus();
       toast.error(result.payload || 'Invalid passcode');
@@ -83,6 +113,7 @@ export default function Login() {
 
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
+    if (lockedOut) return;
     const result = await dispatch(loginUser(form));
     if (loginUser.fulfilled.match(result)) {
       localStorage.setItem('remembered_account', JSON.stringify({
@@ -93,6 +124,9 @@ export default function Login() {
       toast.success('Welcome back!');
       navigateAfterLogin(result.payload.user);
     } else {
+      if (result.payload?.includes?.('15 minutes')) {
+        localStorage.setItem(LOCKOUT_KEY, Date.now() + LOCKOUT_MINUTES * 60 * 1000);
+      }
       toast.error(result.payload || 'Login failed');
     }
   };
@@ -130,6 +164,12 @@ export default function Login() {
 
     // Shop role but no active shop — pick / create one
     navigate('/select-shop');
+  };
+
+  const formatCountdown = (secs) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
   };
 
   // Passcode entry UI (remembered account with passcode)
@@ -171,6 +211,14 @@ export default function Login() {
         </div>
 
         {error && <p className="text-sm text-red-600 bg-red-50 p-3 rounded-lg text-center mb-4">{error}</p>}
+
+        {lockedOut && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center mb-4">
+            <p className="text-sm font-semibold text-red-700 mb-1">Too many login attempts</p>
+            <p className="text-sm text-red-600">Please try again after 15 minutes</p>
+            <p className="text-xs text-red-400 mt-2">Try again in <span className="font-bold">{formatCountdown(countdown)}</span></p>
+          </div>
+        )}
 
         <div className="space-y-3">
           <button
@@ -229,7 +277,15 @@ export default function Login() {
 
         {error && <p className="text-sm text-red-600 bg-red-50 p-3 rounded-lg">{error}</p>}
 
-        <button type="submit" disabled={loading} className="btn-primary w-full flex items-center justify-center gap-2">
+        {lockedOut && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
+            <p className="text-sm font-semibold text-red-700 mb-1">Too many login attempts</p>
+            <p className="text-sm text-red-600">Please try again after 15 minutes</p>
+            <p className="text-xs text-red-400 mt-2">Try again in <span className="font-bold">{formatCountdown(countdown)}</span></p>
+          </div>
+        )}
+
+        <button type="submit" disabled={loading || lockedOut} className="btn-primary w-full flex items-center justify-center gap-2">
           {loading ? <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Sign in'}
         </button>
       </form>

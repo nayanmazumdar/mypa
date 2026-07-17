@@ -64,7 +64,7 @@ api.interceptors.response.use(
         break;
 
       case 429:
-        toast.error('Too many requests. Please wait.', { id: 'rate-limit', duration: 5000 });
+        toast.error(data?.message || 'Too many requests. Please wait.', { id: 'rate-limit', duration: 8000 });
         break;
 
       case 409:

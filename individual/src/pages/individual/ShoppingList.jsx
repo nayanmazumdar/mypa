@@ -175,6 +175,11 @@ export default function ShoppingList() {
         </div>
       )}
 
+      {/* ── Tick hint ── */}
+      {items.length > 0 && (
+        <p className="text-xs text-primary-500">☑ Tick if completed!</p>
+      )}
+
       {/* ── List ── */}
       <div className="rounded-3xl overflow-hidden" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
         {items.length === 0 ? (

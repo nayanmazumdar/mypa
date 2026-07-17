@@ -30,7 +30,7 @@ const ALL_SOURCES = INCOME_HEADS.flatMap((g) => g.items);
 const PAYMENT_METHODS = ['cash', 'upi', 'card', 'bank_transfer', 'other'];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const today      = () => new Date().toISOString().split('T')[0];
+const today      = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 const firstOfMonth = () => today().substring(0, 8) + '01';
 const firstOfYear  = () => today().substring(0, 5) + '01-01';
 
@@ -38,19 +38,17 @@ function prevMonthRange() {
   const d = new Date();
   const first = new Date(d.getFullYear(), d.getMonth() - 1, 1);
   const last  = new Date(d.getFullYear(), d.getMonth(), 0);
-  return {
-    from: first.toISOString().split('T')[0],
-    to:   last.toISOString().split('T')[0],
-  };
+  const fmt = (dt) => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+  return { from: fmt(first), to: fmt(last) };
 }
 
 // Fix UTC timestamp display — income_date is a DATE column; created_at carries the real timestamp
 function fmtDateTime(dateRaw, createdAt) {
   const date = (() => {
     if (!dateRaw) return '—';
-    // Handle both "YYYY-MM-DD" and "YYYY-MM-DDTHH:mm:ss.000Z" formats
-    const part = dateRaw.length > 10 ? dateRaw.substring(0, 10) : dateRaw;
+    const part = String(dateRaw).slice(0, 10);
     const [y, m, d] = part.split('-').map(Number);
+    if (!y || !m || !d) return '—';
     return new Date(y, m - 1, d).toLocaleDateString('en-IN', {
       day: '2-digit', month: 'short', year: 'numeric',
     });
@@ -211,12 +209,14 @@ export default function PersonalIncome() {
           </div>
           <button
             onClick={() => setShowAmounts(v => !v)}
-            className="p-2 rounded-xl text-gray-400 hover:text-primary-600 transition-all self-start mt-1"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+              showAmounts ? 'text-primary-700' : 'text-gray-500 hover:text-gray-700'
+            }`}
             style={{ background: '#e8edf5', boxShadow: showAmounts ? 'inset 2px 2px 4px #c8cfd8, inset -2px -2px 4px #ffffff' : '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}
-            aria-label={showAmounts ? 'Hide amounts' : 'Show amounts'}
             title={showAmounts ? 'Hide amounts' : 'Show amounts'}
           >
             {showAmounts ? <HiOutlineEyeSlash className="w-4 h-4" /> : <HiOutlineEye className="w-4 h-4" />}
+            {showAmounts ? 'Hide' : 'Show'}
           </button>
         </div>
         <button onClick={openCreate} className="btn-primary flex items-center gap-2">
@@ -290,7 +290,7 @@ export default function PersonalIncome() {
               type="date"
               value={filters.from}
               onChange={(e) => { setActivePreset(''); setFilters({ ...filters, from: e.target.value }); }}
-              className="input-field text-sm py-1.5"
+              className="input-field text-sm py-1.5 font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200"
             />
           </div>
           <div>
@@ -299,7 +299,7 @@ export default function PersonalIncome() {
               type="date"
               value={filters.to}
               onChange={(e) => { setActivePreset(''); setFilters({ ...filters, to: e.target.value }); }}
-              className="input-field text-sm py-1.5"
+              className="input-field text-sm py-1.5 font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200"
             />
           </div>
           <div>
@@ -352,7 +352,7 @@ export default function PersonalIncome() {
                   <th className="text-left px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">Description</th>
                   <th className="text-right px-4 py-3 font-semibold text-gray-600">Amount</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-600 hidden md:table-cell">Method</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-600">Date</th>
+                  <th className="text-center px-4 py-3 font-semibold text-gray-600">Date</th>
                   <th className="text-center px-4 py-3 font-semibold text-gray-600">Actions</th>
                 </tr>
               </thead>
@@ -375,8 +375,18 @@ export default function PersonalIncome() {
                         {pmLabel(inc.payment_method)}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                      {(() => { const { date, time } = fmtDateTime(inc.income_date, inc.created_at); return (<><span>{date}</span>{time && <span className="block text-[11px] text-gray-400">{time}</span>}</>); })()}
+                    <td className="px-4 py-3 whitespace-nowrap text-center">
+                      {(() => {
+                        const { date, time } = fmtDateTime(inc.income_date, inc.created_at);
+                        return (
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                              {date}
+                            </span>
+                            {time && <span className="text-[10px] text-gray-400">{time}</span>}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-1.5">
@@ -487,7 +497,7 @@ export default function PersonalIncome() {
                 type="date" required
                 value={form.income_date}
                 onChange={(e) => setForm({ ...form, income_date: e.target.value })}
-                className="input-field"
+                className="input-field font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200"
               />
             </div>
           </div>

@@ -28,6 +28,8 @@ const shopRoutes = require('./routes/shop.routes');
 const customerLedgerRoutes = require('./routes/customer-ledger.routes');
 const individualRoutes = require('./routes/individual.routes');
 const notesRoutes = require('./routes/notes.routes');
+const attendanceRoutes = require('./routes/attendance.routes');
+const loginLogRoutes = require('./routes/loginLog.routes');
 
 const app = express();
 
@@ -121,6 +123,8 @@ app.use('/api/shop', shopRoutes);
 app.use('/api/customer-ledger', customerLedgerRoutes);
 app.use('/api/individual', individualRoutes);
 app.use('/api/notes', notesRoutes);
+app.use('/api/attendance', attendanceRoutes);
+app.use('/api/login-logs', loginLogRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

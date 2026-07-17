@@ -62,7 +62,7 @@ class IndividualService {
 
     const where = conditions.join(' AND ');
     const [rows] = await pool.query(
-      `SELECT * FROM personal_expenses WHERE ${where} ORDER BY expense_date DESC, id DESC LIMIT ${lim} OFFSET ${offset}`,
+      `SELECT *, DATE_FORMAT(expense_date, '%Y-%m-%d') AS expense_date FROM personal_expenses WHERE ${where} ORDER BY expense_date DESC, id DESC LIMIT ${lim} OFFSET ${offset}`,
       params
     );
     const [[{ total }]] = await pool.query(
@@ -123,7 +123,7 @@ class IndividualService {
 
     const where = conditions.join(' AND ');
     const [rows] = await pool.query(
-      `SELECT * FROM personal_incomes WHERE ${where} ORDER BY income_date DESC, id DESC LIMIT ${lim} OFFSET ${offset}`,
+      `SELECT *, DATE_FORMAT(income_date, '%Y-%m-%d') AS income_date FROM personal_incomes WHERE ${where} ORDER BY income_date DESC, id DESC LIMIT ${lim} OFFSET ${offset}`,
       params
     );
     const [[{ total }]] = await pool.query(
@@ -184,7 +184,10 @@ class IndividualService {
 
     const where = conditions.join(' AND ');
     const [rows] = await pool.query(
-      `SELECT * FROM personal_tasks WHERE ${where} ORDER BY
+      `SELECT id, uuid, user_id, title, description, priority, status,
+              DATE_FORMAT(due_date, '%Y-%m-%d') AS due_date,
+              completed_at, created_at, updated_at
+       FROM personal_tasks WHERE ${where} ORDER BY
          FIELD(status, 'in_progress', 'pending', 'completed', 'cancelled'),
          FIELD(priority, 'high', 'medium', 'low'),
          due_date ASC, id DESC LIMIT ${lim} OFFSET ${offset}`,

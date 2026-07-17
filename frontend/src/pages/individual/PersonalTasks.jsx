@@ -33,21 +33,21 @@ const STATUS = {
 
 const PRIORITY_ORDER = ['high', 'medium', 'low'];
 
-const emptyForm = { title: '', description: '', priority: 'medium', status: 'pending', due_date: '' };
+const emptyForm = { title: '', description: '', priority: 'medium', status: 'pending', due_date: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const todayStr = () => new Date().toISOString().split('T')[0];
+const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 
 function fmtDate(raw) {
   if (!raw) return null;
-  const part = raw.length > 10 ? raw.substring(0, 10) : raw;
-  const [y, m, d] = part.split('-').map(Number);
+  // due_date arrives as plain YYYY-MM-DD from backend (DATE_FORMAT)
+  const [y, m, d] = String(raw).slice(0, 10).split('-').map(Number);
   return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function dueDateStatus(raw, status) {
   if (!raw || status === 'completed' || status === 'cancelled') return 'none';
-  const part = raw.length > 10 ? raw.substring(0, 10) : raw;
+  const part = String(raw).slice(0, 10);
   const today = todayStr();
   if (part < today) return 'overdue';
   if (part === today) return 'today';
@@ -63,8 +63,10 @@ export default function PersonalTasks() {
   const [showModal,  setShowModal]  = useState(false);
   const [editingId,  setEditingId]  = useState(null);
   const [form,       setForm]       = useState(emptyForm);
-  const [filterStatus,   setFilterStatus]   = useState('');
+  const [filterStatus,   setFilterStatus]   = useState('active'); // default: live tasks only
   const [filterPriority, setFilterPriority] = useState('');
+  const [upcomingUntil,  setUpcomingUntil]  = useState('');
+  const [showOldBanner,  setShowOldBanner]  = useState(true);
   const [view, setView] = useState('priority'); // 'priority' | 'list'
 
   // Auto-open modal from ?add=1
@@ -74,15 +76,28 @@ export default function PersonalTasks() {
 
   useEffect(() => { loadTasks(); }, [filterStatus, filterPriority]);
 
+  // Client-side upcoming filter
+  const visibleTasks = upcomingUntil
+    ? tasks.filter((t) => {
+        if (t.status === 'completed' || t.status === 'cancelled') return false;
+        if (!t.due_date) return false;
+        const due = String(t.due_date).slice(0, 10);
+        return due >= todayStr() && due <= upcomingUntil;
+      })
+    : tasks;
+
   // ── Data ──────────────────────────────────────────────────────────────────
   const loadTasks = async () => {
     setLoading(true);
     try {
       const params = {};
-      if (filterStatus)   params.status   = filterStatus;
+      // 'active' is a UI-only value — send pending + in_progress as two calls or filter client-side
+      if (filterStatus && filterStatus !== 'active') params.status = filterStatus;
       if (filterPriority) params.priority = filterPriority;
       const res = await individualApi.getTasks(params);
-      const rows = Array.isArray(res.data) ? res.data : (Array.isArray(res) ? res : []);
+      let rows = Array.isArray(res.data) ? res.data : (Array.isArray(res) ? res : []);
+      // Client-side filter for 'active' (pending + in_progress)
+      if (filterStatus === 'active') rows = rows.filter((t) => t.status === 'pending' || t.status === 'in_progress');
       setTasks(rows);
     } catch (err) {
       console.error('loadTasks error:', err?.message || err);
@@ -93,7 +108,7 @@ export default function PersonalTasks() {
   };
 
   // ── Modal ─────────────────────────────────────────────────────────────────
-  const openCreate = () => { setEditingId(null); setForm(emptyForm); setShowModal(true); };
+  const openCreate = () => { setEditingId(null); setForm({ ...emptyForm, due_date: todayStr() }); setShowModal(true); };
   const openEdit   = (task) => {
     setEditingId(task.id);
     setForm({
@@ -101,7 +116,7 @@ export default function PersonalTasks() {
       description: task.description || '',
       priority:    task.priority,
       status:      task.status,
-      due_date:    task.due_date ? (task.due_date.length > 10 ? task.due_date.substring(0, 10) : task.due_date) : '',
+      due_date:    task.due_date ? String(task.due_date).slice(0, 10) : '',
     });
     setShowModal(true);
   };
@@ -148,16 +163,16 @@ export default function PersonalTasks() {
   };
 
   // ── Stats ─────────────────────────────────────────────────────────────────
-  const total     = tasks.length;
-  const pending   = tasks.filter((t) => t.status === 'pending').length;
-  const inProg    = tasks.filter((t) => t.status === 'in_progress').length;
-  const done      = tasks.filter((t) => t.status === 'completed').length;
-  const overdue   = tasks.filter((t) => dueDateStatus(t.due_date, t.status) === 'overdue').length;
-  const dueToday  = tasks.filter((t) => dueDateStatus(t.due_date, t.status) === 'today').length;
+  const total     = visibleTasks.length;
+  const pending   = visibleTasks.filter((t) => t.status === 'pending').length;
+  const inProg    = visibleTasks.filter((t) => t.status === 'in_progress').length;
+  const done      = visibleTasks.filter((t) => t.status === 'completed').length;
+  const overdue   = visibleTasks.filter((t) => dueDateStatus(t.due_date, t.status) === 'overdue').length;
+  const dueToday  = visibleTasks.filter((t) => dueDateStatus(t.due_date, t.status) === 'today').length;
 
   // ── Priority groups ───────────────────────────────────────────────────────
   const grouped = PRIORITY_ORDER.reduce((acc, p) => {
-    acc[p] = tasks.filter((t) => t.priority === p);
+    acc[p] = visibleTasks.filter((t) => t.priority === p);
     return acc;
   }, {});
 
@@ -195,42 +210,77 @@ export default function PersonalTasks() {
 
       {/* ── Filters + view toggle ── */}
       <div className="rounded-2xl" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
-        <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-2 px-4 pt-3 pb-2">
           <HiOutlineFunnel className="w-4 h-4 text-gray-400 flex-shrink-0" />
 
-          {/* Status filter */}
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="input-field text-sm py-1.5 w-auto"
-          >
-            <option value="">All statuses</option>
-            <option value="pending">Pending</option>
-            <option value="in_progress">In Progress</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-
-          {/* Priority filter */}
-          <select
-            value={filterPriority}
-            onChange={(e) => setFilterPriority(e.target.value)}
-            className="input-field text-sm py-1.5 w-auto"
-          >
-            <option value="">All priorities</option>
-            <option value="high">🔴 High</option>
-            <option value="medium">🟡 Medium</option>
-            <option value="low">🟢 Low</option>
-          </select>
-
-          {(filterStatus || filterPriority) && (
+          {/* Status filter buttons */}
+          {[
+            { value: 'active',      label: '🟢 Live' },
+            { value: '',            label: 'All' },
+            { value: 'pending',     label: 'Pending' },
+            { value: 'in_progress', label: 'In Progress' },
+            { value: 'completed',   label: 'Completed' },
+            { value: 'cancelled',   label: 'Cancelled' },
+          ].map((s) => (
             <button
-              onClick={() => { setFilterStatus(''); setFilterPriority(''); }}
-              className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-500 py-1.5 px-2.5 border border-gray-200 rounded-lg"
+              key={s.value}
+              onClick={() => setFilterStatus(s.value)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                filterStatus === s.value ? 'text-indigo-700' : 'text-gray-500 hover:text-gray-800'
+              }`}
+              style={filterStatus === s.value
+                ? { background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }
+                : { background: '#e8edf5', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }
+              }
             >
-              <HiOutlineXMark className="w-3.5 h-3.5" /> Clear
+              {s.label}
             </button>
-          )}
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 px-4 pb-3">
+          {/* Priority filter buttons */}
+          {[
+            { value: '',       label: 'All Priorities' },
+            { value: 'high',   label: '🔴 High' },
+            { value: 'medium', label: '🟡 Medium' },
+            { value: 'low',    label: '🟢 Low' },
+          ].map((p) => (
+            <button
+              key={p.value}
+              onClick={() => setFilterPriority(p.value)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                filterPriority === p.value ? 'text-indigo-700' : 'text-gray-500 hover:text-gray-800'
+              }`}
+              style={filterPriority === p.value
+                ? { background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }
+                : { background: '#e8edf5', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }
+              }
+            >
+              {p.label}
+            </button>
+          ))}
+
+          {/* Upcoming until date picker */}
+          <div className="flex items-center gap-2 ml-2">
+            <label className="text-xs text-gray-500 font-medium whitespace-nowrap">Until</label>
+            <input
+              type="date"
+              value={upcomingUntil}
+              min={todayStr()}
+              onChange={(e) => setUpcomingUntil(e.target.value)}
+              className="input-field text-sm py-1.5 w-auto"
+            />
+            {upcomingUntil && (
+              <button
+                onClick={() => setUpcomingUntil('')}
+                className="text-gray-400 hover:text-red-500 transition-colors"
+                title="Clear"
+              >
+                <HiOutlineXMark className="w-4 h-4" />
+              </button>
+            )}
+          </div>
 
           {/* View toggle */}
           <div className="ml-auto flex rounded-lg overflow-hidden" style={{ background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }}>
@@ -256,12 +306,20 @@ export default function PersonalTasks() {
         </div>
       </div>
 
+      {/* ── Old data suggestion banner ── */}
+      {filterStatus === 'active' && showOldBanner && (
+        <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl text-xs text-indigo-700 bg-indigo-50 border border-indigo-100">
+          <span>📂 Looking for completed or cancelled tasks? Use the <strong>status buttons</strong> above to view old data.</span>
+          <button onClick={() => setShowOldBanner(false)} className="text-indigo-400 hover:text-indigo-600 flex-shrink-0"><HiOutlineXMark className="w-3.5 h-3.5" /></button>
+        </div>
+      )}
+
       {/* ── Task content ── */}
       {loading ? (
         <div className="flex justify-center py-14">
           <span className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
         </div>
-      ) : tasks.length === 0 ? (
+      ) : visibleTasks.length === 0 ? (
         <div className="rounded-2xl flex flex-col items-center justify-center py-16" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
           <HiOutlineClipboardDocumentList className="w-12 h-12 mb-3 text-gray-200" />
           <p className="text-sm font-medium text-gray-500">No tasks yet</p>
@@ -295,7 +353,7 @@ export default function PersonalTasks() {
       ) : (
         /* ── Flat list view ── */
         <div className="space-y-2">
-          {tasks.map((task) => (
+          {visibleTasks.map((task) => (
             <TaskCard key={task.id} task={task} onEdit={openEdit} onDelete={handleDelete} onCycle={cycleStatus} />
           ))}
         </div>
@@ -399,81 +457,100 @@ function TaskCard({ task, onEdit, onDelete, onCycle }) {
   const done        = task.status === 'completed';
   const cancelled   = task.status === 'cancelled';
 
+  const accentColor = {
+    high:   { bar: 'bg-red-400',    glow: 'rgba(239,68,68,0.15)' },
+    medium: { bar: 'bg-yellow-400', glow: 'rgba(250,204,21,0.15)' },
+    low:    { bar: 'bg-green-400',  glow: 'rgba(74,222,128,0.15)' },
+  }[task.priority] || { bar: 'bg-gray-300', glow: 'transparent' };
+
+  const dueColors = {
+    overdue:  'text-red-600 bg-red-50 border border-red-200',
+    today:    'text-orange-600 bg-orange-50 border border-orange-200',
+    upcoming: 'text-indigo-500 bg-indigo-50 border border-indigo-100',
+    none:     '',
+  };
+
   return (
-    <div className={`rounded-2xl p-4 flex items-start gap-3 transition-all ${
-      done || cancelled
-        ? 'opacity-60'
-        : ''
-    }`} style={{ background: '#e8edf5', boxShadow: dueStatus === 'overdue' ? 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' : '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
+    <div
+      className={`group relative rounded-2xl overflow-hidden transition-all duration-200 hover:scale-[1.01] ${
+        done || cancelled ? 'opacity-55' : ''
+      }`}
+      style={{ background: '#e8edf5', boxShadow: dueStatus === 'overdue' ? 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' : '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}
+    >
+      {/* Priority accent bar */}
+      <div className={`absolute left-0 top-0 bottom-0 w-1 ${accentColor.bar} rounded-l-2xl`} />
 
-      {/* Status cycle button */}
-      <button
-        onClick={() => onCycle(task)}
-        title={`Status: ${statusCfg.label} — click to advance`}
-        className={`mt-0.5 flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
-          done
-            ? 'bg-green-500 border-green-500 text-white'
-            : cancelled
-            ? 'border-gray-300 bg-gray-100 text-gray-400'
-            : 'border-gray-300 hover:border-indigo-400 hover:bg-indigo-50'
-        }`}
-      >
-        {done && <HiOutlineCheckCircle className="w-3.5 h-3.5" />}
-      </button>
+      <div className="pl-4 pr-3 py-3.5 flex items-start gap-3">
 
-      {/* Body */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-start justify-between gap-2 flex-wrap">
-          <p className={`text-sm font-medium leading-snug ${done || cancelled ? 'line-through text-gray-400' : 'text-gray-900'}`}>
-            {task.title}
-          </p>
-          <div className="flex items-center gap-1.5 flex-shrink-0">
+        {/* Status cycle button */}
+        <button
+          onClick={() => onCycle(task)}
+          title={`${statusCfg.label} — click to advance`}
+          className={`mt-0.5 flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+            done
+              ? 'bg-green-500 border-green-500 text-white shadow-sm'
+              : cancelled
+              ? 'border-gray-300 bg-gray-100 text-gray-400'
+              : 'border-gray-300 hover:border-indigo-400 hover:bg-indigo-50 hover:scale-110'
+          }`}
+        >
+          {done && <HiOutlineCheckCircle className="w-3.5 h-3.5" />}
+        </button>
+
+        {/* Body */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <p className={`text-sm font-semibold leading-snug ${
+              done || cancelled ? 'line-through text-gray-400' : 'text-gray-800'
+            }`}>
+              {task.title}
+            </p>
+            {/* Actions — visible on hover */}
+            <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                onClick={() => onEdit(task)}
+                className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                title="Edit"
+              >
+                <HiOutlinePencil className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => onDelete(task.id)}
+                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                title="Delete"
+              >
+                <HiOutlineTrash className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {task.description && (
+            <p className="text-xs text-gray-500 mt-0.5 leading-relaxed truncate">{task.description}</p>
+          )}
+
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
             {/* Priority badge */}
-            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${priorityCfg.badge}`}>
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${priorityCfg.badge}`}>
               <span className={`w-1.5 h-1.5 rounded-full ${priorityCfg.dot}`} />
               {priorityCfg.label}
             </span>
             {/* Status badge */}
-            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${statusCfg.bg}`}>
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${statusCfg.bg}`}>
               <StatusIcon className="w-3 h-3" />
               {statusCfg.label}
             </span>
+            {/* Due date chip */}
+            {task.due_date && (
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                dueColors[dueStatus] || dueColors.upcoming
+              }`}>
+                {dueStatus === 'overdue' && <HiOutlineExclamationTriangle className="w-3 h-3" />}
+                {dueStatus === 'overdue' ? 'Overdue · ' : dueStatus === 'today' ? '📅 Today · ' : '🗓 '}
+                {fmtDate(task.due_date)}
+              </span>
+            )}
           </div>
         </div>
-
-        {task.description && (
-          <p className="text-xs text-gray-500 mt-1 leading-relaxed">{task.description}</p>
-        )}
-
-        {task.due_date && (
-          <div className={`flex items-center gap-1 mt-1.5 text-xs ${
-            dueStatus === 'overdue' ? 'text-red-600 font-medium'
-            : dueStatus === 'today' ? 'text-orange-600 font-medium'
-            : 'text-gray-400'
-          }`}>
-            {dueStatus === 'overdue' && <HiOutlineExclamationTriangle className="w-3.5 h-3.5" />}
-            {dueStatus === 'overdue' ? 'Overdue · ' : dueStatus === 'today' ? '📅 Due today · ' : 'Due: '}
-            {fmtDate(task.due_date)}
-          </div>
-        )}
-      </div>
-
-      {/* Actions */}
-      <div className="flex items-center gap-1 flex-shrink-0">
-        <button
-          onClick={() => onEdit(task)}
-          className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
-          title="Edit"
-        >
-          <HiOutlinePencil className="w-4 h-4" />
-        </button>
-        <button
-          onClick={() => onDelete(task.id)}
-          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-          title="Delete"
-        >
-          <HiOutlineTrash className="w-4 h-4" />
-        </button>
       </div>
     </div>
   );

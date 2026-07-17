@@ -36,12 +36,24 @@ import PersonalReport from '../pages/individual/PersonalReport';
 import IndividualSettings from '../pages/individual/IndividualSettings';
 import PersonalBudget from '../pages/individual/PersonalBudget';
 import ShoppingList from '../pages/individual/ShoppingList';
+import { useSelector } from 'react-redux';
+import { Navigate } from 'react-router-dom';
+
+// Smart landing: redirect authenticated users to their home
+function SmartLanding() {
+  const { isAuthenticated, user } = useSelector((state) => state.auth);
+  if (!isAuthenticated) return <LandingPage />;
+  if (!user?.role) return <Navigate to="/choose-role" replace />;
+  if (user.role === 'individual') return <Navigate to="/individual" replace />;
+  if (user.shop_id) return <Navigate to="/dashboard" replace />;
+  return <Navigate to="/select-shop" replace />;
+}
 
 export default function AppRouter() {
   return (
     <Routes>
-      {/* Public landing page */}
-      <Route path="/" element={<LandingPage />} />
+      {/* Public landing page — redirects authenticated users to their home */}
+      <Route path="/" element={<SmartLanding />} />
 
       {/* Auth routes (public) */}
       <Route element={<AuthLayout />}>
