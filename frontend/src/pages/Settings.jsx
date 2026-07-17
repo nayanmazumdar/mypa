@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { updateShopStatus } from '../store/authSlice';
-import { useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   HiOutlineUser, HiOutlineBuildingStorefront, HiOutlineUserGroup,
@@ -22,7 +20,6 @@ export default function Settings() {
   usePageTitle('Settings');
   const { user } = useSelector((state) => state.auth);
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('profile');
   const dispatch = useDispatch();
   const location = useLocation();
   const initialTab = new URLSearchParams(location.search).get('tab') || 'profile';
