@@ -43,6 +43,7 @@ class LoginLogService {
          l.id, l.login_at, l.logout_at, l.role, l.date,
          u.name  AS user_name,
          u.email AS user_email,
+         s.name  AS shop_name,
          CASE
            WHEN l.logout_at IS NOT NULL
            THEN TIMESTAMPDIFF(MINUTE, l.login_at, l.logout_at)
@@ -50,9 +51,38 @@ class LoginLogService {
          END AS duration_minutes
        FROM shop_login_logs l
        JOIN users u ON l.user_id = u.id
+       JOIN shops s ON l.shop_id = s.id
        WHERE l.shop_id = ? AND l.date = ?
        ORDER BY l.login_at DESC`,
       [shopId, targetDate]
+    );
+    return { date: targetDate, logs: rows };
+  }
+
+  /**
+   * Get login logs across ALL shops the admin owns for a given date.
+   */
+  async getLogsForAdmin(adminId, date) {
+    const pool = getPool();
+    const targetDate = date || new Date().toISOString().slice(0, 10);
+    const [rows] = await pool.query(
+      `SELECT
+         l.id, l.login_at, l.logout_at, l.role, l.date,
+         u.name  AS user_name,
+         u.email AS user_email,
+         s.name  AS shop_name,
+         CASE
+           WHEN l.logout_at IS NOT NULL
+           THEN TIMESTAMPDIFF(MINUTE, l.login_at, l.logout_at)
+           ELSE NULL
+         END AS duration_minutes
+       FROM shop_login_logs l
+       JOIN users u ON l.user_id = u.id
+       JOIN shops s ON l.shop_id = s.id
+       WHERE l.shop_id IN (SELECT shop_id FROM user_shops WHERE user_id = ? AND role = 'admin')
+         AND l.date = ?
+       ORDER BY l.login_at DESC`,
+      [adminId, targetDate]
     );
     return { date: targetDate, logs: rows };
   }

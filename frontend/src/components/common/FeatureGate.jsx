@@ -36,7 +36,7 @@ export default function FeatureGate({ feature, available, children, title }) {
         This feature is not included in your current plan. Upgrade to unlock {label.toLowerCase()} and grow your business.
       </p>
       <button
-        onClick={() => navigate('/subscription')}
+        onClick={() => navigate('/admin/subscription')}
         className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white transition-all"
         style={{ background: 'linear-gradient(145deg, #5a4dd4, #4f46e5)', boxShadow: '4px 4px 8px #c8cfd8, -4px -4px 8px #ffffff' }}
       >

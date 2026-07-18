@@ -14,7 +14,7 @@ export default function ShopRequired() {
   }
 
   if (!user?.shop_id) {
-    return <Navigate to="/select-shop" replace />;
+    return <Navigate to="/admin/shops" replace />;
   }
 
   return <Outlet />;

@@ -66,7 +66,9 @@ class AuthController {
 
   async getStaff(req, res) {
     try {
-      const staff = await authService.getShopStaff(req.user.shop_id);
+      const shopId = req.query.shop_id || req.user.shop_id;
+      if (!shopId) return ApiResponse.error(res, 'No shop specified', 400);
+      const staff = await authService.getShopStaff(shopId);
       return ApiResponse.success(res, staff);
     } catch (error) {
       logger.error('Get staff error:', error.message);
@@ -88,7 +90,9 @@ class AuthController {
 
   async toggleShopStatus(req, res) {
     try {
-      const result = await authService.toggleShopStatus(req.user.shop_id);
+      const shopId = req.body.shop_id || req.user.shop_id;
+      if (!shopId) return ApiResponse.error(res, 'No shop specified', 400);
+      const result = await authService.toggleShopStatus(shopId);
       const msg = result.is_open
         ? `Shop is now Open — ${result.staff_updated} staff member(s) enabled`
         : `Shop is now Closed — ${result.staff_updated} staff member(s) disabled`;
@@ -101,7 +105,9 @@ class AuthController {
 
   async removeStaff(req, res) {
     try {
-      await authService.removeStaff(req.user.shop_id, parseInt(req.params.userId, 10));
+      const shopId = req.query.shop_id || req.body.shop_id || req.user.shop_id;
+      if (!shopId) return ApiResponse.error(res, 'No shop specified', 400);
+      await authService.removeStaff(shopId, parseInt(req.params.userId, 10));
       return ApiResponse.success(res, null, 'Staff member removed from shop');
     } catch (error) {
       logger.error('Remove staff error:', error.message);
@@ -147,7 +153,9 @@ class AuthController {
 
   async updateShop(req, res) {
     try {
-      await authService.updateShop(req.user.shop_id, req.body);
+      const shopId = req.body.shop_id || req.user.shop_id;
+      if (!shopId) return ApiResponse.error(res, 'No shop specified', 400);
+      await authService.updateShop(shopId, req.body);
       return ApiResponse.success(res, null, 'Shop updated');
     } catch (error) {
       logger.error('Update shop error:', error.message);
@@ -182,6 +190,25 @@ class AuthController {
     } catch (error) {
       logger.error('Refresh token error:', error.message);
       return ApiResponse.error(res, error.message, error.statusCode || 401);
+    }
+  }
+  async createUser(req, res) {
+    try {
+      const result = await authService.createUserAccount(req.body);
+      return ApiResponse.created(res, result, 'User account created');
+    } catch (error) {
+      logger.error('Create user error:', error.message);
+      return ApiResponse.error(res, error.message, error.statusCode || 500);
+    }
+  }
+
+  async getAllUsers(req, res) {
+    try {
+      const users = await authService.getAllUsersForAdmin(req.user.id);
+      return ApiResponse.success(res, users);
+    } catch (error) {
+      logger.error('Get all users error:', error.message);
+      return ApiResponse.error(res, error.message, error.statusCode || 500);
     }
   }
 }

@@ -266,7 +266,7 @@ router.post('/checkout', authenticate, permit('pos:checkout'), async (req, res, 
       // Insert transaction — biller_id captures who processed this sale (staff/manager/admin)
       const [txResult] = await connection.query(
         `INSERT INTO pos_transactions (uuid, user_id, biller_id, shop_id, customer_name, customer_id, total_amount, discount, net_amount, payment_method, amount_received, change_amount, receipt_number, payments_json)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [uuid, req.user.id, req.user.id, req.user.shop_id, customer_name || null, customer_id || null, totalAmount, discountAmount, netAmount, resolvedPaymentMethod, resolvedAmountReceived, changeAmount > 0 ? changeAmount : 0, receiptNumber, paymentsJson]
       );
       const transactionId = txResult.insertId;

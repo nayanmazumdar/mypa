@@ -28,7 +28,7 @@ export default function Header({ onMenuClick }) {
       try { await api.post('/login-logs/logout', { log_id: logId }); } catch (_) {}
     }
     dispatch(switchShop());
-    navigate('/select-shop');
+    navigate('/admin/shops');
   };
 
   // Derive open/closed status from the active shop in the user.shops list

@@ -162,8 +162,8 @@ export default function Login() {
       return;
     }
 
-    // Shop role but no active shop — pick / create one
-    navigate('/select-shop');
+    // Admin goes to admin panel to choose shop; staff goes to admin panel too
+    navigate('/admin/shops');
   };
 
   const formatCountdown = (secs) => {

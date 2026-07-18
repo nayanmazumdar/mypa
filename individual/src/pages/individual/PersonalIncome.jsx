@@ -35,9 +35,6 @@ const firstOfYear  = () => today().substring(0, 5) + '01-01';
 function prevMonthRange() {
   const d = new Date();
   const first = new Date(d.getFullYear(), d.getMonth() - 1, 1);
-function prevMonthRange() {
-  const d = new Date();
-  const first = new Date(d.getFullYear(), d.getMonth() - 1, 1);
   const last  = new Date(d.getFullYear(), d.getMonth(), 0);
   const fmt = (dt) => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
   return { from: fmt(first), to: fmt(last) };

@@ -300,6 +300,13 @@ router.post('/check-email', authenticate, authController.checkEmail);
 router.delete('/staff/:userId', authenticate, authorize('admin'), authController.removeStaff);
 
 // Toggle shop open/closed status (admin only)
+// Toggle shop open/closed status (admin only)
 router.patch('/shop/status', authenticate, authorize('admin'), authController.toggleShopStatus);
+
+// Create a user account (admin only, no shop assignment)
+router.post('/create-user', authenticate, authorize('admin'), authController.createUser);
+
+// Get all users across all admin's shops
+router.get('/all-users', authenticate, authorize('admin'), authController.getAllUsers);
 
 module.exports = router;

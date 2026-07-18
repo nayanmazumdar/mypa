@@ -1,0 +1,231 @@
+const express = require('express');
+const router = express.Router();
+const { getPool } = require('../config/db');
+const { authenticate, authorize } = require('../middlewares/auth.middleware');
+const ApiResponse = require('../utils/response');
+const bcrypt = require('bcryptjs');
+const { v4: uuidv4 } = require('uuid');
+
+// All routes require admin role
+router.use(authenticate, authorize('admin'));
+
+/* ── SHOPS ── */
+
+// GET /api/admin/shops — all shops owned by this admin
+router.get('/shops', async (req, res, next) => {
+  try {
+    const pool = getPool();
+    const [shops] = await pool.query(
+      `SELECT s.id, s.uuid, s.name, s.address, s.phone, s.email, s.gst_number,
+              s.is_active, s.is_open, s.owner_id, s.created_at,
+              u.name AS owner_name, u.email AS owner_email,
+              COUNT(DISTINCT us.user_id) AS staff_count
+       FROM shops s
+       LEFT JOIN users u ON u.id = s.owner_id
+       LEFT JOIN user_shops us ON us.shop_id = s.id
+       WHERE s.owner_id = ?
+       GROUP BY s.id
+       ORDER BY s.created_at DESC`,
+      [req.user.id]
+    );
+    return ApiResponse.success(res, shops);
+  } catch (err) { next(err); }
+});
+
+// POST /api/admin/shops — create a new shop
+router.post('/shops', async (req, res, next) => {
+  try {
+    const pool = getPool();
+    const { name, address, phone, email, gst_number } = req.body;
+    if (!name?.trim()) return ApiResponse.error(res, 'Shop name is required', 400);
+
+    const uuid = uuidv4();
+    const [result] = await pool.query(
+      'INSERT INTO shops (uuid, name, address, phone, email, gst_number, owner_id, is_active, is_open) VALUES (?,?,?,?,?,?,?,1,1)',
+      [uuid, name.trim(), address || null, phone || null, email || null, gst_number || null, req.user.id]
+    );
+    const shopId = result.insertId;
+
+    // Auto-assign owner as admin of the new shop
+    await pool.query(
+      'INSERT INTO user_shops (user_id, shop_id, role, is_active) VALUES (?,?,?,1)',
+      [req.user.id, shopId, 'admin']
+    );
+
+    const [[shop]] = await pool.query('SELECT * FROM shops WHERE id = ?', [shopId]);
+    return ApiResponse.created(res, shop, 'Shop created');
+  } catch (err) { next(err); }
+});
+
+// PUT /api/admin/shops/:id — edit shop details
+router.put('/shops/:id', async (req, res, next) => {
+  try {
+    const pool = getPool();
+    const { name, address, phone, email, gst_number } = req.body;
+    if (!name?.trim()) return ApiResponse.error(res, 'Shop name is required', 400);
+
+    const [[shop]] = await pool.query('SELECT id FROM shops WHERE id = ? AND owner_id = ?', [req.params.id, req.user.id]);
+    if (!shop) return ApiResponse.notFound(res, 'Shop not found');
+
+    await pool.query(
+      'UPDATE shops SET name=?, address=?, phone=?, email=?, gst_number=? WHERE id=?',
+      [name.trim(), address || null, phone || null, email || null, gst_number || null, req.params.id]
+    );
+    return ApiResponse.success(res, null, 'Shop updated');
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/admin/shops/:id/active — toggle is_active
+router.patch('/shops/:id/active', async (req, res, next) => {
+  try {
+    const pool = getPool();
+    const [[shop]] = await pool.query('SELECT id, is_active FROM shops WHERE id = ? AND owner_id = ?', [req.params.id, req.user.id]);
+    if (!shop) return ApiResponse.notFound(res, 'Shop not found');
+
+    const newVal = shop.is_active ? 0 : 1;
+    await pool.query('UPDATE shops SET is_active=? WHERE id=?', [newVal, req.params.id]);
+    return ApiResponse.success(res, { is_active: newVal }, newVal ? 'Shop activated' : 'Shop deactivated');
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/admin/shops/:id/open — toggle is_open
+router.patch('/shops/:id/open', async (req, res, next) => {
+  try {
+    const pool = getPool();
+    const [[shop]] = await pool.query('SELECT id, is_open FROM shops WHERE id = ? AND owner_id = ?', [req.params.id, req.user.id]);
+    if (!shop) return ApiResponse.notFound(res, 'Shop not found');
+
+    const newVal = shop.is_open ? 0 : 1;
+    await pool.query('UPDATE shops SET is_open=? WHERE id=?', [newVal, req.params.id]);
+    // Sync staff access
+    await pool.query('UPDATE user_shops SET is_active=? WHERE shop_id=? AND role != ?', [newVal, req.params.id, 'admin']);
+    return ApiResponse.success(res, { is_open: newVal }, newVal ? 'Shop opened' : 'Shop closed');
+  } catch (err) { next(err); }
+});
+
+/* ── USERS ── */
+
+// GET /api/admin/users — all users across all owned shops
+router.get('/users', async (req, res, next) => {
+  try {
+    const pool = getPool();
+    const [users] = await pool.query(
+      `SELECT DISTINCT u.id, u.uuid, u.name, u.email, u.phone, u.role, u.is_active, u.created_at,
+              GROUP_CONCAT(DISTINCT s.name ORDER BY s.name SEPARATOR ', ') AS shop_names,
+              GROUP_CONCAT(DISTINCT us.shop_id ORDER BY s.name SEPARATOR ',') AS shop_ids,
+              GROUP_CONCAT(DISTINCT us.role ORDER BY s.name SEPARATOR ',') AS shop_roles
+       FROM users u
+       JOIN user_shops us ON us.user_id = u.id
+       JOIN shops s ON s.id = us.shop_id AND s.owner_id = ?
+       GROUP BY u.id
+       ORDER BY u.created_at DESC`,
+      [req.user.id]
+    );
+    return ApiResponse.success(res, users);
+  } catch (err) { next(err); }
+});
+
+// POST /api/admin/users — create a new user and optionally assign to a shop
+router.post('/users', async (req, res, next) => {
+  try {
+    const pool = getPool();
+    const { name, email, password, phone, role = 'staff', shop_id, shop_role = 'staff' } = req.body;
+    if (!name?.trim() || !email?.trim() || !password) return ApiResponse.error(res, 'Name, email and password are required', 400);
+    if (password.length < 8) return ApiResponse.error(res, 'Password must be at least 8 characters', 400);
+
+    const [[existing]] = await pool.query('SELECT id FROM users WHERE email = ?', [email.toLowerCase().trim()]);
+    if (existing) return ApiResponse.error(res, 'Email already in use', 409);
+
+    const hashed = await bcrypt.hash(password, 10);
+    const uuid = uuidv4();
+    const [result] = await pool.query(
+      'INSERT INTO users (uuid, name, email, phone, password, role, is_active) VALUES (?,?,?,?,?,?,1)',
+      [uuid, name.trim(), email.toLowerCase().trim(), phone || null, hashed, role]
+    );
+    const userId = result.insertId;
+
+    if (shop_id) {
+      const [[ownedShop]] = await pool.query('SELECT id FROM shops WHERE id = ? AND owner_id = ?', [shop_id, req.user.id]);
+      if (ownedShop) {
+        await pool.query(
+          'INSERT INTO user_shops (user_id, shop_id, role, is_active) VALUES (?,?,?,1)',
+          [userId, shop_id, shop_role]
+        );
+      }
+    }
+
+    return ApiResponse.created(res, { id: userId, name: name.trim(), email }, 'User created');
+  } catch (err) { next(err); }
+});
+
+// PATCH /api/admin/users/:id — edit user details
+router.patch('/users/:id', async (req, res, next) => {
+  try {
+    const pool = getPool();
+    const { name, phone, email, is_active } = req.body;
+
+    // Verify user belongs to one of admin's shops
+    const [[membership]] = await pool.query(
+      `SELECT u.id FROM users u
+       JOIN user_shops us ON us.user_id = u.id
+       JOIN shops s ON s.id = us.shop_id AND s.owner_id = ?
+       WHERE u.id = ? LIMIT 1`,
+      [req.user.id, req.params.id]
+    );
+    if (!membership) return ApiResponse.notFound(res, 'User not found');
+
+    const updates = [];
+    const params = [];
+    if (name)  { updates.push('name=?'); params.push(name.trim()); }
+    if (phone !== undefined) { updates.push('phone=?'); params.push(phone || null); }
+    if (email) {
+      const [[clash]] = await pool.query('SELECT id FROM users WHERE email=? AND id!=?', [email, req.params.id]);
+      if (clash) return ApiResponse.error(res, 'Email already in use', 409);
+      updates.push('email=?'); params.push(email.toLowerCase().trim());
+    }
+    if (is_active !== undefined) { updates.push('is_active=?'); params.push(is_active ? 1 : 0); }
+
+    if (!updates.length) return ApiResponse.error(res, 'Nothing to update', 400);
+    params.push(req.params.id);
+    await pool.query(`UPDATE users SET ${updates.join(',')} WHERE id=?`, params);
+    return ApiResponse.success(res, null, 'User updated');
+  } catch (err) { next(err); }
+});
+
+// POST /api/admin/shops/:id/assign — assign existing user to a shop
+router.post('/shops/:id/assign', async (req, res, next) => {
+  try {
+    const pool = getPool();
+    const { user_id, role = 'staff' } = req.body;
+    if (!user_id) return ApiResponse.error(res, 'user_id is required', 400);
+
+    const [[shop]] = await pool.query('SELECT id FROM shops WHERE id = ? AND owner_id = ?', [req.params.id, req.user.id]);
+    if (!shop) return ApiResponse.notFound(res, 'Shop not found');
+
+    const [[user]] = await pool.query('SELECT id FROM users WHERE id = ?', [user_id]);
+    if (!user) return ApiResponse.notFound(res, 'User not found');
+
+    const [[existing]] = await pool.query('SELECT id FROM user_shops WHERE user_id=? AND shop_id=?', [user_id, req.params.id]);
+    if (existing) {
+      await pool.query('UPDATE user_shops SET role=?, is_active=1 WHERE user_id=? AND shop_id=?', [role, user_id, req.params.id]);
+      return ApiResponse.success(res, null, 'User assignment updated');
+    }
+
+    await pool.query('INSERT INTO user_shops (user_id, shop_id, role, is_active) VALUES (?,?,?,1)', [user_id, req.params.id, role]);
+    return ApiResponse.created(res, null, 'User assigned to shop');
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/admin/shops/:shopId/users/:userId — remove user from shop
+router.delete('/shops/:shopId/users/:userId', async (req, res, next) => {
+  try {
+    const pool = getPool();
+    const [[shop]] = await pool.query('SELECT id FROM shops WHERE id = ? AND owner_id = ?', [req.params.shopId, req.user.id]);
+    if (!shop) return ApiResponse.notFound(res, 'Shop not found');
+
+    await pool.query('DELETE FROM user_shops WHERE user_id=? AND shop_id=?', [req.params.userId, req.params.shopId]);
+    return ApiResponse.success(res, null, 'User removed from shop');
+  } catch (err) { next(err); }
+});
+
+module.exports = router;

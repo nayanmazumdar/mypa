@@ -117,8 +117,6 @@ export function canAccessRoute(role, path) {
     '/suppliers': 'suppliers:read',
     '/accounts': 'expenses:read',
     '/reports': 'reports:read',
-    '/subscription': 'subscription:read',
-    '/settings': 'shop:read',
   };
   const permission = routePermissions[path];
   if (!permission) return true; // unknown route = allow

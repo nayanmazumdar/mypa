@@ -266,7 +266,7 @@ export default function RoleSelector() {
     } else if (user.shop_id) {
       navigate(resolveDefaultRoute(user.default_module, 'shop'), { replace: true });
     } else {
-      navigate('/select-shop', { replace: true });
+      navigate('/admin/shops', { replace: true });
     }
   }, [user, navigate]);
 
@@ -306,7 +306,7 @@ export default function RoleSelector() {
       if (activeRole.api_role === 'individual') {
         navigate(activeModule?.route ?? '/individual');
       } else {
-        navigate('/select-shop');
+        navigate('/admin/shops');
       }
     } catch (err) {
       toast.error(err.structured?.message || 'Failed to save. Try again.');

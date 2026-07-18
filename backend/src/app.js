@@ -35,6 +35,7 @@ const exportRoutes = require('./routes/export.routes');
 const sseRoutes = require('./routes/sse.routes');
 const attendanceRoutes = require('./routes/attendance.routes');
 const loginLogRoutes = require('./routes/loginLog.routes');
+const adminRoutes = require('./routes/admin.routes');
 
 const app = express();
 
@@ -146,6 +147,7 @@ app.use('/api/import', exportRoutes);
 app.use('/api/events', sseRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/login-logs', loginLogRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

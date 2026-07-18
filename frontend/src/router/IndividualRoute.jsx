@@ -13,7 +13,7 @@ export default function IndividualRoute() {
 
   if (user.role !== 'individual') {
     // Shop users go to their normal dashboard
-    return <Navigate to={user.shop_id ? '/dashboard' : '/select-shop'} replace />;
+    return <Navigate to={user.shop_id ? '/dashboard' : '/admin/shops'} replace />;
   }
 
   return <Outlet />;

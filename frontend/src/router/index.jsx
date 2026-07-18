@@ -5,13 +5,14 @@ import ModuleRequired from './ModuleRequired';
 import ShopRequired from './ShopRequired';
 import PermissionRoute from './PermissionRoute';
 import IndividualRoute from './IndividualRoute';
+import AdminRoute from './AdminRoute';
 import DashboardLayout from '../layouts/DashboardLayout';
 import IndividualLayout from '../layouts/IndividualLayout';
+import AdminLayout from '../layouts/AdminLayout';
 import AuthLayout from '../layouts/AuthLayout';
 import Login from '../pages/Login';
 import Register from '../pages/Register';
 import RoleSelector from '../pages/RoleSelector';
-import ShopSelector from '../pages/ShopSelector';
 import ShopSetup from '../pages/ShopSetup';
 import Dashboard from '../pages/Dashboard';
 import Products from '../pages/Products';
@@ -30,6 +31,9 @@ import LandingPage from '../pages/LandingPage';
 import Subscription from '../pages/Subscription';
 import SyncStatus from '../pages/SyncStatus';
 import ExportImport from '../pages/Export';
+import AdminUsers from '../pages/admin/AdminUsers';
+import AdminLogs from '../pages/admin/AdminLogs';
+import AdminShops from '../pages/admin/AdminShops';
 import IndividualDashboard from '../pages/individual/IndividualDashboard';
 import PersonalExpenses from '../pages/individual/PersonalExpenses';
 import PersonalIncome from '../pages/individual/PersonalIncome';
@@ -49,7 +53,7 @@ function SmartLanding() {
   if (!user?.role) return <Navigate to="/choose-role" replace />;
   if (user.role === 'individual') return <Navigate to="/individual" replace />;
   if (user.shop_id) return <Navigate to="/dashboard" replace />;
-  return <Navigate to="/select-shop" replace />;
+  return <Navigate to="/admin/shops" replace />;
 }
 
 export default function AppRouter() {
@@ -71,12 +75,19 @@ export default function AppRouter() {
 
       {/* All routes below require: authenticated + role set + module chosen */}
 
-      {/* Shop selector / creator (role + module set, but no shop yet) */}
+      {/* Admin panel — subscription, shops & users, logs (admin only, no shop required) */}
       <Route element={<ProtectedRoute />}>
         <Route element={<RoleRequired />}>
           <Route element={<ModuleRequired />}>
-            <Route path="/select-shop" element={<ShopSelector />} />
-            <Route path="/create-shop" element={<ShopSetup />} />
+            <Route element={<AdminRoute />}>
+              <Route element={<AdminLayout />}>
+                <Route path="/admin/subscription" element={<Subscription />} />
+                <Route path="/admin/shops" element={<AdminShops />} />
+                <Route path="/admin/users" element={<AdminUsers />} />
+                <Route path="/admin/logs" element={<AdminLogs />} />
+                <Route path="/admin/settings" element={<Settings />} />
+              </Route>
+            </Route>
           </Route>
         </Route>
       </Route>
@@ -119,10 +130,8 @@ export default function AppRouter() {
                 <Route path="/suppliers" element={<PermissionRoute permission="suppliers:read"><Suppliers /></PermissionRoute>} />
                 <Route path="/accounts" element={<PermissionRoute permission="expenses:read"><Accounts /></PermissionRoute>} />
                 <Route path="/reports" element={<PermissionRoute permission="reports:read"><Reports /></PermissionRoute>} />
-                <Route path="/subscription" element={<Subscription />} />
                 <Route path="/sync" element={<SyncStatus />} />
                 <Route path="/export" element={<ExportImport />} />
-                <Route path="/settings" element={<Settings />} />
               </Route>
             </Route>
           </Route>

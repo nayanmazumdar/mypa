@@ -375,6 +375,63 @@ class AuthService {
       const e = new Error('Invalid or expired refresh token'); e.statusCode = 401; throw e;
     }
   }
+  /**
+   * Create a user account without assigning to any shop.
+   * Admin creates users here, then assigns them to shops separately.
+   */
+  async createUserAccount({ name, email, password, phone }) {
+    const pool = getPool();
+    if (!name || !email || !password) {
+      const e = new Error('Name, email, and password are required'); e.statusCode = 400; throw e;
+    }
+    const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [email.toLowerCase().trim()]);
+    if (existing.length > 0) {
+      const e = new Error('Email already registered'); e.statusCode = 409; throw e;
+    }
+    if (password.length < 8) {
+      const e = new Error('Password must be at least 8 characters'); e.statusCode = 400; throw e;
+    }
+    const hashedPassword = await hashPassword(password);
+    const uuid = generateId();
+    const [result] = await pool.query(
+      'INSERT INTO users (uuid, name, email, phone, password, role) VALUES (?, ?, ?, ?, ?, ?)',
+      [uuid, name.trim(), email.toLowerCase().trim(), phone || null, hashedPassword, 'staff']
+    );
+    logger.info(`User account created: ${email} (id: ${result.insertId})`);
+    return { id: result.insertId, uuid, name: name.trim(), email: email.toLowerCase().trim(), phone: phone || null, role: 'staff' };
+  }
+
+  /**
+   * Get all users that belong to any shop the admin owns.
+   */
+  async getAllUsersForAdmin(adminId) {
+    const pool = getPool();
+    // Get all shops where this admin is owner
+    const [adminShops] = await pool.query(
+      `SELECT shop_id FROM user_shops WHERE user_id = ? AND role = 'admin'`, [adminId]
+    );
+    if (adminShops.length === 0) return [];
+    const shopIds = adminShops.map(s => s.shop_id);
+    const placeholders = shopIds.map(() => '?').join(',');
+
+    const [rows] = await pool.query(
+      `SELECT u.id, u.uuid, u.name, u.email, u.phone, u.role AS global_role, u.is_active, u.created_at,
+              GROUP_CONCAT(DISTINCT s.name ORDER BY s.name SEPARATOR ', ') AS shop_names,
+              GROUP_CONCAT(DISTINCT us.role ORDER BY s.name SEPARATOR ', ') AS shop_roles
+       FROM users u
+       LEFT JOIN user_shops us ON u.id = us.user_id AND us.shop_id IN (${placeholders})
+       LEFT JOIN shops s ON us.shop_id = s.id
+       WHERE us.user_id IS NOT NULL
+       GROUP BY u.id
+       ORDER BY u.name ASC`,
+      shopIds
+    );
+    return rows.map(r => ({
+      ...r,
+      shops: r.shop_names ? r.shop_names.split(', ') : [],
+      role: r.shop_roles?.split(', ')[0] || r.global_role || 'staff',
+    }));
+  }
 }
 
 module.exports = new AuthService();

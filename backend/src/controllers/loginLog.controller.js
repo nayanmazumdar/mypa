@@ -5,8 +5,14 @@ const logger = require('../config/logger');
 class LoginLogController {
   async getLogs(req, res) {
     try {
-      const { date } = req.query;
-      const data = await loginLogService.getLogs(req.user.shop_id, date);
+      const { date, shop_id } = req.query;
+      const shopId = shop_id || req.user.shop_id;
+      if (!shopId) {
+        // No specific shop — get logs across all admin's shops
+        const data = await loginLogService.getLogsForAdmin(req.user.id, date);
+        return ApiResponse.success(res, data);
+      }
+      const data = await loginLogService.getLogs(shopId, date);
       return ApiResponse.success(res, data);
     } catch (error) {
       logger.error('Get login logs error:', error.message);
