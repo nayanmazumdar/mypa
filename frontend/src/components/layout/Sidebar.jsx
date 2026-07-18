@@ -42,8 +42,7 @@ const sectionLabels = {
 
 export default function Sidebar({ open, onClose }) {
   const user = useSelector((state) => state.auth.user);
-  const role = user?.role || 'staff';
-  const filteredNav = navigation.filter((item) => canAccessRoute(role, item.href));
+  const filteredNav = navigation.filter((item) => canAccessRoute(user, item.href));
 
   // Group navigation by section
   const sections = [];
@@ -126,7 +125,7 @@ export default function Sidebar({ open, onClose }) {
           ))}
 
           {/* Admin Panel link (admin only) */}
-          {role === 'admin' && (
+          {user?.role === 'admin' && (
             <div className="mt-5 pt-4" style={{ borderTop: '1px solid rgba(200,207,216,0.4)' }}>
               <NavLink
                 to="/admin/shops"

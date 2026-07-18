@@ -11,7 +11,7 @@ router.use(authenticate, authorize('admin'));
 
 /* ── SHOPS ── */
 
-// GET /api/admin/shops — all shops owned by this admin
+// GET /api/admin/shops — all shops where this user is admin (via owner_id OR user_shops role)
 router.get('/shops', async (req, res, next) => {
   try {
     const pool = getPool();
@@ -19,14 +19,14 @@ router.get('/shops', async (req, res, next) => {
       `SELECT s.id, s.uuid, s.name, s.address, s.phone, s.email, s.gst_number,
               s.is_active, s.is_open, s.owner_id, s.created_at,
               u.name AS owner_name, u.email AS owner_email,
-              COUNT(DISTINCT us.user_id) AS staff_count
+              COUNT(DISTINCT us2.user_id) AS staff_count
        FROM shops s
        LEFT JOIN users u ON u.id = s.owner_id
-       LEFT JOIN user_shops us ON us.shop_id = s.id
-       WHERE s.owner_id = ?
+       LEFT JOIN user_shops us2 ON us2.shop_id = s.id
+       WHERE s.owner_id = ? OR s.id IN (SELECT shop_id FROM user_shops WHERE user_id = ? AND role = 'admin')
        GROUP BY s.id
        ORDER BY s.created_at DESC`,
-      [req.user.id]
+      [req.user.id, req.user.id]
     );
     return ApiResponse.success(res, shops);
   } catch (err) { next(err); }
@@ -105,31 +105,33 @@ router.patch('/shops/:id/open', async (req, res, next) => {
 
 /* ── USERS ── */
 
-// GET /api/admin/users — all users across all owned shops
+// GET /api/admin/users — all users (shop-assigned + unassigned)
 router.get('/users', async (req, res, next) => {
   try {
     const pool = getPool();
+    // Get users in admin's shops + any user created via admin (those with no shop yet)
     const [users] = await pool.query(
-      `SELECT DISTINCT u.id, u.uuid, u.name, u.email, u.phone, u.role, u.is_active, u.created_at,
+      `SELECT u.id, u.uuid, u.name, u.email, u.phone, u.role, u.is_active, u.created_at,
               GROUP_CONCAT(DISTINCT s.name ORDER BY s.name SEPARATOR ', ') AS shop_names,
               GROUP_CONCAT(DISTINCT us.shop_id ORDER BY s.name SEPARATOR ',') AS shop_ids,
               GROUP_CONCAT(DISTINCT us.role ORDER BY s.name SEPARATOR ',') AS shop_roles
        FROM users u
-       JOIN user_shops us ON us.user_id = u.id
-       JOIN shops s ON s.id = us.shop_id AND s.owner_id = ?
+       LEFT JOIN user_shops us ON us.user_id = u.id
+       LEFT JOIN shops s ON s.id = us.shop_id AND s.owner_id = ?
+       WHERE u.id != ?
        GROUP BY u.id
-       ORDER BY u.created_at DESC`,
-      [req.user.id]
+       ORDER BY u.name ASC`,
+      [req.user.id, req.user.id]
     );
     return ApiResponse.success(res, users);
   } catch (err) { next(err); }
 });
 
-// POST /api/admin/users — create a new user and optionally assign to a shop
+// POST /api/admin/users — create a new user and optionally assign to a shop + RBAC roles
 router.post('/users', async (req, res, next) => {
   try {
     const pool = getPool();
-    const { name, email, password, phone, role = 'staff', shop_id, shop_role = 'staff' } = req.body;
+    const { name, email, password, phone, role = 'staff', shop_id, shop_role = 'staff', role_ids } = req.body;
     if (!name?.trim() || !email?.trim() || !password) return ApiResponse.error(res, 'Name, email and password are required', 400);
     if (password.length < 8) return ApiResponse.error(res, 'Password must be at least 8 characters', 400);
 
@@ -144,14 +146,34 @@ router.post('/users', async (req, res, next) => {
     );
     const userId = result.insertId;
 
-    if (shop_id) {
-      const [[ownedShop]] = await pool.query('SELECT id FROM shops WHERE id = ? AND owner_id = ?', [shop_id, req.user.id]);
-      if (ownedShop) {
+    // Determine the target shop — explicit or admin's first shop
+    let targetShopId = shop_id || null;
+    if (!targetShopId) {
+      const [[firstShop]] = await pool.query(
+        `SELECT shop_id FROM user_shops WHERE user_id = ? AND role = 'admin' ORDER BY shop_id ASC LIMIT 1`,
+        [req.user.id]
+      );
+      if (firstShop) targetShopId = firstShop.shop_id;
+    }
+
+    if (targetShopId) {
+      // Verify admin has access to this shop
+      const [[hasAccess]] = await pool.query(
+        `SELECT 1 FROM user_shops WHERE user_id = ? AND shop_id = ? AND role = 'admin'`,
+        [req.user.id, targetShopId]
+      );
+      if (hasAccess) {
         await pool.query(
           'INSERT INTO user_shops (user_id, shop_id, role, is_active) VALUES (?,?,?,1)',
-          [userId, shop_id, shop_role]
+          [userId, targetShopId, shop_role]
         );
       }
+    }
+
+    // Assign RBAC roles if provided
+    if (Array.isArray(role_ids) && role_ids.length > 0) {
+      const rbacService = require('../services/rbac.service');
+      await rbacService.assignRolesToUser(userId, role_ids, req.user.id);
     }
 
     return ApiResponse.created(res, { id: userId, name: name.trim(), email }, 'User created');

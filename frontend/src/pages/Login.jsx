@@ -4,6 +4,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { loginUser, clearError } from '../store/authSlice';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { getFirstAccessibleRoute } from '../utils/permissions';
 import { resolveDefaultRoute } from './RoleSelector';
 
 const LOCKOUT_MINUTES = 15;
@@ -156,14 +157,18 @@ export default function Login() {
       return;
     }
 
-    // Shop role — if shop already active in this session go to the module directly
+    // Shop role — if shop already active in this session go to first accessible route
     if (user.shop_id) {
-      navigate(resolveDefaultRoute(user.default_module, 'shop'));
+      navigate(getFirstAccessibleRoute(user));
       return;
     }
 
-    // Admin goes to admin panel to choose shop; staff goes to admin panel too
-    navigate('/admin/shops');
+    // No shop selected — admin goes to admin panel, others to shop selector
+    if (user.role === 'admin') {
+      navigate('/admin/shops');
+    } else {
+      navigate('/select-shop');
+    }
   };
 
   const formatCountdown = (secs) => {

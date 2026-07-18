@@ -59,15 +59,33 @@ export const fetchProfile = createAsyncThunk(
   }
 );
 
-const authSlice = createSlice({
-  name: 'auth',
-  initialState: {
+// Hydrate auth state synchronously from localStorage (avoids flash-redirect on refresh)
+function getInitialAuthState() {
+  try {
+    const token = localStorage.getItem('token');
+    const userStr = localStorage.getItem('user');
+    if (token && userStr && isTokenValid(token)) {
+      return {
+        user: JSON.parse(userStr),
+        token,
+        isAuthenticated: true,
+        loading: false,
+        error: null,
+      };
+    }
+  } catch { /* corrupted localStorage — fall through */ }
+  return {
     user: null,
     token: null,
     isAuthenticated: false,
     loading: false,
     error: null,
-  },
+  };
+}
+
+const authSlice = createSlice({
+  name: 'auth',
+  initialState: getInitialAuthState(),
   reducers: {
     logout(state) {
       state.user = null;
@@ -86,7 +104,7 @@ const authSlice = createSlice({
       }
     },
     setActiveShop(state, action) {
-      const { shop_id, shop_name, role, default_module, log_id } = action.payload;
+      const { shop_id, shop_name, role, default_module, log_id, rbac_roles, rbac_perms } = action.payload;
       if (state.user) {
         state.user = {
           ...state.user,
@@ -94,7 +112,9 @@ const authSlice = createSlice({
           shop_name,
           role,
           ...(default_module !== undefined && { default_module }),
-          ...(log_id !== undefined && { log_id }),
+          ...(log_id         !== undefined && { log_id }),
+          rbac_roles: rbac_roles || [],
+          rbac_perms: rbac_perms || {},
         };
         localStorage.setItem('user', JSON.stringify(state.user));
       }

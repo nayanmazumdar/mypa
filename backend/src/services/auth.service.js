@@ -4,6 +4,7 @@ const { generateToken, generateRefreshToken, verifyRefreshToken } = require('../
 const { generateId } = require('../utils/helper');
 const logger = require('../config/logger');
 const loginLogService = require('./loginLog.service');
+const rbacService = require('./rbac.service');
 
 class AuthService {
   async register({ name, email, password, phone }) {
@@ -119,7 +120,8 @@ class AuthService {
   }
 
   /**
-   * Select a shop — returns a new token scoped to that shop
+   * Select a shop — returns a new token scoped to that shop,
+   * with dynamic RBAC permissions embedded.
    */
   async selectShop(userId, shopId) {
     const pool = getPool();
@@ -142,22 +144,29 @@ class AuthService {
       const error = new Error('This shop is currently closed'); error.statusCode = 403; throw error;
     }
 
+    // Resolve dynamic RBAC for this user
+    const { permissions: rbacPerms, roles: rbacRoles } = await rbacService.resolveUserPermissions(userId);
+
     const token = generateToken({
       id: user.id, uuid: user.uuid, email: user.email,
       role: membership.role, shop_id: shopId,
       default_module: user.default_module || null,
+      rbac_roles: rbacRoles,
+      rbac_perms: rbacPerms,
     });
 
     // Record login event — log_id is sent to the client so it can post logout later
     const logId = await loginLogService.recordLogin(user.id, shopId, membership.role);
 
-    logger.info(`User ${user.email} selected shop: ${shop.name} (${shopId})`);
+    logger.info(`User ${user.email} selected shop: ${shop.name} (${shopId}), rbac_roles: [${rbacRoles.join(',')}]`);
     return {
       token,
       shop: { id: shop.id, uuid: shop.uuid, name: shop.name },
       role: membership.role,
       default_module: user.default_module || null,
       log_id: logId,
+      rbac_roles: rbacRoles,
+      rbac_perms: rbacPerms,
     };
   }
 

@@ -7,18 +7,20 @@ import {
   HiOutlineXMark,
   HiOutlineBars3,
   HiOutlineBuildingStorefront,
-  HiOutlineClipboardDocumentList,
   HiOutlineCog6Tooth,
   HiOutlineUserGroup,
+  HiOutlineShieldCheck,
+  HiOutlineCalendarDays,
 } from 'react-icons/hi2';
 import { logout } from '../store/authSlice';
 
 const adminNav = [
-  { name: 'Shops', href: '/admin/shops', icon: HiOutlineBuildingStorefront },
-  { name: 'Users', href: '/admin/users', icon: HiOutlineUserGroup },
-  { name: 'Subscription', href: '/admin/subscription', icon: HiOutlineCreditCard },
-  { name: 'Login Logs', href: '/admin/logs', icon: HiOutlineClipboardDocumentList },
-  { name: 'Settings', href: '/admin/settings', icon: HiOutlineCog6Tooth },
+  { name: 'Shops',          href: '/admin/shops',          icon: HiOutlineBuildingStorefront },
+  { name: 'Users',          href: '/admin/users',          icon: HiOutlineUserGroup },
+  { name: 'Roles',          href: '/admin/roles',          icon: HiOutlineShieldCheck },
+  { name: 'Staff Activity', href: '/admin/staff-activity', icon: HiOutlineCalendarDays },
+  { name: 'Subscription',   href: '/admin/subscription',   icon: HiOutlineCreditCard },
+  { name: 'Settings',       href: '/admin/settings',       icon: HiOutlineCog6Tooth },
 ];
 
 export default function AdminLayout() {
@@ -80,20 +82,26 @@ export default function AdminLayout() {
             Administration
           </p>
           {adminNav.map((item) => (
-            <NavLink
-              key={item.name}
-              to={item.href}
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-150 ${
-                  isActive ? 'text-primary-700' : 'text-gray-600 hover:text-gray-900'
-                }`
-              }
-              style={({ isActive }) => isActive ? { background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' } : {}}
-            >
-              <item.icon className="w-[18px] h-[18px] flex-shrink-0" />
-              {item.name}
-            </NavLink>
+            item.divider ? (
+              <p key={item.label} className="px-3 mt-4 mb-2 text-[11px] font-semibold uppercase tracking-widest text-gray-400">
+                {item.label}
+              </p>
+            ) : (
+              <NavLink
+                key={item.name}
+                to={item.href}
+                onClick={() => setSidebarOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-150 ${
+                    isActive ? 'text-primary-700' : 'text-gray-600 hover:text-gray-900'
+                  }`
+                }
+                style={({ isActive }) => isActive ? { background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' } : {}}
+              >
+                <item.icon className="w-[18px] h-[18px] flex-shrink-0" />
+                {item.name}
+              </NavLink>
+            )
           ))}
         </nav>
 

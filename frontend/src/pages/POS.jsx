@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { useSelector } from 'react-redux';
 import toast from 'react-hot-toast';
 import {
   HiOutlineScale, HiOutlinePrinter, HiOutlineTrash, HiOutlineMinus,
@@ -12,6 +13,7 @@ import * as offlinePos from '../api/offlinePos.api';
 import api from '../api/axios';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useNetwork } from '../hooks/useNetwork';
+import { hasPermission } from '../utils/permissions';
 
 // ─── Hold/Park Bills Utility ─────────────────────────────────────
 const HELD_BILLS_KEY = 'mypa_held_bills';
@@ -27,6 +29,7 @@ function saveHeldBills(bills) {
 
 export default function POS() {
   usePageTitle('Point of Sale');
+  const user = useSelector((s) => s.auth.user);
   const { isOnline, pendingCount, isSyncing, triggerSync } = useNetwork();
 
   // Product state
@@ -345,6 +348,10 @@ export default function POS() {
 
   // ─── Checkout ─────────────────────────────────────────────────
   const handleCheckout = async () => {
+    if (!hasPermission(user, 'pos:checkout')) {
+      toast.error('You do not have permission to checkout. Read-only access.');
+      return;
+    }
     if (cart.length === 0) { toast.error('Cart is empty'); return; }
     if (isCredit && !selectedCustomer) { toast.error('Select a customer for credit sale'); return; }
     if (paymentMethod === 'cash' && !isCredit) { const received = parseFloat(amountReceived) || 0; if (received > 0 && received < total) { toast.error('Amount received is less than total'); return; } }
@@ -832,8 +839,10 @@ ${data.biller_name ? `<div class="row meta" style="margin-top:3px"><span>Billed 
           {/* Checkout Section */}
           {!showCheckout ? (
             <div className="space-y-2">
-              <button onClick={() => setShowCheckout(true)} disabled={cart.length === 0} className="btn-primary w-full py-3 text-sm disabled:opacity-40 disabled:cursor-not-allowed">
-                Checkout{cart.length > 0 ? ` · ₹${total.toFixed(0)}` : ''}
+              <button onClick={() => setShowCheckout(true)} disabled={cart.length === 0 || !hasPermission(user, 'pos:checkout')} className="btn-primary w-full py-3 text-sm disabled:opacity-40 disabled:cursor-not-allowed">
+                {hasPermission(user, 'pos:checkout')
+                  ? `Checkout${cart.length > 0 ? ` · ₹${total.toFixed(0)}` : ''}`
+                  : 'Read-only Access'}
               </button>
               {lastReceipt && <button onClick={() => printReceipt()} className="w-full flex items-center justify-center gap-2 py-2 text-xs text-gray-500 hover:text-gray-700 rounded-xl" style={{ background: "#e8edf5", boxShadow: "3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff" }}><HiOutlinePrinter className="w-3.5 h-3.5" /> Reprint Last</button>}
             </div>
@@ -961,7 +970,7 @@ ${data.biller_name ? `<div class="row meta" style="margin-top:3px"><span>Billed 
 
               <div className="flex gap-2 pt-1">
                 <button onClick={() => setShowCheckout(false)} className="btn-secondary flex-1 text-xs py-2.5">Back</button>
-                <button onClick={handleCheckout} disabled={loading || (isCredit && !selectedCustomer)} className="btn-primary flex-1 text-xs py-2.5 disabled:opacity-40">
+                <button onClick={handleCheckout} disabled={loading || (isCredit && !selectedCustomer) || !hasPermission(user, 'pos:checkout')} className="btn-primary flex-1 text-xs py-2.5 disabled:opacity-40">
                   {loading ? <span className="flex items-center justify-center gap-1"><span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> ...</span> : `Pay ₹${total.toFixed(0)}`}
                 </button>
               </div>

@@ -1,7 +1,7 @@
 {
   "name": "shopkeeper-backend",
   "version": "1.0.0",
-  "description": "Shopkeeper backend API with MySQL and SQLite support",
+  "description": "Shopkeeper backend API with MySQL support",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
@@ -31,7 +31,6 @@
     "multer": "^1.4.5-lts.1",
     "mysql2": "^3.11.0",
     "sequelize": "^6.37.5",
-    "sql.js": "^1.11.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^14.0.1",

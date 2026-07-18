@@ -2,7 +2,11 @@ const jwt = require('jsonwebtoken');
 const config = require('../config/env');
 
 /**
- * Authentication middleware - verifies JWT token
+ * Authentication middleware - verifies JWT token.
+ * Populates req.user with:
+ *   id, uuid, email, role, shop_id,
+ *   rbac_roles   – array of dynamic role slugs (from JWT),
+ *   rbac_perms   – merged { [feature_slug]: { read, write, execute } } map (from JWT).
  */
 const authenticate = (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -20,11 +24,13 @@ const authenticate = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, config.jwt.secret);
     req.user = {
-      id: decoded.id,
-      uuid: decoded.uuid,
-      email: decoded.email,
-      role: decoded.role,
-      shop_id: decoded.shop_id,
+      id:          decoded.id,
+      uuid:        decoded.uuid,
+      email:       decoded.email,
+      role:        decoded.role,
+      shop_id:     decoded.shop_id,
+      rbac_roles:  decoded.rbac_roles  || [],
+      rbac_perms:  decoded.rbac_perms  || {},
     };
     next();
   } catch (error) {
@@ -62,6 +68,9 @@ const authorize = (...roles) => {
  * staff:   POS, create sales/purchases, view products/inventory/customers — no delete, no reports/settings/offers
  */
 const PERMISSIONS = {
+  // Dashboard
+  'dashboard:read':  ['admin', 'manager', 'staff'],
+
   // Products
   'products:read':    ['admin', 'manager', 'staff'],
   'products:create':  ['admin', 'manager'],
@@ -146,17 +155,64 @@ const PERMISSIONS = {
 };
 
 /**
- * Permission-based authorization middleware
+ * Permission-based authorization middleware.
  * Usage: permit('products:create')
+ *
+ * Resolution order:
+ *   1. If the JWT carries dynamic rbac_perms, check those first.
+ *      Permission key format:  "<feature_slug>:<action>"
+ *        action "read"    → rbac_perms[slug].read
+ *        action "create"  → rbac_perms[slug].write
+ *        action "update"  → rbac_perms[slug].write
+ *        action "delete"  → rbac_perms[slug].write   (admin-only by default via static map)
+ *        action "adjust"  → rbac_perms[slug].execute
+ *        action "checkout"→ rbac_perms[slug].execute
+ *        action "manage"  → rbac_perms[slug].write
+ *        action "ledger"  → rbac_perms[slug].read
+ *   2. Fall back to the static PERMISSIONS map for legacy/hardcoded routes.
  */
+
+// Map permission action → rbac flag
+const ACTION_FLAG = {
+  read:     'read',
+  create:   'write',
+  update:   'write',
+  delete:   'write',
+  adjust:   'execute',
+  checkout: 'execute',
+  manage:   'write',
+  ledger:   'read',
+};
+
 const permit = (permission) => {
   return (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ success: false, code: 'AUTH_REQUIRED', message: 'Authentication required', action: 'login' });
     }
+
+    // ── Admin bypass — full access to everything ──────────
+    if (req.user.role === 'admin') {
+      return next();
+    }
+
+    // ── 1. Dynamic RBAC check ─────────────────────────────
+    const rbacPerms = req.user.rbac_perms || {};
+    if (Object.keys(rbacPerms).length > 0) {
+      const [featureSlug, action] = permission.split(':');
+      // Normalise slug: "customer-ledger" → "customer_ledger"
+      const slug = featureSlug.replace(/-/g, '_');
+      const flag = ACTION_FLAG[action] || 'read';
+      const featurePerm = rbacPerms[slug];
+      if (featurePerm && featurePerm[flag]) {
+        return next();
+      }
+      // Has dynamic RBAC but no matching grant → deny
+      return res.status(403).json({ success: false, code: 'FORBIDDEN', message: 'You do not have permission to perform this action', action: 'go_back' });
+    }
+
+    // ── 2. Static fallback ────────────────────────────────
     const allowedRoles = PERMISSIONS[permission];
     if (!allowedRoles) {
-      // Unknown permission — deny by default
       return res.status(403).json({ success: false, code: 'FORBIDDEN', message: 'Permission denied', action: 'go_back' });
     }
     if (!allowedRoles.includes(req.user.role)) {
@@ -166,4 +222,4 @@ const permit = (permission) => {
   };
 };
 
-module.exports = { authenticate, authorize, permit, PERMISSIONS };
+module.exports = { authenticate, authorize, permit, PERMISSIONS, ACTION_FLAG };

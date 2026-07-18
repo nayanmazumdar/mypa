@@ -10,7 +10,8 @@
       "cwd": "/Users/biswajit/workspace/mypa/mypa",
       "type": "stdio",
       "autoApprove": [
-        "semantic_search_nodes_tool"
+        "semantic_search_nodes_tool",
+        "build_or_update_graph_tool"
       ]
     }
   }
