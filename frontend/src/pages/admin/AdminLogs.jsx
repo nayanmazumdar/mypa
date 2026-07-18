@@ -13,7 +13,11 @@ export default function AdminLogs() {
   const { user } = useSelector((state) => state.auth);
   const [shops, setShops] = useState([]);
   const [selectedShopId, setSelectedShopId] = useState(null);
-  const [logsDate, setLogsDate] = useState(new Date().toISOString().slice(0, 10));
+  const getLocalDate = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  };
+  const [logsDate, setLogsDate] = useState(getLocalDate());
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -79,6 +83,36 @@ export default function AdminLogs() {
           <span className="w-4 h-4 border-2 border-primary-300 border-t-primary-600 rounded-full animate-spin" />
         )}
       </div>
+
+      {/* Per-user time summary */}
+      {!loading && logs.length > 0 && (
+        <div className="rounded-2xl p-4" style={{ background: '#e8edf5', boxShadow: '4px 4px 8px #c8cfd8, -4px -4px 8px #ffffff' }}>
+          <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-3">Total Login Time per User</p>
+          <div className="flex flex-wrap gap-3">
+            {(() => {
+              const userTotals = {};
+              logs.forEach((log) => {
+                const key = log.user_name || log.user_email;
+                if (!userTotals[key]) userTotals[key] = { minutes: 0, role: log.role };
+                userTotals[key].minutes += log.duration_minutes || 0;
+              });
+              return Object.entries(userTotals).map(([name, { minutes, role }]) => {
+                const hrs = Math.floor(minutes / 60);
+                const mins = minutes % 60;
+                const timeStr = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+                const roleLabel = role === 'admin' ? 'Owner' : role === 'manager' ? 'Manager' : 'Staff';
+                return (
+                  <div key={name} className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs" style={{ background: '#e8edf5', boxShadow: 'inset 2px 2px 4px #c8cfd8, inset -2px -2px 4px #ffffff' }}>
+                    <span className="font-semibold text-gray-800">{name}</span>
+                    <span className="text-[10px] text-gray-400">({roleLabel})</span>
+                    <span className="text-primary-600 font-bold">{timeStr}</span>
+                  </div>
+                );
+              });
+            })()}
+          </div>
+        </div>
+      )}
 
       {/* Logs table */}
       <div className="rounded-3xl overflow-hidden" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>

@@ -37,6 +37,51 @@ const ApiResponse = require('../utils/response');
 router.get('/', authenticate, permit('sales:read'), salesController.getAll);
 
 /**
+ * GET /api/sales/combined - Combined invoice + POS transactions list
+ */
+router.get('/combined', authenticate, permit('sales:read'), async (req, res, next) => {
+  try {
+    const pool = getPool();
+    const shopId = req.user.shop_id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
+    // Combined query: invoice sales + POS transactions
+    const [rows] = await pool.query(
+      `(SELECT 
+          id, 'invoice' AS type, invoice_number AS receipt_number, customer_name,
+          total_amount, discount, net_amount, payment_method, status, created_at
+        FROM sales WHERE shop_id = ?)
+       UNION ALL
+       (SELECT 
+          id, 'pos' AS type, receipt_number, customer_name,
+          total_amount, discount, net_amount, payment_method, status, created_at
+        FROM pos_transactions WHERE shop_id = ?)
+       ORDER BY created_at DESC
+       LIMIT ? OFFSET ?`,
+      [shopId, shopId, limit, offset]
+    );
+
+    // Get total count
+    const [[countResult]] = await pool.query(
+      `SELECT 
+        (SELECT COUNT(*) FROM sales WHERE shop_id = ?) +
+        (SELECT COUNT(*) FROM pos_transactions WHERE shop_id = ?) AS total`,
+      [shopId, shopId]
+    );
+
+    const total = countResult.total;
+    return ApiResponse.success(res, {
+      sales: rows,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
  * GET /api/sales/stats - Dashboard totals: combined invoice + POS sales count and revenue
  */
 router.get('/stats', authenticate, async (req, res, next) => {

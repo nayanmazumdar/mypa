@@ -8,7 +8,17 @@ class LoginLogService {
    */
   async recordLogin(userId, shopId, role) {
     const pool = getPool();
-    const today = new Date().toISOString().slice(0, 10);
+    // Use local date (not UTC) to match the date picker on the frontend
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    // Close any previous active sessions for this user in this shop
+    await pool.query(
+      `UPDATE shop_login_logs SET logout_at = NOW()
+       WHERE user_id = ? AND shop_id = ? AND logout_at IS NULL`,
+      [userId, shopId]
+    );
+
     const [result] = await pool.query(
       `INSERT INTO shop_login_logs (user_id, shop_id, role, login_at, date)
        VALUES (?, ?, ?, NOW(), ?)`,

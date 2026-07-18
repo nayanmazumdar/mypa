@@ -7,29 +7,89 @@ const logger = require('../config/logger');
 class SalesService {
   async getAll(shopId, query) {
     const { page, limit, offset } = parsePagination(query);
-    const where = { shop_id: shopId };
+    const pool = require('../config/db').getPool();
 
-    if (query.status) where.status = query.status;
-    if (query.start_date) where.sale_date = { ...where.sale_date, [Op.gte]: query.start_date };
-    if (query.end_date) where.sale_date = { ...where.sale_date, [Op.lte]: query.end_date };
+    // Build WHERE conditions
+    let outerStatusFilter = '';
+    let salesDateCondition = '';
+    let posDateCondition = '';
+    const baseParams = [shopId];
+    const outerParams = [];
 
-    const { rows, count } = await Sale.findAndCountAll({
-      where,
-      include: [{ model: Customer, attributes: ['name'] }],
-      order: [['created_at', 'DESC']],
-      limit,
-      offset,
-    });
+    if (query.status) {
+      // Filter on payment_status in the outer combined query
+      outerStatusFilter = ' WHERE payment_status = ?';
+      outerParams.push(query.status);
+    }
 
-    const sales = rows.map(s => {
-      const plain = s.get({ plain: true });
-      plain.customer_name = plain.Customer?.name || null;
-      delete plain.Customer;
-      return plain;
-    });
+    // Build date params separately (same values, different column prefix)
+    const dateParams = [];
+    if (query.start_date) {
+      salesDateCondition += ' AND DATE(s.created_at) >= ?';
+      posDateCondition += ' AND DATE(created_at) >= ?';
+      dateParams.push(query.start_date);
+    }
+    if (query.end_date) {
+      salesDateCondition += ' AND DATE(s.created_at) <= ?';
+      posDateCondition += ' AND DATE(created_at) <= ?';
+      dateParams.push(query.end_date);
+    }
 
-    const pagination = buildPaginationMeta(count, page, limit);
-    return { sales, pagination };
+    const salesParams = [...baseParams, ...dateParams];
+    const posParams = [...baseParams, ...dateParams];
+
+    // Combined query: invoice sales + POS transactions
+    const combinedQuery = `
+      SELECT * FROM (
+        (SELECT s.id, 'invoice' AS type, s.invoice_number,
+                c.name AS customer_name, s.sale_date,
+                s.total_amount, s.discount, s.net_amount, s.payment_method, s.payment_status, s.status, s.created_at,
+                COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.reference_type = 'sale' AND p.reference_id = s.id), 0) AS paid_amount
+         FROM sales s
+         LEFT JOIN customers c ON s.customer_id = c.id
+         WHERE s.shop_id = ?${salesDateCondition})
+        UNION ALL
+        (SELECT id, 'pos' AS type, receipt_number AS invoice_number,
+                customer_name, DATE(created_at) AS sale_date,
+                total_amount, discount, net_amount, payment_method,
+                CASE WHEN payment_method = 'credit' THEN
+                  CASE WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.reference_type = 'pos' AND p.reference_id = pos_transactions.id), 0) >= net_amount THEN 'paid'
+                       WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.reference_type = 'pos' AND p.reference_id = pos_transactions.id), 0) > 0 THEN 'partial'
+                       ELSE 'unpaid' END
+                ELSE 'paid' END AS payment_status,
+                status, created_at,
+                CASE WHEN payment_method = 'credit' THEN
+                  COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.reference_type = 'pos' AND p.reference_id = pos_transactions.id), 0)
+                ELSE net_amount END AS paid_amount
+         FROM pos_transactions WHERE shop_id = ?${posDateCondition})
+      ) combined${outerStatusFilter}
+      ORDER BY created_at DESC
+      LIMIT ? OFFSET ?`;
+
+    const countQuery = `
+      SELECT COUNT(*) AS total FROM (
+        (SELECT s.payment_status
+         FROM sales s
+         WHERE s.shop_id = ?${salesDateCondition})
+        UNION ALL
+        (SELECT
+                CASE WHEN payment_method = 'credit' THEN
+                  CASE WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.reference_type = 'pos' AND p.reference_id = pos_transactions.id), 0) >= net_amount THEN 'paid'
+                       WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.reference_type = 'pos' AND p.reference_id = pos_transactions.id), 0) > 0 THEN 'partial'
+                       ELSE 'unpaid' END
+                ELSE 'paid' END AS payment_status
+         FROM pos_transactions WHERE shop_id = ?${posDateCondition})
+      ) combined${outerStatusFilter}`;
+
+    const queryParams = [...salesParams, ...posParams, ...outerParams, limit, offset];
+    const countParams = [...salesParams, ...posParams, ...outerParams];
+
+    const [rows] = await pool.query(combinedQuery, queryParams);
+    const [[countResult]] = await pool.query(countQuery, countParams);
+    const total = countResult.total;
+
+    const pagination = buildPaginationMeta(total, page, limit);
+    return { sales: rows, pagination };
   }
 
   async getById(id, shopId) {

@@ -414,23 +414,87 @@ class AuthService {
     const shopIds = adminShops.map(s => s.shop_id);
     const placeholders = shopIds.map(() => '?').join(',');
 
-    const [rows] = await pool.query(
+    // Get staff/managers (non-admin, non-owner) who are assigned to admin's shops
+    const [staffRows] = await pool.query(
       `SELECT u.id, u.uuid, u.name, u.email, u.phone, u.role AS global_role, u.is_active, u.created_at,
               GROUP_CONCAT(DISTINCT s.name ORDER BY s.name SEPARATOR ', ') AS shop_names,
-              GROUP_CONCAT(DISTINCT us.role ORDER BY s.name SEPARATOR ', ') AS shop_roles
+              GROUP_CONCAT(DISTINCT us.role ORDER BY s.name SEPARATOR ', ') AS shop_roles,
+              MIN(us.is_active) AS staff_active,
+              MAX(s.is_open) AS any_shop_open
        FROM users u
        LEFT JOIN user_shops us ON u.id = us.user_id AND us.shop_id IN (${placeholders})
        LEFT JOIN shops s ON us.shop_id = s.id
        WHERE us.user_id IS NOT NULL
+         AND us.role != 'admin'
+         AND u.id != ?
        GROUP BY u.id
        ORDER BY u.name ASC`,
-      shopIds
+      [...shopIds, adminId]
     );
-    return rows.map(r => ({
-      ...r,
-      shops: r.shop_names ? r.shop_names.split(', ') : [],
-      role: r.shop_roles?.split(', ')[0] || r.global_role || 'staff',
-    }));
+
+    // Get unassigned users (created but not yet assigned to any shop)
+    const [unassignedRows] = await pool.query(
+      `SELECT u.id, u.uuid, u.name, u.email, u.phone, u.role AS global_role, u.is_active, u.created_at
+       FROM users u
+       LEFT JOIN user_shops us ON u.id = us.user_id
+       WHERE us.user_id IS NULL
+         AND u.id != ?
+       ORDER BY u.name ASC`,
+      [adminId]
+    );
+
+    // Get the owner's own info
+    const [[owner]] = await pool.query(
+      `SELECT u.id, u.uuid, u.name, u.email, u.phone, u.role AS global_role, u.is_active, u.created_at,
+              GROUP_CONCAT(DISTINCT s.name ORDER BY s.name SEPARATOR ', ') AS shop_names
+       FROM users u
+       LEFT JOIN user_shops us ON u.id = us.user_id AND us.role = 'admin'
+       LEFT JOIN shops s ON us.shop_id = s.id
+       WHERE u.id = ?
+       GROUP BY u.id`,
+      [adminId]
+    );
+
+    const results = [];
+
+    // Add owner first, marked as non-editable
+    if (owner) {
+      results.push({
+        ...owner,
+        shops: owner.shop_names ? owner.shop_names.split(', ') : [],
+        role: 'admin',
+        is_owner: true,
+      });
+    }
+
+    // Add staff
+    for (const r of staffRows) {
+      // Determine status: disabled if staff_active is 0 OR all assigned shops are closed
+      let status = 'active';
+      if (!r.staff_active || !r.any_shop_open) {
+        status = 'disabled';
+      }
+      results.push({
+        ...r,
+        shops: r.shop_names ? r.shop_names.split(', ') : [],
+        role: r.shop_roles?.split(', ')[0] || r.global_role || 'staff',
+        is_owner: false,
+        status,
+      });
+    }
+
+    // Add unassigned users
+    for (const r of unassignedRows) {
+      results.push({
+        ...r,
+        shops: [],
+        role: r.global_role || 'staff',
+        is_owner: false,
+        status: 'unassigned',
+      });
+    }
+
+    return results;
   }
 }
 

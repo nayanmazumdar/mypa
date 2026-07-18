@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { loginUser, clearError } from '../store/authSlice';
+import { loginUser, clearError, setActiveShop, logout } from '../store/authSlice';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { resolveDefaultRoute } from './RoleSelector';
+import api from '../api/axios';
 
-const LOCKOUT_MINUTES = 15;
+const LOCKOUT_MINUTES = 2;
 const LOCKOUT_KEY = 'login_lockout_until';
 
 export default function Login() {
@@ -25,6 +26,12 @@ export default function Login() {
   // Rate-limit lockout state
   const [lockedOut, setLockedOut] = useState(false);
   const [countdown, setCountdown] = useState(0);
+
+  // Shop closed modal state
+  const [showClosedModal, setShowClosedModal] = useState(false);
+  const [closedShops, setClosedShops] = useState([]);
+  const [waitingUser, setWaitingUser] = useState(null);
+  const pollRef = useRef(null);
 
   // Check for existing lockout on mount and tick countdown
   useEffect(() => {
@@ -144,26 +151,135 @@ export default function Login() {
     if (error) dispatch(clearError());
   };
 
-  const navigateAfterLogin = (user) => {
+  const navigateAfterLogin = async (loginUser) => {
     // No role yet — first-time setup
-    if (!user?.role) {
+    if (!loginUser?.role) {
       navigate('/choose-role');
       return;
     }
 
-    if (user.role === 'individual') {
-      navigate(resolveDefaultRoute(user.default_module, 'individual'));
+    if (loginUser.role === 'individual') {
+      navigate(resolveDefaultRoute(loginUser.default_module, 'individual'));
       return;
     }
 
     // Shop role — if shop already active in this session go to the module directly
-    if (user.shop_id) {
-      navigate(resolveDefaultRoute(user.default_module, 'shop'));
+    if (loginUser.shop_id) {
+      navigate(resolveDefaultRoute(loginUser.default_module, 'shop'));
       return;
     }
 
-    // Admin goes to admin panel to choose shop; staff goes to admin panel too
+    // Admin goes to admin panel to choose shop
+    if (loginUser.role === 'admin') {
+      navigate('/admin/shops');
+      return;
+    }
+
+    // Staff/Manager: auto-select their shop if they have exactly one
+    const shops = loginUser.shops || [];
+    if (shops.length === 1) {
+      try {
+        const response = await api.post('/auth/select-shop', { shop_id: shops[0].id });
+        const { token, shop: s, role, default_module, log_id } = response.data;
+        localStorage.setItem('token', token);
+        const updated = { ...loginUser, shop_id: s.id, shop_name: s.name, role, default_module: default_module || loginUser.default_module, log_id };
+        localStorage.setItem('user', JSON.stringify(updated));
+        dispatch(setActiveShop({ shop_id: s.id, shop_name: s.name, role, default_module: default_module || loginUser.default_module, log_id }));
+        navigate(resolveDefaultRoute(updated.default_module, 'shop'));
+      } catch (err) {
+        const msg = err.structured?.message || err.response?.data?.message || 'Cannot enter shop';
+        if (msg.toLowerCase().includes('closed')) {
+          // Show modal with closed shops — poll until open
+          setClosedShops(shops);
+          setWaitingUser(loginUser);
+          setShowClosedModal(true);
+          startPolling(loginUser, shops);
+        } else if (msg.toLowerCase().includes('do not have access') || msg.toLowerCase().includes('disabled')) {
+          toast.error('🚫 Your account is currently disabled. Please contact the business owner.');
+          dispatch(logout());
+          navigate('/login');
+        } else {
+          toast.error(msg);
+          dispatch(logout());
+          navigate('/login');
+        }
+      }
+      return;
+    }
+
+    // No shops — show modal indicating disabled/unassigned
+    if (shops.length === 0) {
+      setClosedShops([]);
+      setWaitingUser(loginUser);
+      setShowClosedModal(true);
+      return;
+    }
+
+    // Multiple shops — try each, show closed ones in modal if all closed
+    const allClosed = shops.every(s => !s.is_open);
+    if (allClosed) {
+      setClosedShops(shops);
+      setWaitingUser(loginUser);
+      setShowClosedModal(true);
+      startPolling(loginUser, shops);
+      return;
+    }
+
+    // Some shops open — auto-select the first open one
+    const openShop = shops.find(s => s.is_open);
+    if (openShop) {
+      try {
+        const response = await api.post('/auth/select-shop', { shop_id: openShop.id });
+        const { token, shop: s, role, default_module, log_id } = response.data;
+        localStorage.setItem('token', token);
+        const updated = { ...loginUser, shop_id: s.id, shop_name: s.name, role, default_module: default_module || loginUser.default_module, log_id };
+        localStorage.setItem('user', JSON.stringify(updated));
+        dispatch(setActiveShop({ shop_id: s.id, shop_name: s.name, role, default_module: default_module || loginUser.default_module, log_id }));
+        navigate(resolveDefaultRoute(updated.default_module, 'shop'));
+      } catch (err) {
+        toast.error(err.structured?.message || 'Failed to enter shop');
+      }
+      return;
+    }
+
     navigate('/admin/shops');
+  };
+
+  // Poll for shop open status every 30 seconds
+  const startPolling = (staffUser, shops) => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(async () => {
+      try {
+        const shopToTry = shops[0];
+        const response = await api.post('/auth/select-shop', { shop_id: shopToTry.id });
+        // Success — shop is now open!
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+        const { token, shop: s, role, default_module, log_id } = response.data;
+        localStorage.setItem('token', token);
+        const updated = { ...staffUser, shop_id: s.id, shop_name: s.name, role, default_module: default_module || staffUser.default_module, log_id };
+        localStorage.setItem('user', JSON.stringify(updated));
+        dispatch(setActiveShop({ shop_id: s.id, shop_name: s.name, role, default_module: default_module || staffUser.default_module, log_id }));
+        setShowClosedModal(false);
+        toast.success(`${s.name} is now open! Entering...`);
+        navigate(resolveDefaultRoute(updated.default_module, 'shop'));
+      } catch {
+        // Still closed — keep polling
+      }
+    }, 30000);
+  };
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, []);
+
+  const handleCloseModal = () => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = null;
+    setShowClosedModal(false);
+    dispatch(logout());
+    navigate('/login');
   };
 
   const formatCountdown = (secs) => {
@@ -175,6 +291,8 @@ export default function Login() {
   // Passcode entry UI (remembered account with passcode)
   if (rememberedAccount && mode === 'passcode') {
     return (
+      <>
+      {showClosedModal && <ShopClosedModal shops={closedShops} onClose={handleCloseModal} />}
       <div className="card">
         <div className="text-center mb-8">
           <div className="w-14 h-14 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -235,11 +353,14 @@ export default function Login() {
           </button>
         </div>
       </div>
+      </>
     );
   }
 
   // Standard password login
   return (
+    <>
+    {showClosedModal && <ShopClosedModal shops={closedShops} onClose={handleCloseModal} />}
     <div className="card">
       <div className="text-center mb-8">
         <img src="/logo.png" alt="Logo" className="w-14 h-14 rounded-xl mx-auto mb-4" />
@@ -304,6 +425,58 @@ export default function Login() {
         <p className="text-center text-sm text-gray-500">
           No account? <Link to="/register" className="text-primary-600 font-medium hover:text-primary-700">Create one</Link>
         </p>
+      </div>
+    </div>
+    </>
+  );
+}
+
+function ShopClosedModal({ shops, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-5 animate-in">
+        {/* Header */}
+        <div className="text-center">
+          <div className="w-14 h-14 rounded-full bg-orange-100 flex items-center justify-center mx-auto mb-3">
+            <span className="text-2xl">🔒</span>
+          </div>
+          <h2 className="text-lg font-bold text-gray-900">Shop Closed</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            {shops.length === 0
+              ? 'Your account is not assigned to any shop today! Lets you in when done. Please contact the business owner.'
+              : 'Your assigned shop is currently closed. You will be automatically redirected when it opens.'}
+          </p>
+        </div>
+
+        {/* Shop list */}
+        {shops.length > 0 && (
+          <div className="space-y-2">
+            {shops.map((shop) => (
+              <div key={shop.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-800">{shop.name}</span>
+                </div>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-600">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                  Closed
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Waiting indicator */}
+        {shops.length > 0 && (
+          <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
+            <span className="w-3 h-3 border-2 border-primary-300 border-t-primary-600 rounded-full animate-spin" />
+            Checking every 30 seconds...
+          </div>
+        )}
+
+        {/* Close button */}
+        <button onClick={onClose} className="w-full py-2.5 rounded-xl text-sm font-medium text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors">
+          Go back to Login
+        </button>
       </div>
     </div>
   );
