@@ -35,6 +35,8 @@ import AdminUsers from '../pages/admin/AdminUsers';
 import AdminLogs from '../pages/admin/AdminLogs';
 import AdminShops from '../pages/admin/AdminShops';
 import AdminRoles from '../pages/admin/AdminRoles';
+import AdminDashboard from '../pages/admin/AdminDashboard';
+import AdminNotifications from '../pages/admin/AdminNotifications';
 import AdminAttendance from '../pages/admin/AdminAttendance';
 import AdminStaffActivity from '../pages/admin/AdminStaffActivity';
 import SelectShop from '../pages/SelectShop';
@@ -91,6 +93,7 @@ export default function AppRouter() {
             <Route element={<AdminRoute />}>
               <Route element={<AdminLayout />}>
                 <Route path="/admin/subscription" element={<Subscription />} />
+                <Route path="/admin/overview" element={<AdminDashboard />} />
                 <Route path="/admin/shops" element={<AdminShops />} />
                 <Route path="/admin/users" element={<AdminUsers />} />
                 <Route path="/admin/staff-activity" element={<AdminStaffActivity />} />
@@ -98,6 +101,7 @@ export default function AppRouter() {
                 <Route path="/admin/logs" element={<AdminLogs />} />
                 <Route path="/admin/settings" element={<Settings />} />
                 <Route path="/admin/roles" element={<AdminRoles />} />
+                <Route path="/admin/notifications" element={<AdminNotifications />} />
               </Route>
             </Route>
           </Route>

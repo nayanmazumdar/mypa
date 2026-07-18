@@ -11,15 +11,36 @@ import {
   HiOutlineUserGroup,
   HiOutlineShieldCheck,
   HiOutlineCalendarDays,
+  HiOutlineChartBar,
+  HiOutlineBell,
 } from 'react-icons/hi2';
 import { logout } from '../store/authSlice';
 
 const adminNav = [
+  // ── Overview
+  { section: 'Overview' },
+  { name: 'Business Overview', href: '/admin/overview', icon: HiOutlineChartBar },
+
+  // ── Shop Management
+  { section: 'Shop Management' },
   { name: 'Shops',          href: '/admin/shops',          icon: HiOutlineBuildingStorefront },
+  { name: 'Subscription',   href: '/admin/subscription',   icon: HiOutlineCreditCard },
+
+  // ── People & Access
+  { section: 'People & Access' },
   { name: 'Users',          href: '/admin/users',          icon: HiOutlineUserGroup },
   { name: 'Roles',          href: '/admin/roles',          icon: HiOutlineShieldCheck },
+
+  // ── Communication
+  { section: 'Communication' },
+  { name: 'Notifications',  href: '/admin/notifications',  icon: HiOutlineBell },
+
+  // ── Monitoring
+  { section: 'Monitoring' },
   { name: 'Staff Activity', href: '/admin/staff-activity', icon: HiOutlineCalendarDays },
-  { name: 'Subscription',   href: '/admin/subscription',   icon: HiOutlineCreditCard },
+
+  // ── System
+  { section: 'System' },
   { name: 'Settings',       href: '/admin/settings',       icon: HiOutlineCog6Tooth },
 ];
 
@@ -63,7 +84,7 @@ export default function AdminLayout() {
             />
             <div>
               <span className="text-lg font-bold text-gray-800 tracking-tight">MyPA</span>
-              <p className="text-[10px] text-primary-600 font-semibold uppercase tracking-wider">Admin</p>
+              <p className="text-[10px] text-primary-600 font-semibold uppercase tracking-wider">Admin Panel</p>
             </div>
           </div>
           <button
@@ -77,14 +98,11 @@ export default function AdminLayout() {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-hide">
-          <p className="px-3 mb-2 text-[11px] font-semibold uppercase tracking-widest text-gray-400">
-            Administration
-          </p>
-          {adminNav.map((item) => (
-            item.divider ? (
-              <p key={item.label} className="px-3 mt-4 mb-2 text-[11px] font-semibold uppercase tracking-widest text-gray-400">
-                {item.label}
+        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto scrollbar-hide">
+          {adminNav.map((item, idx) =>
+            item.section ? (
+              <p key={item.section} className={`px-3 text-[10px] font-semibold uppercase tracking-widest text-gray-400 ${idx === 0 ? 'mb-2' : 'mt-5 mb-2'}`}>
+                {item.section}
               </p>
             ) : (
               <NavLink
@@ -102,7 +120,26 @@ export default function AdminLayout() {
                 {item.name}
               </NavLink>
             )
-          ))}
+          )}
+
+          {/* Quick actions */}
+          <div className="mt-5 pt-4 space-y-1" style={{ borderTop: '1px solid rgba(200,207,216,0.4)' }}>
+            <p className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Quick Actions</p>
+            <button
+              onClick={() => navigate('/admin/users')}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[12px] font-medium text-gray-500 hover:text-primary-600 transition-all"
+            >
+              <HiOutlineUserGroup className="w-4 h-4 flex-shrink-0" />
+              Add New User
+            </button>
+            <button
+              onClick={() => navigate('/admin/roles')}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[12px] font-medium text-gray-500 hover:text-primary-600 transition-all"
+            >
+              <HiOutlineShieldCheck className="w-4 h-4 flex-shrink-0" />
+              Create Role
+            </button>
+          </div>
         </nav>
 
         {/* Footer */}
@@ -113,10 +150,18 @@ export default function AdminLayout() {
                 {user?.name?.charAt(0)?.toUpperCase() || 'A'}
               </span>
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-gray-800 truncate">{user?.name}</p>
               <p className="text-[11px] text-gray-400 capitalize">Admin</p>
             </div>
+            <button
+              onClick={handleLogout}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 transition-colors"
+              title="Logout"
+              aria-label="Logout"
+            >
+              <HiOutlineArrowLeftOnRectangle className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </aside>
@@ -136,21 +181,8 @@ export default function AdminLayout() {
             </button>
             <div>
               <h1 className="text-sm font-semibold text-gray-800">Admin Panel</h1>
-              <p className="text-[11px] text-gray-400 hidden sm:block">Manage subscription & users</p>
+              <p className="text-[11px] text-gray-400 hidden sm:block">Manage your business</p>
             </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-gray-500 hover:text-red-600 transition-all"
-              style={{ background: '#e8edf5', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}
-              title="Logout"
-              aria-label="Logout"
-            >
-              <HiOutlineArrowLeftOnRectangle className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
           </div>
         </header>
 

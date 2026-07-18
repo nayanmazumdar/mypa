@@ -16,7 +16,7 @@ class RbacService {
   async getFeatures() {
     const pool = getPool();
     const [rows] = await pool.query(
-      'SELECT * FROM rbac_features WHERE is_active = 1 AND is_admin_only = 0 ORDER BY name ASC'
+      'SELECT * FROM rbac_features WHERE is_active = 1 AND is_admin_only = 0 ORDER BY category ASC, name ASC'
     );
     return rows;
   }

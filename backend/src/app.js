@@ -149,6 +149,8 @@ app.use('/api/events', sseRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/login-logs', loginLogRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/admin/dashboard', require('./routes/admin-dashboard.routes'));
+app.use('/api/notifications', require('./routes/notification.routes'));
 app.use('/api/rbac', rbacRoutes);
 
 // Health check
