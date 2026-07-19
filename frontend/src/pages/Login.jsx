@@ -2,10 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { loginUser, clearError } from '../store/authSlice';
+import { loginUser, clearError, setActiveShop, logout } from '../store/authSlice';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { getFirstAccessibleRoute } from '../utils/permissions';
 import { resolveDefaultRoute } from './RoleSelector';
+import api from '../api/axios';
 
 const LOCKOUT_MINUTES = 15;
 const LOCKOUT_KEY = 'login_lockout_until';
@@ -26,6 +27,12 @@ export default function Login() {
   // Rate-limit lockout state
   const [lockedOut, setLockedOut] = useState(false);
   const [countdown, setCountdown] = useState(0);
+
+  // Shop closed modal state
+  const [showClosedModal, setShowClosedModal] = useState(false);
+  const [closedShops, setClosedShops] = useState([]);
+  const [waitingUser, setWaitingUser] = useState(null);
+  const pollRef = useRef(null);
 
   // Check for existing lockout on mount and tick countdown
   useEffect(() => {
@@ -145,7 +152,7 @@ export default function Login() {
     if (error) dispatch(clearError());
   };
 
-  const navigateAfterLogin = (user) => {
+  const navigateAfterLogin = async (user) => {
     // No role yet — first-time setup
     if (!user?.role) {
       navigate('/choose-role');
@@ -169,7 +176,6 @@ export default function Login() {
     } else {
       navigate('/select-shop');
     }
-<<<<<<< HEAD
 
     // Staff/Manager: auto-select their shop if they have exactly one
     const shops = loginUser.shops || [];
@@ -193,7 +199,6 @@ export default function Login() {
       } catch (err) {
         const msg = err.structured?.message || err.response?.data?.message || 'Cannot enter shop';
         if (msg.toLowerCase().includes('closed')) {
-          // Show modal with closed shops — poll until open
           setClosedShops(shops);
           setWaitingUser(loginUser);
           setShowClosedModal(true);
@@ -256,7 +261,6 @@ export default function Login() {
       try {
         const shopToTry = shops[0];
         const response = await api.post('/auth/select-shop', { shop_id: shopToTry.id });
-        // Success — shop is now open!
         clearInterval(pollRef.current);
         pollRef.current = null;
         const { token, shop: s, role, default_module, log_id } = response.data;
@@ -284,8 +288,6 @@ export default function Login() {
     setShowClosedModal(false);
     dispatch(logout());
     navigate('/login');
-=======
->>>>>>> 9d9d86bb8f99675240a331a1a442eba09c30bc82
   };
 
   const formatCountdown = (secs) => {
@@ -362,6 +364,8 @@ export default function Login() {
 
   // Standard password login
   return (
+    <>
+    {showClosedModal && <ShopClosedModal shops={closedShops} onClose={handleCloseModal} />}
     <div className="card">
       <div className="text-center mb-8">
         <img src="/logo.png" alt="Logo" className="w-14 h-14 rounded-xl mx-auto mb-4" />
@@ -428,7 +432,6 @@ export default function Login() {
         </p>
       </div>
     </div>
-<<<<<<< HEAD
     </>
   );
 }
@@ -485,7 +488,5 @@ function ShopClosedModal({ shops, onClose }) {
         </button>
       </div>
     </div>
-=======
->>>>>>> 9d9d86bb8f99675240a331a1a442eba09c30bc82
   );
 }
