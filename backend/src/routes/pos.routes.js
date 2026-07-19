@@ -246,9 +246,64 @@ router.post('/checkout', authenticate, permit('pos:checkout'), async (req, res, 
       const discountAmount = discount || 0;
       const netAmount = Math.round((totalAmount - discountAmount) * 100) / 100;
 
+      // GST Calculation based on shop settings
+      const [[shopSettings]] = await connection.query(
+        'SELECT gst_type, tax_rate FROM shops WHERE id = ?', [req.user.shop_id]
+      );
+      const gstType = shopSettings?.gst_type || 'without_gst';
+      const defaultTaxRate = parseFloat(shopSettings?.tax_rate) || 0;
+
+      let totalCgst = 0;
+      let totalSgst = 0;
+
+      if (gstType !== 'without_gst') {
+        // Fetch tax_rate for each product from the database
+        const productIds = processedItems.map(i => i.product_id);
+        const [productTaxes] = await connection.query(
+          `SELECT id, tax_rate FROM products WHERE id IN (${productIds.map(() => '?').join(',')})`,
+          productIds
+        );
+        const taxRateMap = {};
+        productTaxes.forEach(p => { taxRateMap[p.id] = parseFloat(p.tax_rate) || 0; });
+
+        for (const item of processedItems) {
+          // Use product's tax_rate if > 0, else shop's default
+          const productRate = taxRateMap[item.product_id] || 0;
+          const gstRate = productRate > 0 ? productRate : defaultTaxRate;
+
+          if (gstType === 'gst_inclusive') {
+            // GoI Formula: Taxable Value = (Price × 100) / (100 + GST Rate)
+            // CGST = Taxable Value × (Rate/2) / 100
+            // SGST = Taxable Value × (Rate/2) / 100
+            const taxableValue = (item.total * 100) / (100 + gstRate);
+            item.cgst = Math.round((taxableValue * (gstRate / 2) / 100) * 100) / 100;
+            item.sgst = Math.round((taxableValue * (gstRate / 2) / 100) * 100) / 100;
+          } else {
+            // GST Exclusive — GoI Formula: Tax on top of taxable value
+            // CGST = Taxable Value × (Rate/2) / 100
+            // SGST = Taxable Value × (Rate/2) / 100
+            // Total payable = Taxable Value + CGST + SGST
+            const taxableValue = item.total;
+            item.cgst = Math.round((taxableValue * (gstRate / 2) / 100) * 100) / 100;
+            item.sgst = Math.round((taxableValue * (gstRate / 2) / 100) * 100) / 100;
+          }
+          totalCgst += item.cgst;
+          totalSgst += item.sgst;
+        }
+      }
+
+      totalCgst = Math.round(totalCgst * 100) / 100;
+      totalSgst = Math.round(totalSgst * 100) / 100;
+
+      // For GST Exclusive, add tax to the net amount (customer pays base + tax)
+      let finalNetAmount = netAmount;
+      if (gstType === 'gst_exclusive') {
+        finalNetAmount = Math.round((netAmount + totalCgst + totalSgst) * 100) / 100;
+      }
+
       // Multi-payment support: payments = [{ method: 'cash', amount: 500 }, { method: 'upi', amount: 200 }]
       let resolvedPaymentMethod = payment_method || 'cash';
-      let resolvedAmountReceived = amount_received || netAmount;
+      let resolvedAmountReceived = amount_received || finalNetAmount;
       let paymentsJson = null;
 
       if (payments && Array.isArray(payments) && payments.length > 0) {
@@ -257,17 +312,17 @@ router.post('/checkout', authenticate, permit('pos:checkout'), async (req, res, 
         paymentsJson = JSON.stringify(payments);
       }
 
-      const changeAmount = resolvedAmountReceived > netAmount
-        ? Math.round((resolvedAmountReceived - netAmount) * 100) / 100 : 0;
+      const changeAmount = resolvedAmountReceived > finalNetAmount
+        ? Math.round((resolvedAmountReceived - finalNetAmount) * 100) / 100 : 0;
 
       const uuid = idempotencyKey || generateId();
       const receiptNumber = generateReceiptNumber();
 
       // Insert transaction — biller_id captures who processed this sale (staff/manager/admin)
       const [txResult] = await connection.query(
-        `INSERT INTO pos_transactions (uuid, user_id, biller_id, shop_id, customer_name, customer_id, total_amount, discount, net_amount, payment_method, amount_received, change_amount, receipt_number, payments_json)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [uuid, req.user.id, req.user.id, req.user.shop_id, customer_name || null, customer_id || null, totalAmount, discountAmount, netAmount, resolvedPaymentMethod, resolvedAmountReceived, changeAmount > 0 ? changeAmount : 0, receiptNumber, paymentsJson]
+        `INSERT INTO pos_transactions (uuid, user_id, biller_id, shop_id, customer_name, customer_id, total_amount, discount, net_amount, cgst_amount, sgst_amount, payment_method, amount_received, change_amount, receipt_number, payments_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uuid, req.user.id, req.user.id, req.user.shop_id, customer_name || null, customer_id || null, totalAmount, discountAmount, finalNetAmount, totalCgst, totalSgst, resolvedPaymentMethod, resolvedAmountReceived, changeAmount > 0 ? changeAmount : 0, receiptNumber, paymentsJson]
       );
       const transactionId = txResult.insertId;
 
@@ -290,9 +345,9 @@ router.post('/checkout', authenticate, permit('pos:checkout'), async (req, res, 
         }
 
         await connection.query(
-          `INSERT INTO pos_transaction_items (transaction_id, product_id, product_name, quantity, unit, unit_price, total)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [transactionId, item.product_id, item.product_name, item.quantity, item.unit, item.unit_price, item.total]
+          `INSERT INTO pos_transaction_items (transaction_id, product_id, product_name, quantity, unit, unit_price, total, cgst, sgst)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [transactionId, item.product_id, item.product_name, item.quantity, item.unit, item.unit_price, item.total, item.cgst || 0, item.sgst || 0]
         );
 
         // Reduce inventory — floor at 0 to be safe
@@ -336,10 +391,13 @@ router.post('/checkout', authenticate, permit('pos:checkout'), async (req, res, 
         uuid,
         receipt_number: receiptNumber,
         biller_id: req.user.id,
-        biller_name: req.user.email, // resolved to name on fetch; email as fallback here
+        biller_name: req.user.email,
         total_amount: totalAmount,
         discount: discountAmount,
-        net_amount: netAmount,
+        net_amount: finalNetAmount,
+        cgst_amount: totalCgst,
+        sgst_amount: totalSgst,
+        gst_type: gstType,
         payment_method: resolvedPaymentMethod,
         amount_received: resolvedAmountReceived,
         change_amount: changeAmount > 0 ? changeAmount : 0,
@@ -384,6 +442,7 @@ router.get('/transactions', authenticate, permit('pos:read'), async (req, res, n
     const pool = getPool();
     const { page, limit, offset } = parsePagination(req.query);
     const { date, start_date, end_date, search, biller_id } = req.query;
+    const resolvedBillerId = biller_id === 'me' ? req.user.id : biller_id;
 
     let query = `SELECT t.*, u.name AS biller_name, u.email AS biller_email
                  FROM pos_transactions t
@@ -392,10 +451,10 @@ router.get('/transactions', authenticate, permit('pos:read'), async (req, res, n
     let countQuery = 'SELECT COUNT(*) as total FROM pos_transactions WHERE shop_id = ?';
     const params = [req.user.shop_id];
 
-    if (biller_id) {
+    if (resolvedBillerId) {
       query += ' AND t.biller_id = ?';
       countQuery += ' AND biller_id = ?';
-      params.push(biller_id);
+      params.push(resolvedBillerId);
     }
 
     if (date) {
@@ -494,7 +553,7 @@ router.get('/today-summary', authenticate, permit('pos:read'), async (req, res, 
   try {
     const pool = getPool();
     const today = req.query.date || localDateStr();
-    const billerId = req.query.biller_id;
+    const billerId = req.query.biller_id === 'me' ? req.user.id : req.query.biller_id;
 
     let billerCondition = '';
     const baseParams = [req.user.shop_id, today];
@@ -510,8 +569,8 @@ router.get('/today-summary', authenticate, permit('pos:read'), async (req, res, 
     );
 
     const [[expenses]] = await pool.query(
-      `SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE shop_id = ? AND expense_date = ?`,
-      [req.user.shop_id, today]
+      `SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE shop_id = ? AND expense_date = ?${billerId ? ' AND user_id = ?' : ''}`,
+      billerId ? [req.user.shop_id, today, billerId] : [req.user.shop_id, today]
     );
 
     const breakdownParams = [req.user.shop_id, today];
@@ -535,10 +594,17 @@ router.get('/today-summary', authenticate, permit('pos:read'), async (req, res, 
       paymentCounts[key]    = Number(row.count);
     });
 
+    // Total purchases for today
+    const [[purchasesData]] = await pool.query(
+      `SELECT COALESCE(SUM(net_amount), 0) as total FROM purchases WHERE shop_id = ? AND DATE(created_at) = ? AND status != 'cancelled'${billerId ? ' AND user_id = ?' : ''}`,
+      billerId ? [req.user.shop_id, today, billerId] : [req.user.shop_id, today]
+    );
+
     return ApiResponse.success(res, {
       total_transactions: sales.count,
       total_revenue: sales.revenue,
       total_expenses: expenses.total,
+      total_purchases: parseFloat(purchasesData.total),
       net_income: Math.round((sales.revenue - expenses.total) * 100) / 100,
       payment_breakdown: paymentBreakdown,
       payment_counts: paymentCounts,

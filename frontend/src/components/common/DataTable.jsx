@@ -70,9 +70,10 @@ export default function DataTable({ columns = [], data = [], renderRow, emptySta
  * <Pagination pagination={{ total: 100, totalPages: 5 }} page={2} onPageChange={setPage} />
  */
 export function Pagination({ pagination, page, onPageChange }) {
-  if (!pagination || pagination.totalPages <= 1) return null;
+  if (!pagination) return null;
 
   const { totalPages, total } = pagination;
+  const limit = pagination.limit || (totalPages > 0 ? Math.ceil(total / totalPages) : 25);
 
   // Generate page numbers to show (max 5 visible)
   const getPages = () => {
@@ -82,11 +83,13 @@ export function Pagination({ pagination, page, onPageChange }) {
     return [page - 2, page - 1, page, page + 1, page + 2];
   };
 
+  // Always show the "Showing X–Y of Z" text, but only show page buttons if >1 page
   return (
     <div className="flex items-center justify-between px-5 py-3" style={{ borderTop: '1px solid rgba(200,207,216,0.4)', background: 'rgba(200,207,216,0.1)' }}>
       <span className="text-xs text-gray-500">
-        Showing {Math.min((page - 1) * 20 + 1, total)}–{Math.min(page * 20, total)} of {total}
+        Showing {Math.min((page - 1) * limit + 1, total)}–{Math.min(page * limit, total)} of {total}
       </span>
+      {totalPages > 1 && (
       <div className="flex items-center gap-1">
         <button
           disabled={page <= 1}
@@ -118,6 +121,7 @@ export function Pagination({ pagination, page, onPageChange }) {
           Next ›
         </button>
       </div>
+      )}
     </div>
   );
 }

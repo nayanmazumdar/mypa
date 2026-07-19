@@ -5,7 +5,12 @@ const logger = require('../config/logger');
 class SalesController {
   async getAll(req, res) {
     try {
-      const result = await salesService.getAll(req.user.shop_id, req.query);
+      const query = { ...req.query };
+      // Staff can only see their own transactions
+      if (req.user.role === 'staff') {
+        query.biller_id = req.user.id;
+      }
+      const result = await salesService.getAll(req.user.shop_id, query);
       return ApiResponse.paginated(res, result.sales, result.pagination);
     } catch (error) {
       logger.error('Get sales error:', error.message);

@@ -35,8 +35,18 @@ class SalesService {
       dateParams.push(query.end_date);
     }
 
-    const salesParams = [...baseParams, ...dateParams];
-    const posParams = [...baseParams, ...dateParams];
+    // Biller filter (for staff - only see own transactions)
+    let salesBillerCondition = '';
+    let posBillerCondition = '';
+    const billerParams = [];
+    if (query.biller_id) {
+      salesBillerCondition = ' AND s.user_id = ?';
+      posBillerCondition = ' AND biller_id = ?';
+      billerParams.push(query.biller_id);
+    }
+
+    const salesParams = [...baseParams, ...dateParams, ...billerParams];
+    const posParams = [...baseParams, ...dateParams, ...billerParams];
 
     // Combined query: invoice sales + POS transactions
     const combinedQuery = `
@@ -44,10 +54,12 @@ class SalesService {
         (SELECT s.id, 'invoice' AS type, s.invoice_number,
                 c.name AS customer_name, s.sale_date,
                 s.total_amount, s.discount, s.net_amount, s.payment_method, s.payment_status, s.status, s.created_at,
-                COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.reference_type = 'sale' AND p.reference_id = s.id), 0) AS paid_amount
+                COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.reference_type = 'sale' AND p.reference_id = s.id), 0) AS paid_amount,
+                bu.name AS biller_name
          FROM sales s
          LEFT JOIN customers c ON s.customer_id = c.id
-         WHERE s.shop_id = ?${salesDateCondition})
+         LEFT JOIN users bu ON s.user_id = bu.id
+         WHERE s.shop_id = ?${salesDateCondition}${salesBillerCondition})
         UNION ALL
         (SELECT id, 'pos' AS type, receipt_number AS invoice_number,
                 customer_name, DATE(created_at) AS sale_date,
@@ -60,8 +72,9 @@ class SalesService {
                 status, created_at,
                 CASE WHEN payment_method = 'credit' THEN
                   COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.reference_type = 'pos' AND p.reference_id = pos_transactions.id), 0)
-                ELSE net_amount END AS paid_amount
-         FROM pos_transactions WHERE shop_id = ?${posDateCondition})
+                ELSE net_amount END AS paid_amount,
+                (SELECT u.name FROM users u WHERE u.id = pos_transactions.biller_id) AS biller_name
+         FROM pos_transactions WHERE shop_id = ?${posDateCondition}${posBillerCondition})
       ) combined${outerStatusFilter}
       ORDER BY created_at DESC
       LIMIT ? OFFSET ?`;
@@ -70,7 +83,7 @@ class SalesService {
       SELECT COUNT(*) AS total FROM (
         (SELECT s.payment_status
          FROM sales s
-         WHERE s.shop_id = ?${salesDateCondition})
+         WHERE s.shop_id = ?${salesDateCondition}${salesBillerCondition})
         UNION ALL
         (SELECT
                 CASE WHEN payment_method = 'credit' THEN
@@ -78,7 +91,7 @@ class SalesService {
                        WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.reference_type = 'pos' AND p.reference_id = pos_transactions.id), 0) > 0 THEN 'partial'
                        ELSE 'unpaid' END
                 ELSE 'paid' END AS payment_status
-         FROM pos_transactions WHERE shop_id = ?${posDateCondition})
+         FROM pos_transactions WHERE shop_id = ?${posDateCondition}${posBillerCondition})
       ) combined${outerStatusFilter}`;
 
     const queryParams = [...salesParams, ...posParams, ...outerParams, limit, offset];

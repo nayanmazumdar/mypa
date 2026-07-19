@@ -1,6 +1,6 @@
 const { Purchase, PurchaseItem, Product, Supplier, Inventory, StockMovement, sequelize } = require('../models');
 const { Op } = require('sequelize');
-const { generateId, generateInvoiceNumber, formatDate } = require('../utils/helper');
+const { generateId, generateInvoiceNumber, localDateStr } = require('../utils/helper');
 const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 const logger = require('../config/logger');
 
@@ -58,7 +58,7 @@ class PurchaseService {
     return plain;
   }
 
-  async create(shopId, data) {
+  async create(userId, shopId, data) {
     const uuid = generateId();
     const invoiceNumber = data.invoice_number || generateInvoiceNumber('PUR');
 
@@ -76,7 +76,7 @@ class PurchaseService {
     const result = await sequelize.transaction(async (t) => {
       const purchase = await Purchase.create({
         uuid,
-        user_id: shopId,
+        user_id: userId,
         shop_id: shopId,
         supplier_id: data.supplier_id || null,
         invoice_number: invoiceNumber,
@@ -88,7 +88,7 @@ class PurchaseService {
         payment_method: data.payment_method || 'cash',
         status: 'completed',
         notes: data.notes || null,
-        purchase_date: formatDate(new Date()),
+        purchase_date: localDateStr(),
       }, { transaction: t });
 
       for (const item of items) {

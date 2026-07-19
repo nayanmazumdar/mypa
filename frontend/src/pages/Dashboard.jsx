@@ -39,9 +39,11 @@ export default function Dashboard() {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
+      const isStaff = user?.role === 'staff';
+      const summaryParams = isStaff ? { biller_id: 'me' } : {};
       const [summaryRes, productsRes, customersRes, recentRes, lowStockRes] =
         await Promise.allSettled([
-          posApi.getTodaySummary(),
+          posApi.getTodaySummary(summaryParams),
           api.get('/products', { params: { limit: 1 } }),
           api.get('/customers', { params: { limit: 1 } }),
           api.get('/sales', { params: { limit: 5 } }),
@@ -62,7 +64,8 @@ export default function Dashboard() {
 
   const todayRevenue = parseFloat(todaySummary?.total_revenue || 0);
   const todayExpenses = parseFloat(todaySummary?.total_expenses || 0);
-  const todayNet = parseFloat(todaySummary?.net_income || 0);
+  const todayPurchases = parseFloat(todaySummary?.total_purchases || 0);
+  const todayNet = todayRevenue - todayExpenses - todayPurchases;
   const todayTxCount = todaySummary?.total_transactions || 0;
 
   const greeting = () => {
@@ -100,12 +103,12 @@ export default function Dashboard() {
           <div className="rounded-2xl p-4 text-center" style={{ background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }}>
             <HiOutlineArrowTrendingUp className="w-5 h-5 text-emerald-500 mx-auto mb-2" />
             <p className="text-2xl sm:text-3xl font-bold text-gray-800 tabular-nums">₹{todayRevenue.toLocaleString('en-IN')}</p>
-            <p className="text-[11px] text-gray-500 mt-1.5 font-medium uppercase tracking-wide">Revenue</p>
+            <p className="text-[11px] text-gray-500 mt-1.5 font-medium uppercase tracking-wide">Revenue ({todayTxCount} txns)</p>
           </div>
           <div className="rounded-2xl p-4 text-center" style={{ background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }}>
-            <HiOutlineShoppingCart className="w-5 h-5 text-blue-500 mx-auto mb-2" />
-            <p className="text-2xl sm:text-3xl font-bold text-gray-800 tabular-nums">{todayTxCount}</p>
-            <p className="text-[11px] text-gray-500 mt-1.5 font-medium uppercase tracking-wide">Bills</p>
+            <HiOutlineShoppingCart className="w-5 h-5 text-orange-500 mx-auto mb-2" />
+            <p className="text-2xl sm:text-3xl font-bold text-gray-800 tabular-nums">₹{parseFloat(todaySummary?.total_purchases || 0).toLocaleString('en-IN')}</p>
+            <p className="text-[11px] text-gray-500 mt-1.5 font-medium uppercase tracking-wide">Purchases</p>
           </div>
           <div className="rounded-2xl p-4 text-center" style={{ background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }}>
             <HiOutlineArrowTrendingDown className="w-5 h-5 text-red-400 mx-auto mb-2" />
@@ -115,7 +118,7 @@ export default function Dashboard() {
           <div className="rounded-2xl p-4 text-center" style={{ background: '#e8edf5', boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }}>
             <HiOutlineBanknotes className={`w-5 h-5 mx-auto mb-2 ${todayNet >= 0 ? 'text-emerald-500' : 'text-red-500'}`} />
             <p className={`text-2xl sm:text-3xl font-bold tabular-nums ${todayNet >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>₹{todayNet.toLocaleString('en-IN')}</p>
-            <p className="text-[11px] text-gray-500 mt-1.5 font-medium uppercase tracking-wide">Net Profit</p>
+            <p className="text-[11px] text-gray-500 mt-1.5 font-medium uppercase tracking-wide">Net Cash Flow</p>
           </div>
         </div>
       </div>

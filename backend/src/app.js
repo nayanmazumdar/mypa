@@ -64,7 +64,7 @@ app.use(cors(corsOptions));
 // Rate limiting - General
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // 1000 requests per window
+  max: 5000, // 5000 requests per window
   message: { success: false, message: 'Too many requests, please try again later' },
   standardHeaders: true,
   legacyHeaders: false,

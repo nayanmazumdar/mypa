@@ -178,6 +178,14 @@ export default function Login() {
     // Staff/Manager: auto-select their shop if they have exactly one
     const shops = loginUser.shops || [];
     if (shops.length === 1) {
+      // Check if shop is closed or staff is disabled — show modal directly
+      if (!shops[0].is_open || shops[0].staff_active === 0) {
+        setClosedShops(shops);
+        setWaitingUser(loginUser);
+        setShowClosedModal(true);
+        startPolling(loginUser, shops);
+        return;
+      }
       try {
         const response = await api.post('/auth/select-shop', { shop_id: shops[0].id });
         const { token, shop: s, role, default_module, log_id } = response.data;
@@ -440,28 +448,32 @@ function ShopClosedModal({ shops, onClose }) {
           <div className="w-14 h-14 rounded-full bg-orange-100 flex items-center justify-center mx-auto mb-3">
             <span className="text-2xl">🔒</span>
           </div>
-          <h2 className="text-lg font-bold text-gray-900">Shop Closed</h2>
+          <h2 className="text-lg font-bold text-gray-900">Access Restricted</h2>
           <p className="text-sm text-gray-500 mt-1">
             {shops.length === 0
               ? 'Your account is not assigned to any shop today! Lets you in when done. Please contact the business owner.'
-              : 'Your assigned shop is currently closed. You will be automatically redirected when it opens.'}
+              : 'Your shop access is currently restricted. You will be automatically redirected when access is restored.'}
           </p>
         </div>
 
         {/* Shop list */}
         {shops.length > 0 && (
           <div className="space-y-2">
-            {shops.map((shop) => (
-              <div key={shop.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-gray-800">{shop.name}</span>
+            {shops.map((shop) => {
+              const isClosed = !shop.is_open;
+              const isDisabled = !shop.staff_active && shop.staff_active !== undefined;
+              return (
+                <div key={shop.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100">
+                  <div>
+                    <span className="text-sm font-medium text-gray-800">{shop.name}</span>
+                  </div>
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${isClosed ? 'bg-red-100 text-red-600' : isDisabled ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-600'}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${isClosed ? 'bg-red-500' : 'bg-orange-400'}`} />
+                    {isClosed ? 'Shop Closed' : isDisabled ? 'Access Disabled' : 'Unavailable'}
+                  </span>
                 </div>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-600">
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                  Closed
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

@@ -18,20 +18,20 @@ import {
  * Background sync keeps cache fresh separately.
  */
 export async function getProducts(params = {}) {
-  const products = await getCachedProducts({
-    search: params.search,
-    category_id: params.category_id,
-  });
-
-  // If cache is empty and we're online, try fetching once
-  if (products.length === 0 && navigator.onLine) {
+  // Always fetch from server when online to ensure correct shop products
+  if (navigator.onLine) {
     try {
       const response = await posApi.getProducts(params);
       return response;
     } catch {
-      // Still nothing — return empty
+      // Fall through to cache if server fails
     }
   }
+
+  const products = await getCachedProducts({
+    search: params.search,
+    category_id: params.category_id,
+  });
 
   return {
     success: true,
@@ -104,7 +104,22 @@ export async function getCategories() {
  * This guarantees the shopkeeper NEVER waits for network during billing.
  */
 export async function checkout(data) {
-  // Generate a proper receipt number (looks professional on printed receipts)
+  // When online, always use server checkout for accurate GST calculation
+  if (navigator.onLine) {
+    try {
+      const response = await posApi.checkout(data);
+      return response;
+    } catch (err) {
+      // If server fails, fall through to offline mode
+      if (!err.response || err.response.status >= 500) {
+        // Server error — fall through to offline
+      } else {
+        throw err; // Client errors (400, 409) should propagate
+      }
+    }
+  }
+
+  // Offline fallback — no GST calculation (will be recalculated on sync)
   const now = new Date();
   const datePart = now.toISOString().slice(2, 10).replace(/-/g, '');
   const timePart = now.toISOString().slice(11, 19).replace(/:/g, '');

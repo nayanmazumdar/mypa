@@ -119,7 +119,7 @@ router.post('/', authenticate, permit('payments:create'), async (req, res, next)
 /**
  * GET /api/payments/history/:reference_type/:reference_id - Get payment history for a transaction
  */
-router.get('/history/:reference_type/:reference_id', authenticate, permit('payments:read'), async (req, res, next) => {
+router.get('/history/:reference_type/:reference_id', authenticate, async (req, res, next) => {
   try {
     const { reference_type, reference_id } = req.params;
     const payments = await Payment.findAll({

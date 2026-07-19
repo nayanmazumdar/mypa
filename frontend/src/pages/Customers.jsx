@@ -23,13 +23,16 @@ export default function Customers() {
   const [form, setForm] = useState(INITIAL_FORM);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [showAll, setShowAll] = useState(false);
   const [ledgerData, setLedgerData] = useState({ customer: null, entries: [] });
   const [paymentForm, setPaymentForm] = useState({ amount: '', payment_method: 'cash', notes: '' });
   const { can } = usePermission();
 
+  const currentLimit = showAll ? 200 : 10;
+
   useEffect(() => {
-    dispatch(fetchCustomers({ page, limit: 20, search }));
-  }, [dispatch, page, search]);
+    dispatch(fetchCustomers({ page, limit: currentLimit, search }));
+  }, [dispatch, page, search, showAll]);
 
   const openCreate = () => {
     setEditingId(null);
@@ -55,7 +58,7 @@ export default function Customers() {
         toast.success('Customer created');
       }
       setShowModal(false);
-      dispatch(fetchCustomers({ page, limit: 20, search }));
+      dispatch(fetchCustomers({ page, limit: currentLimit, search }));
     } catch (err) {
       toast.error(err?.message || 'Operation failed');
     }
@@ -66,7 +69,7 @@ export default function Customers() {
     try {
       await customerApi.delete(id);
       toast.success('Customer deleted');
-      dispatch(fetchCustomers({ page, limit: 20, search }));
+      dispatch(fetchCustomers({ page, limit: currentLimit, search }));
     } catch {
       toast.error('Failed to delete customer');
     }
@@ -90,7 +93,7 @@ export default function Customers() {
       await api.post(`/customers/${ledgerData.customer.id}/payment`, { amount: parseFloat(paymentForm.amount), payment_method: paymentForm.payment_method, notes: paymentForm.notes || null });
       toast.success('Payment recorded');
       setShowLedger(false);
-      dispatch(fetchCustomers({ page, limit: 20, search }));
+      dispatch(fetchCustomers({ page, limit: currentLimit, search }));
     } catch {
       toast.error('Failed to record payment');
     }
@@ -109,12 +112,21 @@ export default function Customers() {
         <ExportButton entity="customers" canImport />
       </PageHeader>
 
-      <SearchInput
-        value={search}
-        onChange={(v) => { setSearch(v); setPage(1); }}
-        placeholder="Search by name, phone, email..."
-        className="max-w-md"
-      />
+      <div className="flex items-center gap-3 flex-wrap">
+        <SearchInput
+          value={search}
+          onChange={(v) => { setSearch(v); setPage(1); }}
+          placeholder="Search by name, phone, email..."
+          className="flex-1 min-w-[200px] max-w-md"
+        />
+        <button
+          onClick={() => { setShowAll(!showAll); setPage(1); }}
+          className={`px-3 py-2 rounded-xl text-xs font-medium transition-all ${showAll ? 'text-primary-700 bg-primary-50' : 'text-gray-500 hover:text-gray-700'}`}
+          style={!showAll ? { background: '#e8edf5', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' } : {}}
+        >
+          {showAll ? '← Show Recent' : 'View All Customers'}
+        </button>
+      </div>
 
       {/* Table */}
       <DataTable
@@ -127,7 +139,7 @@ export default function Customers() {
           { key: 'actions', label: '', align: 'right' },
         ]}
         data={items}
-        pagination={pagination}
+        pagination={showAll ? null : pagination}
         page={page}
         onPageChange={setPage}
         renderRow={(c) => (

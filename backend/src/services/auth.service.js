@@ -98,11 +98,11 @@ class AuthService {
       const e = new Error('Password or passcode required'); e.statusCode = 400; throw e;
     }
 
-    // Get user's shops (include inactive so disabled shops are visible)
+    // Get user's shops (include all to show closed/disabled status in the login modal)
     const [shops] = await pool.query(
-      `SELECT s.id, s.uuid, s.name, s.address, s.phone, us.role as user_role, s.is_active, s.is_open
+      `SELECT s.id, s.uuid, s.name, s.address, s.phone, us.role as user_role, us.is_active as staff_active, s.is_active, s.is_open
        FROM user_shops us JOIN shops s ON us.shop_id = s.id
-       WHERE us.user_id = ? AND us.is_active = 1`,
+       WHERE us.user_id = ?`,
       [user.id]
     );
 
@@ -296,7 +296,7 @@ class AuthService {
     );
     if (!user) return null;
     const [shops] = await pool.query(
-      `SELECT s.id, s.uuid, s.name, s.address, s.phone, s.gst_number, s.is_open, us.role as user_role
+      `SELECT s.id, s.uuid, s.name, s.address, s.phone, s.gst_number, s.tax_rate, s.tax_label, s.gst_type, s.is_open, us.role as user_role
        FROM user_shops us JOIN shops s ON us.shop_id = s.id WHERE us.user_id = ?`, [userId]
     );
     return { ...user, shops };
@@ -330,12 +330,12 @@ class AuthService {
     }
   }
 
-  async updateShop(shopId, { name, address, phone, email, gst_number }) {
+  async updateShop(shopId, { name, address, phone, email, gst_number, tax_rate, tax_label, gst_type }) {
     const pool = getPool();
     if (!shopId) { const e = new Error('No shop selected'); e.statusCode = 400; throw e; }
     await pool.query(
-      'UPDATE shops SET name = ?, address = ?, phone = ?, email = ?, gst_number = ? WHERE id = ?',
-      [name, address || null, phone || null, email || null, gst_number || null, shopId]
+      'UPDATE shops SET name = ?, address = ?, phone = ?, email = ?, gst_number = ?, tax_rate = ?, tax_label = ?, gst_type = ? WHERE id = ?',
+      [name, address || null, phone || null, email || null, gst_number || null, tax_rate != null ? tax_rate : 5, tax_label || 'GST', gst_type || 'without_gst', shopId]
     );
   }
 

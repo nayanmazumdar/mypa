@@ -456,6 +456,7 @@ td.item-name { font-weight: 500; }
 
 <!-- ═══ INVOICE INFO ════════════════════════════════════════ -->
 <div class="center"><div class="invoice-title">— Tax Invoice —</div></div>
+${data.gst_type && data.gst_type !== 'without_gst' ? `<div class="center" style="font-size:9px;margin-top:2px">(${data.gst_type === 'gst_inclusive' ? 'GST Inclusive' : 'GST Exclusive'})</div>` : data.gst_type === 'without_gst' ? `<div class="center" style="font-size:9px;margin-top:2px">(Without GST)</div>` : ''}
 <div class="row meta"><span>Invoice No:</span><span class="invoice-no">${data.receipt_number}</span></div>
 <div class="row meta"><span>Date:</span><span><b>${dateStr}</b> at ${timeStr}</span></div>
 ${data.customer_name ? `<div class="row meta" style="margin-top:3px"><span>Customer:</span><span><b>${data.customer_name}</b></span></div>` : ''}
@@ -486,7 +487,9 @@ ${data.biller_name ? `<div class="row meta" style="margin-top:3px"><span>Billed 
 <div class="totals">
   <div class="row"><span>Subtotal (${itemsCount} items, ${totalQty % 1 === 0 ? totalQty : totalQty.toFixed(2)} qty)</span><span>₹${subtotalAmt.toFixed(2)}</span></div>
   ${discAmt > 0 ? `<div class="row"><span>Discount</span><span style="color:#c00">-₹${discAmt.toFixed(2)}</span></div>` : ''}
-  ${parseFloat(data.tax_amount || 0) > 0 ? `<div class="row"><span>Tax</span><span>₹${parseFloat(data.tax_amount).toFixed(2)}</span></div>` : ''}
+  ${parseFloat(data.cgst_amount || 0) > 0 ? `<div class="row"><span>CGST</span><span>₹${parseFloat(data.cgst_amount).toFixed(2)}</span></div>` : ''}
+  ${parseFloat(data.sgst_amount || 0) > 0 ? `<div class="row"><span>SGST</span><span>₹${parseFloat(data.sgst_amount).toFixed(2)}</span></div>` : ''}
+  ${parseFloat(data.tax_amount || 0) > 0 && !data.cgst_amount ? `<div class="row"><span>Tax</span><span>₹${parseFloat(data.tax_amount).toFixed(2)}</span></div>` : ''}
 </div>
 
 <div class="double-line"></div>
@@ -509,7 +512,10 @@ ${data.biller_name ? `<div class="row meta" style="margin-top:3px"><span>Billed 
   <div>We value your business. Please visit again.</div>
   <div style="margin-top:3px">Exchange/Return within 7 days with this bill.</div>
   <div style="margin-top:6px;font-size:8px;color:#999">Invoice: ${data.receipt_number} | Generated: ${new Date().toLocaleString('en-IN')}</div>
-  <div style="margin-top:2px;font-size:8px;color:#aaa">Billing powered by MyPA</div>
+  <div style="margin-top:8px;border-top:1px dashed #ccc;padding-top:6px;display:flex;align-items:center;justify-content:center;gap:6px">
+    <img src="/logo.png" style="width:18px;height:18px;border-radius:4px" alt="MyPA" />
+    <span style="font-size:9px;color:#4f46e5;font-weight:bold;letter-spacing:0.5px">Powered by MyPA</span>
+  </div>
 </div>
 
 </body></html>`);
@@ -537,7 +543,7 @@ ${data.biller_name ? `<div class="row meta" style="margin-top:3px"><span>Billed 
   const openHistory = async () => {
     if (quickPanel === 'history') { setQuickPanel(null); return; }
     setQuickPanel('history'); setHistoryLoading(true);
-    try { const res = await posApi.getTransactions({ limit: 7, biller_id: JSON.parse(localStorage.getItem('user') || '{}').id }); setHistoryData(Array.isArray(res.data || res) ? (res.data || res) : (res.data || res).transactions || []); }
+    try { const res = await posApi.getTransactions({ limit: 7, biller_id: 'me' }); setHistoryData(Array.isArray(res.data || res) ? (res.data || res) : (res.data || res).transactions || []); }
     catch { toast.error('Failed to load history'); }
     finally { setHistoryLoading(false); }
   };
@@ -545,7 +551,7 @@ ${data.biller_name ? `<div class="row meta" style="margin-top:3px"><span>Billed 
   const openSummary = async () => {
     if (quickPanel === 'summary') { setQuickPanel(null); return; }
     setQuickPanel('summary'); setSummaryLoading(true);
-    try { const res = await posApi.getTodaySummary({ biller_id: JSON.parse(localStorage.getItem('user') || '{}').id }); setSummaryData(res.data || res); }
+    try { const res = await posApi.getTodaySummary({ biller_id: 'me' }); setSummaryData(res.data || res); }
     catch { toast.error('Failed to load summary'); }
     finally { setSummaryLoading(false); }
   };
@@ -629,7 +635,7 @@ ${data.biller_name ? `<div class="row meta" style="margin-top:3px"><span>Billed 
               {productsLoading && products.length === 0 ? (
                 <tr><td colSpan="4" className="py-20 text-center"><div className="w-6 h-6 border-[3px] border-primary-200 border-t-primary-600 rounded-full animate-spin mx-auto" /></td></tr>
               ) : products.length === 0 ? (
-                <tr><td colSpan="4" className="py-20 text-center text-gray-400 text-sm">{search ? `No results for "${search}"` : 'No products available'}</td></tr>
+                <tr><td colSpan="4" className="py-20 text-center text-gray-400 text-sm">{search ? `No results for "${search}"` : 'No Products listed for the shop!'}</td></tr>
               ) : products.map((product) => {
                 const inCart = cart.find(c => c.product_id === product.id);
                 const outOfStock = parseFloat(product.stock) <= 0;
@@ -699,7 +705,7 @@ ${data.biller_name ? `<div class="row meta" style="margin-top:3px"><span>Billed 
       {quickPanel && (
         <div className="w-72 lg:w-80 rounded-3xl flex flex-col overflow-hidden" style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
           <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(200,207,216,0.3)' }}>
-            <h2 className="text-xs font-bold text-gray-700 uppercase tracking-wider">{quickPanel === 'history' ? 'Recent Sales' : "Today's Summary"}</h2>
+            <h2 className="text-xs font-bold text-gray-700 uppercase tracking-wider">{quickPanel === 'history' ? 'Recent Sales' : 'My Billings Today!'}</h2>
             <button onClick={() => setQuickPanel(null)} className="p-1 rounded-lg hover:bg-gray-200 text-gray-400"><HiOutlineXMark className="w-4 h-4" /></button>
           </div>
           <div className="flex-1 overflow-y-auto p-3">
@@ -730,9 +736,20 @@ ${data.biller_name ? `<div class="row meta" style="margin-top:3px"><span>Billed 
                     <div className="p-3 bg-emerald-50 rounded-xl text-center"><p className="text-[10px] text-emerald-600 font-semibold uppercase">Revenue</p><p className="text-lg font-bold text-emerald-700">₹{parseFloat(summaryData.total_revenue || 0).toFixed(0)}</p></div>
                     <div className="p-3 bg-blue-50 rounded-xl text-center"><p className="text-[10px] text-blue-600 font-semibold uppercase">Bills</p><p className="text-lg font-bold text-blue-700">{summaryData.total_transactions || 0}</p></div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="p-3 bg-red-50 rounded-xl text-center"><p className="text-[10px] text-red-600 font-semibold uppercase">Expenses</p><p className="text-lg font-bold text-red-700">₹{parseFloat(summaryData.total_expenses || 0).toFixed(0)}</p></div>
-                    <div className="p-3 bg-purple-50 rounded-xl text-center"><p className="text-[10px] text-purple-600 font-semibold uppercase">Net</p><p className="text-lg font-bold text-purple-700">₹{parseFloat(summaryData.net_income || 0).toFixed(0)}</p></div>
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-semibold text-gray-500 uppercase">Payment Breakdown</p>
+                    {parseFloat(summaryData.payment_breakdown?.cash || 0) > 0 && (
+                      <div className="flex justify-between items-center p-2 bg-green-50 rounded-lg"><span className="text-xs font-medium text-green-700">Cash</span><span className="text-xs font-bold text-green-700">₹{parseFloat(summaryData.payment_breakdown.cash).toFixed(0)}</span></div>
+                    )}
+                    {parseFloat(summaryData.payment_breakdown?.upi || 0) > 0 && (
+                      <div className="flex justify-between items-center p-2 bg-blue-50 rounded-lg"><span className="text-xs font-medium text-blue-700">UPI</span><span className="text-xs font-bold text-blue-700">₹{parseFloat(summaryData.payment_breakdown.upi).toFixed(0)}</span></div>
+                    )}
+                    {parseFloat(summaryData.payment_breakdown?.card || 0) > 0 && (
+                      <div className="flex justify-between items-center p-2 bg-purple-50 rounded-lg"><span className="text-xs font-medium text-purple-700">Card</span><span className="text-xs font-bold text-purple-700">₹{parseFloat(summaryData.payment_breakdown.card).toFixed(0)}</span></div>
+                    )}
+                    {parseFloat(summaryData.payment_breakdown?.credit || 0) > 0 && (
+                      <div className="flex justify-between items-center p-2 bg-red-50 rounded-lg"><span className="text-xs font-medium text-red-700">Credit (Udhaar)</span><span className="text-xs font-bold text-red-700">₹{parseFloat(summaryData.payment_breakdown.credit).toFixed(0)}</span></div>
+                    )}
                   </div>
                 </div>
               ) : <p className="text-center text-xs text-gray-400 py-8">No data</p>
@@ -935,7 +952,10 @@ ${data.biller_name ? `<div class="row meta" style="margin-top:3px"><span>Billed 
               {/* Discount */}
               <div>
                 <label className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1 block">Discount (₹)</label>
-                <input type="number" min="0" step="1" placeholder="0" value={discount} onChange={(e) => setDiscount(e.target.value)} className="input-field text-sm py-2" />
+                <input type="number" min="0" step="0.01" placeholder="0" value={discount}
+                  onChange={(e) => { setDiscount(e.target.value); setDiscountAutoSet(false); }}
+                  disabled={JSON.parse(localStorage.getItem('user') || '{}').role === 'staff'}
+                  className="input-field text-sm py-2 disabled:opacity-50 disabled:cursor-not-allowed" />
               </div>
 
               {/* Payment Method */}

@@ -63,16 +63,23 @@ export default function Inventory() {
       ? items.filter(i => parseFloat(i.quantity) <= 0)
       : items;
 
-    // Sort
+    // Sort: always put out-of-stock and low-stock at the top
     data = [...data].sort((a, b) => {
+      const qtyA = parseFloat(a.quantity);
+      const qtyB = parseFloat(b.quantity);
+      const minA = parseFloat(a.min_stock_level) || 0;
+      const minB = parseFloat(b.min_stock_level) || 0;
+      const statusA = qtyA <= 0 ? 0 : (minA > 0 && qtyA <= minA) ? 1 : 2;
+      const statusB = qtyB <= 0 ? 0 : (minB > 0 && qtyB <= minB) ? 1 : 2;
+
+      // Priority: out of stock (0) > low stock (1) > normal (2)
+      if (statusA !== statusB) return statusA - statusB;
+
+      // Secondary sort by user selection
       let cmp = 0;
       if (sortBy === 'name') cmp = (a.product_name || '').localeCompare(b.product_name || '');
-      else if (sortBy === 'quantity') cmp = parseFloat(a.quantity) - parseFloat(b.quantity);
-      else if (sortBy === 'status') {
-        const statusA = parseFloat(a.quantity) <= 0 ? 0 : parseFloat(a.quantity) <= parseFloat(a.min_stock_level) ? 1 : 2;
-        const statusB = parseFloat(b.quantity) <= 0 ? 0 : parseFloat(b.quantity) <= parseFloat(b.min_stock_level) ? 1 : 2;
-        cmp = statusA - statusB;
-      }
+      else if (sortBy === 'quantity') cmp = qtyA - qtyB;
+      else if (sortBy === 'status') cmp = statusA - statusB;
       return sortDir === 'asc' ? cmp : -cmp;
     });
 
@@ -342,7 +349,7 @@ export default function Inventory() {
         </div>
 
         {/* Pagination */}
-        {pagination && pagination.totalPages > 1 && (
+        {pagination && (
           <Pagination pagination={pagination} page={page} onPageChange={setPage} />
         )}
       </div>

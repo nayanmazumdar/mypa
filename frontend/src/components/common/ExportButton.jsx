@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useSelector } from 'react-redux';
 import toast from 'react-hot-toast';
 import { HiOutlineArrowDownTray, HiOutlineArrowUpTray, HiOutlineTableCells, HiOutlineDocumentText, HiOutlineCodeBracket } from 'react-icons/hi2';
 
@@ -20,6 +21,9 @@ const FORMATS = [
  * - canImport: boolean — if true, also shows an import option
  */
 export default function ExportButton({ entity, filters = {}, label, canImport = false }) {
+  const user = useSelector((state) => state.auth.user);
+  if (user?.role === 'staff') return null;
+
   const [open, setOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);

@@ -31,7 +31,7 @@ export default function Products() {
   usePageTitle('Products');
   const dispatch = useDispatch();
   const { items, pagination, loading, error } = useSelector((state) => state.products);
-  const { can } = usePermission();
+  const { can, role } = usePermission();
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [search, setSearch] = useState('');
@@ -42,7 +42,7 @@ export default function Products() {
   const [page, setPage] = useState(1);
 
   useEffect(() => {
-    dispatch(fetchProducts({ page, limit: 20, search }));
+    dispatch(fetchProducts({ page, limit: 25, search }));
   }, [dispatch, search, page]);
 
   useEffect(() => {
@@ -50,7 +50,7 @@ export default function Products() {
   }, []);
 
   if (error && items.length === 0 && !loading) {
-    return <PageError error={error} onRetry={() => dispatch(fetchProducts({ page: 1, limit: 20 }))} />;
+    return <PageError error={error} onRetry={() => dispatch(fetchProducts({ page: 1, limit: 25 }))} />;
   }
 
   const openCreate = () => {
@@ -100,7 +100,7 @@ export default function Products() {
       if (updateProduct.fulfilled.match(result)) {
         toast.success('Product updated');
         setShowModal(false);
-        dispatch(fetchProducts({ page, limit: 20, search }));
+        dispatch(fetchProducts({ page, limit: 25, search }));
       } else toast.error(result.payload?.message || 'Failed to update');
     } else {
       result = await dispatch(createProduct(payload));
@@ -129,7 +129,7 @@ export default function Products() {
     { key: 'product', label: 'Product' },
     { key: 'sku', label: 'SKU', hideOn: 'sm' },
     { key: 'unit', label: 'Unit', hideOn: 'md' },
-    { key: 'cost', label: 'Cost', align: 'right', hideOn: 'lg' },
+    ...(role !== 'staff' ? [{ key: 'cost', label: 'Cost', align: 'right', hideOn: 'lg' }] : []),
     { key: 'price', label: 'Price', align: 'right' },
     { key: 'mrp', label: 'MRP', align: 'right', hideOn: 'lg' },
     { key: 'actions', label: '', align: 'center' },
@@ -155,7 +155,7 @@ export default function Products() {
       {/* Mobile Cards */}
       <div className="md:hidden space-y-3">
         {items.length === 0 ? (
-          <EmptyState icon={HiOutlineCube} title="No products yet" message="Add your first product to get started." actionLabel="Add Product" onAction={openCreate} />
+          <EmptyState icon={HiOutlineCube} title="No products yet" message={role === 'staff' ? 'Contact admin to add products.' : 'Add your first product to get started.'} actionLabel={can('products:create') ? 'Add Product' : null} onAction={openCreate} />
         ) : items.map((product) => (
           <div key={product.id} className="card p-4 flex items-center gap-4">
             <Avatar name={product.name} src={product.image_url} />
@@ -165,7 +165,7 @@ export default function Products() {
             </div>
             <div className="text-right flex-shrink-0">
               <p className="text-sm font-semibold text-gray-900">₹{product.selling_price}</p>
-              <p className="text-[11px] text-gray-400">Cost: ₹{product.purchase_price}</p>
+              {role !== 'staff' && <p className="text-[11px] text-gray-400">Cost: ₹{product.purchase_price}</p>}
             </div>
             <ActionGroup>
               {can('products:update') && <ActionButton variant="edit" onClick={() => openEdit(product)} title="Edit" />}
@@ -183,7 +183,7 @@ export default function Products() {
           pagination={pagination}
           page={page}
           onPageChange={setPage}
-          emptyState={<EmptyState icon={HiOutlineCube} title="No products yet" message="Add your first product to get started." actionLabel="Add Product" onAction={openCreate} />}
+          emptyState={<EmptyState icon={HiOutlineCube} title="No products yet" message={role === 'staff' ? 'Contact admin to add products.' : 'Add your first product to get started.'} actionLabel={can('products:create') ? 'Add Product' : null} onAction={openCreate} />}
           renderRow={(product) => (
             <tr key={product.id} className="hover:bg-gray-50/50 transition-colors">
               <td className="px-5 py-4">
@@ -199,7 +199,7 @@ export default function Products() {
                 <p className="text-gray-600 font-mono text-xs">{product.sku || '—'}</p>
               </td>
               <td className="px-5 py-4 text-gray-500 capitalize hidden md:table-cell">{product.unit}</td>
-              <td className="px-5 py-4 text-right text-gray-500 hidden lg:table-cell">₹{product.purchase_price}</td>
+              {role !== 'staff' && <td className="px-5 py-4 text-right text-gray-500 hidden lg:table-cell">₹{product.purchase_price}</td>}
               <td className="px-5 py-4 text-right font-semibold text-gray-900">₹{product.selling_price}</td>
               <td className="px-5 py-4 text-right text-gray-400 hidden lg:table-cell">₹{product.mrp || product.selling_price}</td>
               <td className="px-5 py-4">

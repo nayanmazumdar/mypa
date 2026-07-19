@@ -1,7 +1,7 @@
 const { body } = require('express-validator');
 
 const createPurchaseValidator = [
-  body('supplier_id').optional().isInt().withMessage('Supplier ID must be an integer'),
+  body('supplier_id').optional({ nullable: true, checkFalsy: true }).isInt().withMessage('Supplier ID must be an integer'),
   body('items').isArray({ min: 1 }).withMessage('At least one item is required'),
   body('items.*.product_id').optional({ nullable: true }).isInt().withMessage('Product ID must be an integer'),
   body('items.*.manual_name').optional().trim(),

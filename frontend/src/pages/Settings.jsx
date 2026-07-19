@@ -39,12 +39,16 @@ export default function Settings() {
     try {
       const res = await api.get('/auth/profile');
       setProfile(res.data);
-      setProfileForm({ name: res.data.name || '', phone: res.data.phone || '', area: res.data.area || '', pincode: res.data.pincode || '' });
+      setProfileForm({ name: res.data.name || '', phone: res.data.phone || '', area: res.data.area || '', pincode: res.data.pincode || '000000' });
     } catch {}
   };
 
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
+    if (!profileForm.pincode || profileForm.pincode.length !== 6) {
+      toast.error('PIN Code is mandatory (6 digits)');
+      return;
+    }
     try {
       await api.put('/auth/profile', profileForm);
       toast.success('Profile updated');
@@ -140,7 +144,7 @@ function ProfileSection({ profile, editing, setEditing, form, setForm, onSubmit 
             <Field label="Full Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} />
             <Field label="Phone" type="tel" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
             <Field label="Area / Locality" value={form.area} onChange={(v) => setForm({ ...form, area: v })} placeholder="Street, Area, City" />
-            <Field label="PIN Code" value={form.pincode} onChange={(v) => setForm({ ...form, pincode: v.replace(/\D/g, '').slice(0, 6) })} inputMode="numeric" maxLength={6} placeholder="6-digit" />
+            <Field label="PIN Code *" value={form.pincode} onChange={(v) => setForm({ ...form, pincode: v.replace(/\D/g, '').slice(0, 6) })} inputMode="numeric" maxLength={6} placeholder="6-digit (mandatory)" required />
           </div>
           <div className="flex gap-3 pt-2">
             <button type="submit" className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 transition-colors">Save Changes</button>

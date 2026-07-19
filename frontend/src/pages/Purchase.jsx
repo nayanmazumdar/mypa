@@ -22,7 +22,7 @@ export default function Purchase() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
-  const { can } = usePermission();
+  const { can, role } = usePermission();
 
   // Create form
   const [products, setProducts] = useState([]);
@@ -35,6 +35,10 @@ export default function Purchase() {
   }, [dispatch, page, statusFilter, search]);
 
   const openCreate = async () => {
+    if (role === 'staff') {
+      toast('Contact admin for the purchases!', { icon: 'ℹ️' });
+      return;
+    }
     try {
       const [prodRes, suppRes] = await Promise.all([
         api.get('/products', { params: { limit: 200 } }),
@@ -86,7 +90,7 @@ export default function Purchase() {
     try {
       await dispatch(createPurchase({
         items: validItems.map(i => ({ product_id: parseInt(i.product_id), quantity: parseFloat(i.quantity), unit_price: parseFloat(i.unit_price) })),
-        supplier_id: purchaseForm.supplier_id ? parseInt(purchaseForm.supplier_id) : null,
+        ...(purchaseForm.supplier_id ? { supplier_id: parseInt(purchaseForm.supplier_id) } : {}),
         payment_method: purchaseForm.payment_method,
         payment_status: purchaseForm.payment_status,
         discount: parseFloat(purchaseForm.discount) || 0,
@@ -153,7 +157,7 @@ export default function Purchase() {
             <tbody className="">
               {items.length === 0 ? (
                 <tr><td colSpan="7" className="px-5 py-14 text-center text-gray-400 text-sm">No purchases recorded yet.</td></tr>
-              ) : items.map((purchase) => (
+              ) : (items || []).map((purchase) => (
                 <tr key={purchase.id} className="transition-colors" style={{ }}>
                   <td className="px-5 py-4 font-medium text-primary-600">{purchase.invoice_number}</td>
                   <td className="px-5 py-4 text-gray-700">{purchase.supplier_name || '-'}</td>
@@ -201,7 +205,7 @@ export default function Purchase() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
               <select value={purchaseForm.supplier_id} onChange={(e) => setPurchaseForm({ ...purchaseForm, supplier_id: e.target.value })} className="input w-full">
                 <option value="">No Supplier</option>
-                {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}{s.company ? ` (${s.company})` : ''}</option>)}
+                {(suppliers || []).map(s => <option key={s.id} value={s.id}>{s.name}{s.company ? ` (${s.company})` : ''}</option>)}
               </select>
             </div>
             <div>
@@ -226,7 +230,7 @@ export default function Purchase() {
                 <div key={idx} className="flex items-center gap-2">
                   <select value={item.product_id} onChange={(e) => handleProductChange(idx, e.target.value)} className="input flex-1 text-sm">
                     <option value="">Select Product</option>
-                    {products.map(p => <option key={p.id} value={p.id}>{p.name} (₹{p.purchase_price})</option>)}
+                    {(products || []).map(p => <option key={p.id} value={p.id}>{p.name} (₹{p.purchase_price})</option>)}
                   </select>
                   <input type="number" min="0.01" step="0.01" value={item.quantity} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} className="input w-16 text-sm" placeholder="Qty" />
                   <input type="number" min="0" step="0.01" value={item.unit_price} onChange={(e) => updateItem(idx, 'unit_price', e.target.value)} className="input w-20 text-sm" placeholder="Price" />
@@ -288,7 +292,7 @@ export default function Purchase() {
                 <table className="w-full text-xs">
                   <thead><tr className="text-gray-500 border-b"><th className="text-left py-1">Product</th><th className="text-right py-1">Qty</th><th className="text-right py-1">Price</th><th className="text-right py-1">Total</th></tr></thead>
                   <tbody>
-                    {purchaseDetail.items.map((item, i) => (
+                    {(purchaseDetail.items || []).map((item, i) => (
                       <tr key={i} className="border-b border-gray-50">
                         <td className="py-1">{item.product_name || `Product #${item.product_id}`}</td>
                         <td className="py-1 text-right">{item.quantity}</td>

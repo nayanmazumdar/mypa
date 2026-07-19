@@ -25,7 +25,7 @@ export default function Sales() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
-  const { can } = usePermission();
+  const { can, role } = usePermission();
 
   // Date filter - default to today
   const getLocalDate = () => {
@@ -59,24 +59,27 @@ export default function Sales() {
   const [detailPayHistory, setDetailPayHistory] = useState([]);
 
   const openDetail = async (sale) => {
+    // Use the data already available from the list
+    setSaleDetail({ ...sale });
+    setShowDetailModal(true);
+    // Load payment history
+    const refType = sale.type === 'pos' ? 'pos' : 'sale';
+    try {
+      const histRes = await api.get(`/payments/history/${refType}/${sale.id}`);
+      setDetailPayHistory(histRes.data || []);
+    } catch { setDetailPayHistory([]); }
+
+    // Try to load full details (items) in the background
     try {
       if (sale.type === 'pos') {
         const res = await api.get(`/pos/transactions/${sale.id}`);
-        setSaleDetail({ ...res.data, type: 'pos' });
+        setSaleDetail(prev => ({ ...prev, ...res.data, type: 'pos' }));
       } else {
         const res = await salesApi.getById(sale.id);
-        setSaleDetail({ ...(res.data || res), type: 'invoice' });
+        const data = res.data || res;
+        setSaleDetail(prev => ({ ...prev, ...data, type: 'invoice' }));
       }
-      setShowDetailModal(true);
-      // Load payment history
-      const refType = sale.type === 'pos' ? 'pos' : 'sale';
-      try {
-        const histRes = await api.get(`/payments/history/${refType}/${sale.id}`);
-        setDetailPayHistory(histRes.data || []);
-      } catch { setDetailPayHistory([]); }
-    } catch {
-      toast.error('Failed to load sale details');
-    }
+    } catch { /* keep using basic data from list */ }
   };
 
   const handleProductChange = (idx, productId) => {
@@ -302,6 +305,55 @@ ${balance > 0 ? `<tr class="due"><td>Balance Due</td><td class="right">₹${bala
         <button onClick={() => { setStartDate(getLocalDate()); setEndDate(getLocalDate()); setPage(1); }} className="text-xs text-primary-600 font-medium hover:text-primary-700">Today</button>
       </div>
 
+      {/* Sales Summary */}
+      {items.length > 0 && (() => {
+        const t = { total: 0, cash: 0, upi: 0, card: 0, bank_transfer: 0, balanceDue: 0 };
+        const billerTotals = {};
+        items.forEach(sale => {
+          const amt = parseFloat(sale.net_amount) || 0;
+          const paidAmt = parseFloat(sale.paid_amount) || 0;
+          t.total += amt;
+          const method = (sale.payment_method || 'cash').toLowerCase();
+          if (method !== 'credit') { if (t[method] !== undefined) t[method] += amt; else t.cash += amt; }
+          if (sale.payment_status === 'partial' || sale.payment_status === 'unpaid') t.balanceDue += Math.max(amt - paidAmt, 0);
+          if (role === 'admin') {
+            const name = sale.biller_name || 'Unknown';
+            if (!billerTotals[name]) billerTotals[name] = { count: 0, revenue: 0 };
+            billerTotals[name].count += 1;
+            billerTotals[name].revenue += amt;
+          }
+        });
+        return (
+          <div className="rounded-2xl p-4 space-y-3" style={{ background: '#e8edf5', boxShadow: '4px 4px 8px #c8cfd8, -4px -4px 8px #ffffff' }}>
+            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Sales Summary</p>
+            <div className="flex items-center justify-between">
+              <div className="flex flex-wrap gap-4 text-sm">
+                {t.cash > 0 && <span className="text-gray-800 font-medium">Cash: <b>₹{t.cash.toFixed(2)}</b></span>}
+                {t.upi > 0 && <span className="text-gray-800 font-medium">UPI: <b>₹{t.upi.toFixed(2)}</b></span>}
+                {t.card > 0 && <span className="text-gray-800 font-medium">Card: <b>₹{t.card.toFixed(2)}</b></span>}
+                {t.bank_transfer > 0 && <span className="text-gray-800 font-medium">Bank: <b>₹{t.bank_transfer.toFixed(2)}</b></span>}
+                {t.balanceDue > 0 && <span className="text-red-700 font-medium">Balance Due: <b>₹{t.balanceDue.toFixed(2)}</b></span>}
+              </div>
+              <span className="text-base font-bold text-primary-700 px-4 py-2 rounded-xl" style={{ background: '#e8edf5', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}>Total: ₹{t.total.toFixed(2)}</span>
+            </div>
+            {role === 'admin' && Object.keys(billerTotals).length > 0 && (
+              <div className="flex flex-wrap gap-3 pt-2" style={{ borderTop: '1px solid rgba(200,207,216,0.4)' }}>
+                {Object.entries(billerTotals).map(([name, data], idx, arr) => (
+                  <div key={name} className="flex items-center gap-2 px-3 py-2 text-xs">
+                    <span className="font-semibold text-gray-800">{name}</span>
+                    <span className="text-gray-400">·</span>
+                    <span className="text-primary-600 font-bold">{data.count} bills</span>
+                    <span className="text-gray-400">·</span>
+                    <span className="text-green-600 font-bold">₹{data.revenue.toFixed(0)}</span>
+                    {idx < arr.length - 1 && <span className="text-gray-300 ml-2">|</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Table */}
       <div className="rounded-3xl overflow-hidden" style={{ background: "#e8edf5", boxShadow: "6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff" }}>
         <div className="overflow-x-auto">
@@ -327,7 +379,10 @@ ${balance > 0 ? `<tr class="due"><td>Balance Due</td><td class="right">₹${bala
                 const hasPartialPay = paidAmt > 0 && paidAmt < netAmt;
                 return (
                 <tr key={`${sale.type}-${sale.id}`} className="hover:bg-gray-50/50 transition-colors">
-                  <td className="px-5 py-4 font-medium text-primary-600 text-sm">{sale.invoice_number}</td>
+                  <td className="px-5 py-4 font-medium text-primary-600 text-sm">
+                    <div>{sale.invoice_number}</div>
+                    {sale.biller_name && <div className="text-[10px] text-gray-400 font-normal">by {sale.biller_name}</div>}
+                  </td>
                   <td className="px-5 py-4 text-gray-700">{sale.customer_name || <span className="text-gray-400">Walk-in</span>}</td>
                   <td className="px-5 py-4 text-right">
                     {hasPartialPay ? (
@@ -373,39 +428,9 @@ ${balance > 0 ? `<tr class="due"><td>Balance Due</td><td class="right">₹${bala
           </table>
         </div>
 
-        {/* Totals Summary */}
-        {items.length > 0 && (() => {
-          const totals = { total: 0, cash: 0, upi: 0, card: 0, bank_transfer: 0, balanceDue: 0 };
-          items.forEach(sale => {
-            const amt = parseFloat(sale.net_amount) || 0;
-            const paidAmt = parseFloat(sale.paid_amount) || 0;
-            const due = Math.max(amt - paidAmt, 0);
-            totals.total += amt;
-            // Only count collected amounts (not credit/udhaar)
-            const method = (sale.payment_method || 'cash').toLowerCase();
-            if (method !== 'credit') {
-              if (totals[method] !== undefined) totals[method] += amt;
-              else totals.cash += amt;
-            }
-            if (sale.payment_status === 'partial' || sale.payment_status === 'unpaid') {
-              totals.balanceDue += due;
-            }
-          });
-          return (
-            <div className="flex flex-wrap gap-3 px-4 py-3" style={{ borderTop: '1px solid rgba(200,207,216,0.3)' }}>
-              <div className="px-4 py-2 rounded-xl text-sm font-bold text-gray-800" style={{ background: '#e8edf5', boxShadow: 'inset 2px 2px 4px #c8cfd8, inset -2px -2px 4px #ffffff' }}>
-                Total: ₹{totals.total.toFixed(2)}
-              </div>
-              {totals.cash > 0 && <div className="px-4 py-2 rounded-xl text-sm font-semibold text-green-700 bg-green-50">Cash: ₹{totals.cash.toFixed(2)}</div>}
-              {totals.upi > 0 && <div className="px-4 py-2 rounded-xl text-sm font-semibold text-blue-700 bg-blue-50">UPI: ₹{totals.upi.toFixed(2)}</div>}
-              {totals.card > 0 && <div className="px-4 py-2 rounded-xl text-sm font-semibold text-purple-700 bg-purple-50">Card: ₹{totals.card.toFixed(2)}</div>}
-              {totals.bank_transfer > 0 && <div className="px-4 py-2 rounded-xl text-sm font-semibold text-indigo-700 bg-indigo-50">Bank: ₹{totals.bank_transfer.toFixed(2)}</div>}
-              {totals.balanceDue > 0 && <div className="px-4 py-2 rounded-xl text-sm font-bold text-red-800 bg-red-100 border border-red-200">Balance Due: ₹{totals.balanceDue.toFixed(2)}</div>}
-            </div>
-          );
-        })()}
+        {/* Totals Summary - moved to top */}
 
-        {pagination && pagination.totalPages > 1 && (
+        {pagination && (
           <Pagination pagination={pagination} page={page} onPageChange={setPage} />
         )}
       </div>
