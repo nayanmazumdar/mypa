@@ -28,17 +28,25 @@ router.patch('/:id/status', authenticate, authorize('admin'), async (req, res, n
     const pool = getPool();
     const { is_active } = req.body;
 
-    // Ensure the staff member belongs to the same shop and is not an admin
+    // Get all shops this admin owns
+    const [adminShops] = await pool.query(
+      `SELECT shop_id FROM user_shops WHERE user_id = ? AND role = 'admin'`, [req.user.id]
+    );
+    if (adminShops.length === 0) return ApiResponse.error(res, 'You do not own any shops', 403);
+    const ownedShopIds = adminShops.map(s => s.shop_id);
+    const placeholders = ownedShopIds.map(() => '?').join(',');
+
+    // Ensure the staff member belongs to one of admin's shops and is not an admin
     const [[membership]] = await pool.query(
-      'SELECT id, role FROM user_shops WHERE user_id = ? AND shop_id = ?',
-      [req.params.id, req.user.shop_id]
+      `SELECT id, role FROM user_shops WHERE user_id = ? AND shop_id IN (${placeholders}) LIMIT 1`,
+      [req.params.id, ...ownedShopIds]
     );
     if (!membership) return ApiResponse.notFound(res, 'Staff member not found in your shop');
     if (membership.role === 'admin') return ApiResponse.error(res, 'Cannot disable a shop admin', 403);
 
     await pool.query(
-      'UPDATE user_shops SET is_active = ? WHERE user_id = ? AND shop_id = ?',
-      [is_active ? 1 : 0, req.params.id, req.user.shop_id]
+      `UPDATE user_shops SET is_active = ? WHERE user_id = ? AND shop_id IN (${placeholders})`,
+      [is_active ? 1 : 0, req.params.id, ...ownedShopIds]
     );
     return ApiResponse.success(res, null, `Staff member ${is_active ? 'enabled' : 'disabled'}`);
   } catch (error) {
@@ -54,10 +62,18 @@ router.patch('/:id/details', authenticate, authorize('admin'), async (req, res, 
     const pool = getPool();
     const { name, phone, email } = req.body;
 
-    // Verify belongs to this shop
+    // Get all shops this admin owns
+    const [adminShops] = await pool.query(
+      `SELECT shop_id FROM user_shops WHERE user_id = ? AND role = 'admin'`, [req.user.id]
+    );
+    if (adminShops.length === 0) return ApiResponse.error(res, 'You do not own any shops', 403);
+    const ownedShopIds = adminShops.map(s => s.shop_id);
+    const placeholders = ownedShopIds.map(() => '?').join(',');
+
+    // Verify user belongs to one of admin's shops
     const [[membership]] = await pool.query(
-      'SELECT id FROM user_shops WHERE user_id = ? AND shop_id = ?',
-      [req.params.id, req.user.shop_id]
+      `SELECT id FROM user_shops WHERE user_id = ? AND shop_id IN (${placeholders})`,
+      [req.params.id, ...ownedShopIds]
     );
     if (!membership) return ApiResponse.notFound(res, 'Staff member not found in your shop');
 
@@ -121,10 +137,18 @@ router.patch('/:id/role', authenticate, authorize('admin'), async (req, res, nex
       return ApiResponse.error(res, 'Invalid role. Must be staff or manager.', 400);
     }
 
-    // Ensure the staff member belongs to the same shop and is not the shop admin
+    // Get all shops this admin owns
+    const [adminShops] = await pool.query(
+      `SELECT shop_id FROM user_shops WHERE user_id = ? AND role = 'admin'`, [req.user.id]
+    );
+    if (adminShops.length === 0) return ApiResponse.error(res, 'You do not own any shops', 403);
+    const ownedShopIds = adminShops.map(s => s.shop_id);
+    const placeholders = ownedShopIds.map(() => '?').join(',');
+
+    // Ensure the staff member belongs to one of admin's shops and is not an admin
     const [[membership]] = await pool.query(
-      'SELECT id, role FROM user_shops WHERE user_id = ? AND shop_id = ?',
-      [req.params.id, req.user.shop_id]
+      `SELECT id, role, shop_id FROM user_shops WHERE user_id = ? AND shop_id IN (${placeholders}) LIMIT 1`,
+      [req.params.id, ...ownedShopIds]
     );
     if (!membership) return ApiResponse.notFound(res, 'Staff member not found in your shop');
     if (membership.role === 'admin') return ApiResponse.error(res, 'Cannot change the role of a shop admin', 403);
@@ -136,12 +160,131 @@ router.patch('/:id/role', authenticate, authorize('admin'), async (req, res, nex
 
     if (updates.length === 0) return ApiResponse.error(res, 'Nothing to update', 400);
 
-    params.push(req.params.id, req.user.shop_id);
+    // Update role in all admin's shops where this user is assigned
+    params.push(req.params.id);
     await pool.query(
-      `UPDATE user_shops SET ${updates.join(', ')} WHERE user_id = ? AND shop_id = ?`,
-      params
+      `UPDATE user_shops SET ${updates.join(', ')} WHERE user_id = ? AND shop_id IN (${placeholders})`,
+      [...params, ...ownedShopIds]
     );
     return ApiResponse.success(res, null, 'Role updated successfully');
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * PATCH /api/users/:id/shops - Update assigned shops for a user (admin only)
+ * Body: { shop_ids: [1, 2, 3], role: 'staff' }
+ * Adds user to new shops and removes from unselected shops (within admin's owned shops only)
+ */
+router.patch('/:id/shops', authenticate, authorize('admin'), async (req, res, next) => {
+  try {
+    const pool = getPool();
+    const { shop_ids, role } = req.body;
+    const userId = parseInt(req.params.id, 10);
+    const adminId = req.user.id;
+
+    if (!Array.isArray(shop_ids)) {
+      return ApiResponse.error(res, 'shop_ids must be an array', 400);
+    }
+
+    // Get all shops the admin owns
+    const [adminShops] = await pool.query(
+      `SELECT shop_id FROM user_shops WHERE user_id = ? AND role = 'admin'`, [adminId]
+    );
+    const ownedShopIds = adminShops.map(s => s.shop_id);
+
+    if (ownedShopIds.length === 0) {
+      return ApiResponse.error(res, 'You do not own any shops', 403);
+    }
+
+    // Validate that requested shop_ids are all owned by this admin
+    const invalidShops = shop_ids.filter(id => !ownedShopIds.includes(id));
+    if (invalidShops.length > 0) {
+      return ApiResponse.error(res, 'You can only assign users to shops you own', 403);
+    }
+
+    // Prevent editing the admin's own membership
+    if (userId === adminId) {
+      return ApiResponse.error(res, 'Cannot modify your own shop assignments', 400);
+    }
+
+    // Get current shop assignments for this user (within admin's shops only)
+    const placeholders = ownedShopIds.map(() => '?').join(',');
+    const [currentAssignments] = await pool.query(
+      `SELECT shop_id, role FROM user_shops WHERE user_id = ? AND shop_id IN (${placeholders})`,
+      [userId, ...ownedShopIds]
+    );
+    const currentShopIds = currentAssignments.map(a => a.shop_id);
+
+    // Determine shops to add and remove
+    const toAdd = shop_ids.filter(id => !currentShopIds.includes(id));
+    const toRemove = currentShopIds.filter(id => !shop_ids.includes(id));
+
+    // Prevent removing from a shop where user is admin
+    const adminRoleShops = currentAssignments.filter(a => a.role === 'admin').map(a => a.shop_id);
+    const blockedRemovals = toRemove.filter(id => adminRoleShops.includes(id));
+    if (blockedRemovals.length > 0) {
+      return ApiResponse.error(res, 'Cannot remove a shop owner from their own shop', 403);
+    }
+
+    const staffRole = role || 'staff';
+
+    // Remove from unselected shops
+    for (const shopId of toRemove) {
+      await pool.query(
+        'DELETE FROM user_shops WHERE user_id = ? AND shop_id = ?',
+        [userId, shopId]
+      );
+    }
+
+    // Add to newly selected shops
+    for (const shopId of toAdd) {
+      await pool.query(
+        'INSERT INTO user_shops (user_id, shop_id, role) VALUES (?, ?, ?)',
+        [userId, shopId, staffRole]
+      );
+    }
+
+    return ApiResponse.success(res, {
+      added: toAdd,
+      removed: toRemove,
+    }, 'Shop assignments updated');
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/users/:id/shops - Get assigned shops for a specific user (admin only)
+ * Returns the shops this user belongs to (within admin's owned shops)
+ */
+router.get('/:id/shops', authenticate, authorize('admin'), async (req, res, next) => {
+  try {
+    const pool = getPool();
+    const userId = parseInt(req.params.id, 10);
+    const adminId = req.user.id;
+
+    // Get admin's owned shops
+    const [adminShops] = await pool.query(
+      `SELECT shop_id FROM user_shops WHERE user_id = ? AND role = 'admin'`, [adminId]
+    );
+    const ownedShopIds = adminShops.map(s => s.shop_id);
+
+    if (ownedShopIds.length === 0) {
+      return ApiResponse.success(res, []);
+    }
+
+    const placeholders = ownedShopIds.map(() => '?').join(',');
+    const [assignments] = await pool.query(
+      `SELECT us.shop_id, us.role, s.name as shop_name
+       FROM user_shops us
+       JOIN shops s ON us.shop_id = s.id
+       WHERE us.user_id = ? AND us.shop_id IN (${placeholders})`,
+      [userId, ...ownedShopIds]
+    );
+
+    return ApiResponse.success(res, assignments);
   } catch (error) {
     next(error);
   }

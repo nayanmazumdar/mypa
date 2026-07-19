@@ -401,7 +401,7 @@ router.get('/transactions', authenticate, permit('pos:read'), async (req, res, n
   try {
     const pool = getPool();
     const { page, limit, offset } = parsePagination(req.query);
-    const { date, start_date, end_date, search } = req.query;
+    const { date, start_date, end_date, search, biller_id } = req.query;
 
     let query = `SELECT t.*, u.name AS biller_name, u.email AS biller_email
                  FROM pos_transactions t
@@ -409,6 +409,12 @@ router.get('/transactions', authenticate, permit('pos:read'), async (req, res, n
                  WHERE t.shop_id = ?`;
     let countQuery = 'SELECT COUNT(*) as total FROM pos_transactions WHERE shop_id = ?';
     const params = [req.user.shop_id];
+
+    if (biller_id) {
+      query += ' AND t.biller_id = ?';
+      countQuery += ' AND biller_id = ?';
+      params.push(biller_id);
+    }
 
     if (date) {
       query += ' AND DATE(t.created_at) = ?';
@@ -506,11 +512,19 @@ router.get('/today-summary', authenticate, permit('pos:read'), async (req, res, 
   try {
     const pool = getPool();
     const today = req.query.date || localDateStr();
+    const billerId = req.query.biller_id;
+
+    let billerCondition = '';
+    const baseParams = [req.user.shop_id, today];
+    if (billerId) {
+      billerCondition = ' AND biller_id = ?';
+      baseParams.push(billerId);
+    }
 
     const [[sales]] = await pool.query(
       `SELECT COUNT(*) as count, COALESCE(SUM(net_amount), 0) as revenue
-       FROM pos_transactions WHERE shop_id = ? AND DATE(created_at) = ? AND status = 'completed'`,
-      [req.user.shop_id, today]
+       FROM pos_transactions WHERE shop_id = ? AND DATE(created_at) = ? AND status = 'completed'${billerCondition}`,
+      baseParams
     );
 
     const [[expenses]] = await pool.query(
@@ -518,14 +532,16 @@ router.get('/today-summary', authenticate, permit('pos:read'), async (req, res, 
       [req.user.shop_id, today]
     );
 
+    const breakdownParams = [req.user.shop_id, today];
+    if (billerId) breakdownParams.push(billerId);
     const [breakdown] = await pool.query(
       `SELECT payment_method,
               COUNT(*) as count,
               COALESCE(SUM(net_amount), 0) as total
        FROM pos_transactions
-       WHERE shop_id = ? AND DATE(created_at) = ? AND status = 'completed'
+       WHERE shop_id = ? AND DATE(created_at) = ? AND status = 'completed'${billerCondition}
        GROUP BY payment_method`,
-      [req.user.shop_id, today]
+      breakdownParams
     );
 
     // Build a keyed map so frontend always gets all keys

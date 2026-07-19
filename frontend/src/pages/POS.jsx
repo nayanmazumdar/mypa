@@ -544,7 +544,7 @@ ${data.biller_name ? `<div class="row meta" style="margin-top:3px"><span>Billed 
   const openHistory = async () => {
     if (quickPanel === 'history') { setQuickPanel(null); return; }
     setQuickPanel('history'); setHistoryLoading(true);
-    try { const res = await posApi.getTransactions({ limit: 20 }); setHistoryData(Array.isArray(res.data || res) ? (res.data || res) : (res.data || res).transactions || []); }
+    try { const res = await posApi.getTransactions({ limit: 7, biller_id: JSON.parse(localStorage.getItem('user') || '{}').id }); setHistoryData(Array.isArray(res.data || res) ? (res.data || res) : (res.data || res).transactions || []); }
     catch { toast.error('Failed to load history'); }
     finally { setHistoryLoading(false); }
   };
@@ -552,7 +552,7 @@ ${data.biller_name ? `<div class="row meta" style="margin-top:3px"><span>Billed 
   const openSummary = async () => {
     if (quickPanel === 'summary') { setQuickPanel(null); return; }
     setQuickPanel('summary'); setSummaryLoading(true);
-    try { const res = await posApi.getTodaySummary(); setSummaryData(res.data || res); }
+    try { const res = await posApi.getTodaySummary({ biller_id: JSON.parse(localStorage.getItem('user') || '{}').id }); setSummaryData(res.data || res); }
     catch { toast.error('Failed to load summary'); }
     finally { setSummaryLoading(false); }
   };
@@ -686,7 +686,7 @@ ${data.biller_name ? `<div class="row meta" style="margin-top:3px"><span>Billed 
           {/* Quick actions (left) */}
           <div className="flex items-center gap-3">
             <button onClick={openHistory} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${quickPanel === 'history' ? 'text-blue-700' : 'text-gray-500'}`} style={quickPanel === 'history' ? { background: '#e8edf5', boxShadow: 'inset 2px 2px 4px #c8cfd8, inset -2px -2px 4px #ffffff' } : { background: '#e8edf5', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}><HiOutlineClock className="w-3.5 h-3.5" /><span className="hidden md:inline">History</span></button>
-          <button onClick={openSummary} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${quickPanel === 'summary' ? 'text-emerald-700' : 'text-gray-500'}`} style={quickPanel === 'summary' ? { background: '#e8edf5', boxShadow: 'inset 2px 2px 4px #c8cfd8, inset -2px -2px 4px #ffffff' } : { background: '#e8edf5', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}><HiOutlineChartBar className="w-3.5 h-3.5" /><span className="hidden md:inline">Today</span></button>
+          <button onClick={openSummary} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${quickPanel === 'summary' ? 'text-emerald-700' : 'text-gray-500'}`} style={quickPanel === 'summary' ? { background: '#e8edf5', boxShadow: 'inset 2px 2px 4px #c8cfd8, inset -2px -2px 4px #ffffff' } : { background: '#e8edf5', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}><HiOutlineChartBar className="w-3.5 h-3.5" /><span className="hidden md:inline">My Billing</span></button>
           {lastReceipt && <button onClick={() => printReceipt()} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-gray-500" style={{ background: '#e8edf5', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}><HiOutlinePrinter className="w-3.5 h-3.5" /><span className="hidden md:inline">Reprint</span></button>}
           {heldBills.length > 0 && <button onClick={() => setShowHeldPanel(!showHeldPanel)} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${showHeldPanel ? 'text-amber-700' : 'text-amber-600'}`} style={showHeldPanel ? { background: '#e8edf5', boxShadow: 'inset 2px 2px 4px #c8cfd8, inset -2px -2px 4px #ffffff' } : { background: '#e8edf5', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}><HiOutlinePause className="w-3.5 h-3.5" /> {heldBills.length} Parked</button>}
           </div>
@@ -727,7 +727,7 @@ ${data.biller_name ? `<div class="row meta" style="margin-top:3px"><span>Billed 
                     </div>
                   </div>
                 </div>
-              ))}</div>
+              ))}<p className="text-center text-[10px] text-purple-600 font-medium pt-2 border-t border-gray-100 mt-2">Contact Sales Section for more!</p></div>
             )}
             {quickPanel === 'summary' && (
               summaryLoading ? <div className="flex justify-center py-8"><div className="w-5 h-5 border-2 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" /></div>

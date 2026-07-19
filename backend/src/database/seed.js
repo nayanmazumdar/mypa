@@ -63,16 +63,29 @@ async function seed() {
     const [[shop]] = await connection.execute("SELECT id FROM shops WHERE uuid = ?", [shopUuid]);
     const shopId = shop.id;
 
-    // Update users with shop_id
-    await connection.execute('UPDATE users SET shop_id = ? WHERE id = ?', [shopId, userId]);
-    await connection.execute('UPDATE users SET shop_id = ? WHERE id = ?', [shopId, adminUser.id]);
-
-    // Add to user_shops junction table
+    // Create a separate shop for admin user
+    const adminShopUuid = uuidv4();
     await connection.execute(
-      `INSERT IGNORE INTO user_shops (user_id, shop_id, role) VALUES (?, ?, ?), (?, ?, ?)`,
-      [userId, shopId, 'admin', adminUser.id, shopId, 'admin']
+      `INSERT IGNORE INTO shops (uuid, name, address, phone, email, gst_number, owner_id) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [adminShopUuid, 'Admin Shop', '123 Admin Street', '9876543210', 'admin@shopkeeper.com', '27XYZAB5678C1ZF', adminUser.id]
     );
-    console.log(`  ✓ Shop created (id: ${shopId})`);
+    const [[adminShop]] = await connection.execute("SELECT id FROM shops WHERE uuid = ?", [adminShopUuid]);
+    const adminShopId = adminShop.id;
+
+    // Update users with their respective shop_id
+    await connection.execute('UPDATE users SET shop_id = ? WHERE id = ?', [shopId, userId]);
+    await connection.execute('UPDATE users SET shop_id = ? WHERE id = ?', [adminShopId, adminUser.id]);
+
+    // Add to user_shops junction table — each user is admin of their own shop only
+    await connection.execute(
+      `INSERT IGNORE INTO user_shops (user_id, shop_id, role) VALUES (?, ?, ?)`,
+      [userId, shopId, 'admin']
+    );
+    await connection.execute(
+      `INSERT IGNORE INTO user_shops (user_id, shop_id, role) VALUES (?, ?, ?)`,
+      [adminUser.id, adminShopId, 'admin']
+    );
+    console.log(`  ✓ Shops created — Demo General Store (id: ${shopId}), Admin Shop (id: ${adminShopId})`);
 
     // --- CATEGORIES ---
     console.log('\nSeeding categories...');

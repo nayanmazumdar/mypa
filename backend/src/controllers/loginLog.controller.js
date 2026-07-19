@@ -6,16 +6,15 @@ class LoginLogController {
   async getLogs(req, res) {
     try {
       const { date, shop_id } = req.query;
-      const shopId = shop_id || req.user.shop_id;
-      if (!shopId) {
-        // No specific shop — get logs across all admin's shops
-        const data = await loginLogService.getLogsForAdmin(req.user.id, date);
+      if (shop_id) {
+        const data = await loginLogService.getLogs(shop_id, date);
         return ApiResponse.success(res, data);
       }
-      const data = await loginLogService.getLogs(shopId, date);
+      // No specific shop — get logs across all admin's shops
+      const data = await loginLogService.getLogsForAdmin(req.user.id, date);
       return ApiResponse.success(res, data);
     } catch (error) {
-      logger.error('Get login logs error:', error.message);
+      logger.error('Get login logs error:', error.message, error.stack);
       return ApiResponse.error(res, error.message, 500);
     }
   }

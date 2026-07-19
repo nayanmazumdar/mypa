@@ -180,7 +180,7 @@ export default function AdminLayout() {
               <HiOutlineBars3 className="w-5 h-5" />
             </button>
             <div>
-              <h1 className="text-sm font-semibold text-gray-800">Admin Panel</h1>
+              <h1 className="text-sm font-semibold text-gray-800">Admin Panel (Business Owner)</h1>
               <p className="text-[11px] text-gray-400 hidden sm:block">Manage your business</p>
             </div>
           </div>

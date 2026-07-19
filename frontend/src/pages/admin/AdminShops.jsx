@@ -53,7 +53,9 @@ export default function AdminShops() {
     setLoading(true);
     try {
       const res = await api.get('/auth/profile');
-      setShops(res.data?.shops || []);
+      // Only show shops where the current user is the owner (admin role)
+      const allShops = res.data?.shops || [];
+      setShops(allShops.filter(s => s.user_role === 'admin'));
     } catch { setShops(user?.shops || []); }
     finally { setLoading(false); }
   };
@@ -255,9 +257,10 @@ export default function AdminShops() {
                     className="px-3 py-1.5 rounded-xl text-xs font-semibold text-gray-600 hover:text-gray-900 transition-all flex items-center gap-1" style={NEO.raisedSm}>
                     <HiOutlineCog6Tooth className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Manage</span>
                   </button>
-                  <button onClick={() => setConfirmToggle(shop)} title={isOpen ? 'Close shop' : 'Open shop'}
-                    className={`p-2 rounded-xl transition-all ${isOpen ? 'text-orange-500 hover:bg-orange-50' : 'text-green-600 hover:bg-green-50'}`} style={NEO.raisedSm}>
-                    {isOpen ? <HiOutlineXCircle className="w-4 h-4" /> : <HiOutlineCheckCircle className="w-4 h-4" />}
+                  <button onClick={() => setConfirmToggle(shop)} title={isOpen ? 'Close shop — blocks staff access' : 'Open shop — allows staff to log in'}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${isOpen ? 'text-orange-600 hover:bg-orange-50 border border-orange-200' : 'text-green-600 hover:bg-green-50 border border-green-200'}`} style={NEO.raisedSm}>
+                    {isOpen ? <HiOutlineXCircle className="w-3.5 h-3.5" /> : <HiOutlineCheckCircle className="w-3.5 h-3.5" />}
+                    <span className="hidden sm:inline">{isOpen ? 'Close' : 'Open'}</span>
                   </button>
                 </div>
               </div>
@@ -468,17 +471,27 @@ export default function AdminShops() {
                   <h4 className="text-sm font-bold text-gray-800">Shop Settings</h4>
 
                   {/* Status */}
-                  <div className="flex items-center justify-between p-4 rounded-xl" style={NEO.inset}>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${manageShop.is_open ? 'bg-green-500' : 'bg-red-500'}`} />
-                        {manageShop.is_open ? 'Shop is Open' : 'Shop is Closed'}
-                      </p>
-                      <p className="text-[11px] text-gray-500 mt-0.5">{manageShop.is_open ? 'Staff can log in' : 'Staff blocked'}</p>
+                  <div className={`flex items-center justify-between p-4 rounded-xl border ${manageShop.is_open ? 'border-green-200 bg-green-50/50' : 'border-red-200 bg-red-50/50'}`} style={NEO.inset}>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center ${manageShop.is_open ? 'bg-green-100' : 'bg-red-100'}`}>
+                        {manageShop.is_open
+                          ? <HiOutlineCheckCircle className="w-5 h-5 text-green-600" />
+                          : <HiOutlineXCircle className="w-5 h-5 text-red-500" />}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {manageShop.is_open ? 'Shop is Open' : 'Shop is Closed'}
+                        </p>
+                        <p className="text-[11px] text-gray-500 mt-0.5">
+                          {manageShop.is_open
+                            ? 'Staff can log in and process sales'
+                            : 'All staff access is blocked — no billing or sales'}
+                        </p>
+                      </div>
                     </div>
                     <button onClick={() => setConfirmToggle(manageShop)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold text-white ${manageShop.is_open ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}`}>
-                      {manageShop.is_open ? 'Close' : 'Open'}
+                      className={`px-4 py-2 rounded-xl text-xs font-semibold text-white transition-all shadow-sm ${manageShop.is_open ? 'bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600' : 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600'}`}>
+                      {manageShop.is_open ? '🔒 Close Shop' : '🔓 Open Shop'}
                     </button>
                   </div>
 
@@ -521,18 +534,48 @@ export default function AdminShops() {
       </Modal>
 
       {/* ═══ Toggle Confirmation ═══ */}
-      <Modal open={!!confirmToggle} onClose={() => setConfirmToggle(null)} title={confirmToggle?.is_open ? 'Close Shop?' : 'Open Shop?'}>
+      <Modal open={!!confirmToggle} onClose={() => setConfirmToggle(null)} title={confirmToggle?.is_open ? '🔒 Close Shop' : '🔓 Open Shop'}>
         <div className="space-y-4">
-          <p className="text-sm text-gray-600">
-            {confirmToggle?.is_open
-              ? <>Close <b>{confirmToggle?.name}</b>? Staff will be blocked.</>
-              : <>Open <b>{confirmToggle?.name}</b>? Staff can log in.</>}
-          </p>
-          <div className="flex justify-end gap-3">
+          {/* Visual indicator */}
+          <div className={`flex items-center gap-3 p-4 rounded-xl ${confirmToggle?.is_open ? 'bg-orange-50 border border-orange-200' : 'bg-green-50 border border-green-200'}`}>
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${confirmToggle?.is_open ? 'bg-orange-100' : 'bg-green-100'}`}>
+              {confirmToggle?.is_open
+                ? <HiOutlineXCircle className="w-5 h-5 text-orange-600" />
+                : <HiOutlineCheckCircle className="w-5 h-5 text-green-600" />}
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-900">{confirmToggle?.name}</p>
+              <p className="text-xs text-gray-500">
+                {confirmToggle?.is_open
+                  ? 'This shop will be marked as closed for the day!'
+                  : 'This shop will be marked as open'}
+              </p>
+            </div>
+          </div>
+
+          {/* Impact info */}
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-gray-500 uppercase">What happens</p>
+            {confirmToggle?.is_open ? (
+              <ul className="text-sm text-gray-600 space-y-1.5">
+                <li className="flex items-start gap-2"><span className="text-orange-500 mt-0.5">•</span> All staff members will be blocked from logging in</li>
+                <li className="flex items-start gap-2"><span className="text-orange-500 mt-0.5">•</span> No sales or billing can be processed</li>
+                <li className="flex items-start gap-2"><span className="text-orange-500 mt-0.5">•</span> You can reopen anytime from this page</li>
+              </ul>
+            ) : (
+              <ul className="text-sm text-gray-600 space-y-1.5">
+                <li className="flex items-start gap-2"><span className="text-green-500 mt-0.5">•</span> Staff will be able to log in again</li>
+                <li className="flex items-start gap-2"><span className="text-green-500 mt-0.5">•</span> POS and billing will resume</li>
+                <li className="flex items-start gap-2"><span className="text-green-500 mt-0.5">•</span> All previously assigned staff are re-enabled</li>
+              </ul>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
             <button onClick={() => setConfirmToggle(null)} className="btn-secondary">Cancel</button>
             <button onClick={handleToggleShop}
-              className={`px-4 py-2 rounded-xl text-sm font-medium text-white ${confirmToggle?.is_open ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'}`}>
-              {confirmToggle?.is_open ? 'Yes, Close' : 'Yes, Open'}
+              className={`px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all shadow-sm ${confirmToggle?.is_open ? 'bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600' : 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600'}`}>
+              {confirmToggle?.is_open ? '🔒 Yes, Close Shop' : '🔓 Yes, Open Shop'}
             </button>
           </div>
         </div>
