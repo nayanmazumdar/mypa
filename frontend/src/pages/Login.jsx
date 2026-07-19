@@ -2,12 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { loginUser, clearError, setActiveShop, logout } from '../store/authSlice';
+import { loginUser, clearError } from '../store/authSlice';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { getFirstAccessibleRoute } from '../utils/permissions';
 import { resolveDefaultRoute } from './RoleSelector';
-import api from '../api/axios';
 
-const LOCKOUT_MINUTES = 2;
+const LOCKOUT_MINUTES = 15;
 const LOCKOUT_KEY = 'login_lockout_until';
 
 export default function Login() {
@@ -26,12 +26,6 @@ export default function Login() {
   // Rate-limit lockout state
   const [lockedOut, setLockedOut] = useState(false);
   const [countdown, setCountdown] = useState(0);
-
-  // Shop closed modal state
-  const [showClosedModal, setShowClosedModal] = useState(false);
-  const [closedShops, setClosedShops] = useState([]);
-  const [waitingUser, setWaitingUser] = useState(null);
-  const pollRef = useRef(null);
 
   // Check for existing lockout on mount and tick countdown
   useEffect(() => {
@@ -151,29 +145,31 @@ export default function Login() {
     if (error) dispatch(clearError());
   };
 
-  const navigateAfterLogin = async (loginUser) => {
+  const navigateAfterLogin = (user) => {
     // No role yet — first-time setup
-    if (!loginUser?.role) {
+    if (!user?.role) {
       navigate('/choose-role');
       return;
     }
 
-    if (loginUser.role === 'individual') {
-      navigate(resolveDefaultRoute(loginUser.default_module, 'individual'));
+    if (user.role === 'individual') {
+      navigate(resolveDefaultRoute(user.default_module, 'individual'));
       return;
     }
 
-    // Shop role — if shop already active in this session go to the module directly
-    if (loginUser.shop_id) {
-      navigate(resolveDefaultRoute(loginUser.default_module, 'shop'));
+    // Shop role — if shop already active in this session go to first accessible route
+    if (user.shop_id) {
+      navigate(getFirstAccessibleRoute(user));
       return;
     }
 
-    // Admin goes to admin panel to choose shop
-    if (loginUser.role === 'admin') {
+    // No shop selected — admin goes to admin panel, others to shop selector
+    if (user.role === 'admin') {
       navigate('/admin/shops');
-      return;
+    } else {
+      navigate('/select-shop');
     }
+<<<<<<< HEAD
 
     // Staff/Manager: auto-select their shop if they have exactly one
     const shops = loginUser.shops || [];
@@ -288,6 +284,8 @@ export default function Login() {
     setShowClosedModal(false);
     dispatch(logout());
     navigate('/login');
+=======
+>>>>>>> 9d9d86bb8f99675240a331a1a442eba09c30bc82
   };
 
   const formatCountdown = (secs) => {
@@ -299,8 +297,6 @@ export default function Login() {
   // Passcode entry UI (remembered account with passcode)
   if (rememberedAccount && mode === 'passcode') {
     return (
-      <>
-      {showClosedModal && <ShopClosedModal shops={closedShops} onClose={handleCloseModal} />}
       <div className="card">
         <div className="text-center mb-8">
           <div className="w-14 h-14 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -361,14 +357,11 @@ export default function Login() {
           </button>
         </div>
       </div>
-      </>
     );
   }
 
   // Standard password login
   return (
-    <>
-    {showClosedModal && <ShopClosedModal shops={closedShops} onClose={handleCloseModal} />}
     <div className="card">
       <div className="text-center mb-8">
         <img src="/logo.png" alt="Logo" className="w-14 h-14 rounded-xl mx-auto mb-4" />
@@ -435,6 +428,7 @@ export default function Login() {
         </p>
       </div>
     </div>
+<<<<<<< HEAD
     </>
   );
 }
@@ -491,5 +485,7 @@ function ShopClosedModal({ shops, onClose }) {
         </button>
       </div>
     </div>
+=======
+>>>>>>> 9d9d86bb8f99675240a331a1a442eba09c30bc82
   );
 }

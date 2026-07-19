@@ -34,6 +34,12 @@ import ExportImport from '../pages/Export';
 import AdminUsers from '../pages/admin/AdminUsers';
 import AdminLogs from '../pages/admin/AdminLogs';
 import AdminShops from '../pages/admin/AdminShops';
+import AdminRoles from '../pages/admin/AdminRoles';
+import AdminDashboard from '../pages/admin/AdminDashboard';
+import AdminNotifications from '../pages/admin/AdminNotifications';
+import AdminAttendance from '../pages/admin/AdminAttendance';
+import AdminStaffActivity from '../pages/admin/AdminStaffActivity';
+import SelectShop from '../pages/SelectShop';
 import IndividualDashboard from '../pages/individual/IndividualDashboard';
 import PersonalExpenses from '../pages/individual/PersonalExpenses';
 import PersonalIncome from '../pages/individual/PersonalIncome';
@@ -45,6 +51,7 @@ import PersonalBudget from '../pages/individual/PersonalBudget';
 import ShoppingList from '../pages/individual/ShoppingList';
 import { useSelector } from 'react-redux';
 import { Navigate } from 'react-router-dom';
+import { getFirstAccessibleRoute } from '../utils/permissions';
 
 // Smart landing: redirect authenticated users to their home
 function SmartLanding() {
@@ -52,8 +59,11 @@ function SmartLanding() {
   if (!isAuthenticated) return <LandingPage />;
   if (!user?.role) return <Navigate to="/choose-role" replace />;
   if (user.role === 'individual') return <Navigate to="/individual" replace />;
-  if (user.shop_id) return <Navigate to="/dashboard" replace />;
-  return <Navigate to="/admin/shops" replace />;
+  if (user.shop_id) return <Navigate to={getFirstAccessibleRoute(user)} replace />;
+  // No shop selected yet
+  if (user.role === 'admin') return <Navigate to="/admin/shops" replace />;
+  // Non-admin: go to shop selector (handles empty shops case too)
+  return <Navigate to="/select-shop" replace />;
 }
 
 export default function AppRouter() {
@@ -71,6 +81,7 @@ export default function AppRouter() {
       {/* One-time RBAC setup — authenticated, but role/module not yet required */}
       <Route element={<ProtectedRoute />}>
         <Route path="/choose-role" element={<RoleSelector />} />
+        <Route path="/select-shop" element={<SelectShop />} />
       </Route>
 
       {/* All routes below require: authenticated + role set + module chosen */}
@@ -82,10 +93,15 @@ export default function AppRouter() {
             <Route element={<AdminRoute />}>
               <Route element={<AdminLayout />}>
                 <Route path="/admin/subscription" element={<Subscription />} />
+                <Route path="/admin/overview" element={<AdminDashboard />} />
                 <Route path="/admin/shops" element={<AdminShops />} />
                 <Route path="/admin/users" element={<AdminUsers />} />
+                <Route path="/admin/staff-activity" element={<AdminStaffActivity />} />
+                <Route path="/admin/attendance" element={<AdminAttendance />} />
                 <Route path="/admin/logs" element={<AdminLogs />} />
                 <Route path="/admin/settings" element={<Settings />} />
+                <Route path="/admin/roles" element={<AdminRoles />} />
+                <Route path="/admin/notifications" element={<AdminNotifications />} />
               </Route>
             </Route>
           </Route>
@@ -119,7 +135,7 @@ export default function AppRouter() {
           <Route element={<ModuleRequired />}>
             <Route element={<ShopRequired />}>
               <Route element={<DashboardLayout />}>
-                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/dashboard" element={<PermissionRoute permission="dashboard:read"><Dashboard /></PermissionRoute>} />
                 <Route path="/pos" element={<PermissionRoute permission="pos:read"><POS /></PermissionRoute>} />
                 <Route path="/products" element={<PermissionRoute permission="products:read"><Products /></PermissionRoute>} />
                 <Route path="/offers" element={<PermissionRoute permission="offers:read"><Offers /></PermissionRoute>} />

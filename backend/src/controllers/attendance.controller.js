@@ -37,6 +37,36 @@ class AttendanceController {
       return ApiResponse.error(res, error.message, 500);
     }
   }
+
+  async getAllForAdmin(req, res) {
+    try {
+      const { shop_id, date, date_from, date_to, user_id } = req.query;
+      if (!shop_id) {
+        // No shop_id: return today's snapshot across all admin's shops
+        const pool = require('../config/db').getPool();
+        const [shops] = await pool.query(
+          `SELECT DISTINCT s.id FROM shops s
+           WHERE s.owner_id = ? OR s.id IN (SELECT shop_id FROM user_shops WHERE user_id = ? AND role = 'admin')`,
+          [req.user.id, req.user.id]
+        );
+        if (shops.length === 0) return ApiResponse.success(res, []);
+        const results = await Promise.all(
+          shops.map(s => attendanceService.getTodayForShop(s.id).catch(() => null))
+        );
+        return ApiResponse.success(res, results.filter(Boolean));
+      }
+      const records = await attendanceService.getAttendanceForShop(parseInt(shop_id, 10), {
+        date,
+        dateFrom: date_from,
+        dateTo:   date_to,
+        userId:   user_id ? parseInt(user_id, 10) : undefined,
+      });
+      return ApiResponse.success(res, records);
+    } catch (error) {
+      logger.error('Admin get attendance error:', error.message);
+      return ApiResponse.error(res, error.message, error.statusCode || 500);
+    }
+  }
 }
 
 module.exports = new AttendanceController();

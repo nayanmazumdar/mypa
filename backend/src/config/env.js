@@ -17,7 +17,4 @@ module.exports = {
     secret: process.env.JWT_SECRET || 'default_secret',
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   },
-  sqlite: {
-    dbPath: process.env.SQLITE_DB_PATH || './src/database/sqlite/shop.db',
-  },
 };

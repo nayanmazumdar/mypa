@@ -386,6 +386,24 @@ router.post('/checkout', authenticate, permit('pos:checkout'), async (req, res, 
         receipt_number: receiptNumber,
       });
 
+      // Send notification to customer (non-blocking)
+      if (customer_id || customer_name) {
+        try {
+          const notificationService = require('../services/notification.service');
+          // Get customer email/phone if customer_id exists
+          let customerEmail = null, customerPhone = null;
+          if (customer_id) {
+            const [[cust]] = await pool.query('SELECT email, phone FROM customers WHERE id = ?', [customer_id]);
+            if (cust) { customerEmail = cust.email; customerPhone = cust.phone; }
+          }
+          notificationService.sendSaleNotification(req.user.shop_id, {
+            customer_id, customer_name, customer_email: customerEmail, customer_phone: customerPhone,
+            receipt_number: receiptNumber, net_amount: netAmount, payment_method: resolvedPaymentMethod,
+            items: processedItems,
+          }).catch(err => require('../config/logger').warn(`Sale notification failed: ${err.message}`));
+        } catch { /* non-fatal */ }
+      }
+
       return ApiResponse.created(res, {
         id: transactionId,
         uuid,

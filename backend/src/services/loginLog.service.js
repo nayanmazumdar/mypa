@@ -70,7 +70,7 @@ class LoginLogService {
   }
 
   /**
-   * Get login logs across ALL shops the admin owns for a given date.
+   * Get login logs across ALL shops the admin has access to.
    */
   async getLogsForAdmin(adminId, date) {
     const pool = getPool();
@@ -89,10 +89,14 @@ class LoginLogService {
        FROM shop_login_logs l
        JOIN users u ON l.user_id = u.id
        JOIN shops s ON l.shop_id = s.id
-       WHERE l.shop_id IN (SELECT shop_id FROM user_shops WHERE user_id = ? AND role = 'admin')
+       WHERE l.shop_id IN (
+         SELECT shop_id FROM user_shops WHERE user_id = ? AND role = 'admin'
+         UNION
+         SELECT id FROM shops WHERE owner_id = ?
+       )
          AND l.date = ?
        ORDER BY l.login_at DESC`,
-      [adminId, targetDate]
+      [adminId, adminId, targetDate]
     );
     return { date: targetDate, logs: rows };
   }

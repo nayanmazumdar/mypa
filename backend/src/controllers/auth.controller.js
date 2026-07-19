@@ -78,9 +78,7 @@ class AuthController {
 
   async addStaff(req, res) {
     try {
-      // Allow explicit shop_id from body (for cross-shop assignment); fall back to active shop
-      const shopId = req.body.shop_id || req.user.shop_id;
-      const result = await authService.addStaff({ ...req.body, shop_id: shopId });
+      const result = await authService.addStaff({ ...req.body, shop_id: req.body.shop_id || req.user.shop_id });
       return ApiResponse.created(res, result, result.existing_account
         ? `${result.name} already has an account and has been added to your shop`
         : 'Staff member added');

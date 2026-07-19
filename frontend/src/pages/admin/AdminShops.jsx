@@ -6,13 +6,13 @@ import {
   HiOutlinePlus, HiOutlineTrash, HiOutlinePencil,
   HiOutlineUserGroup, HiOutlineCheckCircle, HiOutlineXCircle,
   HiOutlineBuildingStorefront, HiOutlineArrowRightOnRectangle,
-  HiOutlineCog6Tooth,
+  HiOutlineCog6Tooth, HiOutlineXMark,
 } from 'react-icons/hi2';
 import api from '../../api/axios';
 import { Modal, LoadingSpinner } from '../../components/common';
 import { usePageTitle } from '../../hooks/usePageTitle';
 import { updateShopStatus, setActiveShop, loadUser } from '../../store/authSlice';
-import { resolveDefaultRoute } from '../RoleSelector';
+import { getFirstAccessibleRoute } from '../../utils/permissions';
 
 const NEO = {
   raised: { background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' },
@@ -42,9 +42,10 @@ export default function AdminShops() {
   // Staff for manage modal
   const [staff, setStaff] = useState([]);
   const [staffLoading, setStaffLoading] = useState(false);
-  const [assignForm, setAssignForm] = useState({ email: '', role: 'staff' });
-  const [assignResult, setAssignResult] = useState(null);
-  const [checkingEmail, setCheckingEmail] = useState(false);
+  const [availableUsers, setAvailableUsers] = useState([]); // users not yet in this shop
+  const [assignSearch, setAssignSearch] = useState('');
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [showDropdown, setShowDropdown] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(null);
 
   // Shop performance stats
@@ -88,8 +89,16 @@ export default function AdminShops() {
     setStaffLoading(true);
     try {
       const res = await api.get('/auth/staff', { params: { shop_id: shopId } });
-      setStaff(res.data || []);
-    } catch { setStaff([]); }
+      const staffList = res.data || [];
+      setStaff(staffList);
+      // Load users not in this shop for autocomplete
+      try {
+        const usersRes = await api.get('/admin/users');
+        const allUsers = usersRes.data || [];
+        const staffIds = new Set(staffList.map(s => s.id));
+        setAvailableUsers(allUsers.filter(u => !staffIds.has(u.id)));
+      } catch { setAvailableUsers([]); }
+    } catch { setStaff([]); setAvailableUsers([]); }
     finally { setStaffLoading(false); }
   };
 
@@ -97,13 +106,21 @@ export default function AdminShops() {
   const handleEnterShop = async (shop) => {
     try {
       const response = await api.post('/auth/select-shop', { shop_id: shop.id });
-      const { token, shop: s, role, default_module, log_id } = response.data;
+      const { token, shop: s, role, default_module, log_id, rbac_roles, rbac_perms } = response.data;
       localStorage.setItem('token', token);
-      const updated = { ...user, shop_id: s.id, shop_name: s.name, role, default_module: default_module || user?.default_module, log_id };
+      const updated = {
+        ...user, shop_id: s.id, shop_name: s.name, role,
+        default_module: default_module || user?.default_module, log_id,
+        rbac_roles: rbac_roles || [], rbac_perms: rbac_perms || {},
+      };
       localStorage.setItem('user', JSON.stringify(updated));
-      dispatch(setActiveShop({ shop_id: s.id, shop_name: s.name, role, default_module: default_module || user?.default_module, log_id }));
+      dispatch(setActiveShop({
+        shop_id: s.id, shop_name: s.name, role,
+        default_module: default_module || user?.default_module,
+        log_id, rbac_roles, rbac_perms,
+      }));
       toast.success(`Entered ${s.name}`);
-      navigate(resolveDefaultRoute(updated.default_module, 'shop'));
+      navigate(getFirstAccessibleRoute(updated));
     } catch (err) { toast.error(err.structured?.message || 'Failed to enter shop'); }
   };
 
@@ -154,27 +171,32 @@ export default function AdminShops() {
   };
 
   // ── Staff Assignment ───────────────────────────────────────────────────────
-  const handleEmailCheck = async (email) => {
-    if (!email || !email.includes('@')) return;
-    setCheckingEmail(true);
-    try {
-      const res = await api.post('/auth/check-email', { email });
-      setAssignResult(res.data);
-    } catch { setAssignResult(null); }
-    finally { setCheckingEmail(false); }
+  const filteredUsers = availableUsers.filter(u => {
+    if (!assignSearch.trim()) return true;
+    const q = assignSearch.toLowerCase();
+    return u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q);
+  });
+
+  const handleSelectUser = (u) => {
+    setSelectedUser(u);
+    setAssignSearch(u.name + ' (' + u.email + ')');
+    setShowDropdown(false);
   };
 
   const handleAssign = async (e) => {
     e.preventDefault();
-    if (!assignResult?.exists) { toast.error('User not found. Create them first in Users page.'); return; }
+    if (!selectedUser) { toast.error('Select a user from the list'); return; }
+    if (!manageShop?.id) { toast.error('No shop selected'); return; }
     setSaving(true);
     try {
-      await api.post('/auth/staff', { email: assignForm.email, role: assignForm.role, shop_id: manageShop.id });
-      toast.success('User assigned to shop');
-      setAssignForm({ email: '', role: 'staff' });
-      setAssignResult(null);
+      await api.post('/auth/staff', { email: selectedUser.email, role: 'staff', shop_id: manageShop.id });
+      toast.success(`${selectedUser.name} added to shop`);
+      setSelectedUser(null);
+      setAssignSearch('');
       loadStaff(manageShop.id);
-    } catch (err) { toast.error(err.structured?.message || 'Failed'); }
+      // Refresh available users
+      setTimeout(() => loadAvailableUsers(manageShop.id), 300);
+    } catch (err) { toast.error(err.structured?.message || 'Failed to add user'); }
     finally { setSaving(false); }
   };
 
@@ -525,31 +547,67 @@ export default function AdminShops() {
               {manageTab === 'staff' && (
                 <div className="space-y-4">
                   <h4 className="text-sm font-bold text-gray-800">Assigned Staff</h4>
+                  <p className="text-[11px] text-gray-400">Add users to this shop. Manage their RBAC roles from the <b>Users</b> page.</p>
 
-                  {/* Assign form */}
-                  <form onSubmit={handleAssign} className="flex gap-2 items-end">
-                    <div className="flex-1 relative">
-                      <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Email</label>
-                      <input type="email" required value={assignForm.email} placeholder="user@example.com"
-                        onChange={(e) => { setAssignForm({ ...assignForm, email: e.target.value }); setAssignResult(null); }}
-                        onBlur={(e) => handleEmailCheck(e.target.value)}
-                        className="input-field text-sm" />
-                      {checkingEmail && <span className="absolute right-3 bottom-2.5 w-3.5 h-3.5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />}
+                  {/* Autocomplete assign form */}
+                  <form onSubmit={handleAssign} className="space-y-2">
+                    <div className="relative">
+                      <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Search user to add</label>
+                      <input
+                        type="text"
+                        value={assignSearch}
+                        onChange={(e) => { setAssignSearch(e.target.value); setSelectedUser(null); setShowDropdown(true); }}
+                        onFocus={() => setShowDropdown(true)}
+                        placeholder="Type name or email..."
+                        className="input-field text-sm w-full"
+                        autoComplete="off"
+                      />
+                      {/* Dropdown */}
+                      {showDropdown && assignSearch.trim() && !selectedUser && (
+                        <div className="absolute z-20 left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-lg">
+                          {filteredUsers.length === 0 ? (
+                            <p className="px-4 py-3 text-xs text-gray-400">No matching users available</p>
+                          ) : (
+                            filteredUsers.slice(0, 8).map((u) => (
+                              <button
+                                key={u.id}
+                                type="button"
+                                onClick={() => handleSelectUser(u)}
+                                className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-primary-50 transition-colors"
+                              >
+                                <div className="w-7 h-7 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
+                                  <span className="text-primary-700 text-[10px] font-bold">{u.name?.charAt(0)?.toUpperCase()}</span>
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs font-medium text-gray-800 truncate">{u.name}</p>
+                                  <p className="text-[10px] text-gray-400 truncate">{u.email}</p>
+                                </div>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <div className="w-24">
-                      <label className="block text-[10px] font-semibold text-gray-500 uppercase mb-1">Role</label>
-                      <select value={assignForm.role} onChange={(e) => setAssignForm({ ...assignForm, role: e.target.value })} className="input-field text-sm">
-                        <option value="staff">Staff</option>
-                        <option value="manager">Manager</option>
-                      </select>
-                    </div>
-                    <button type="submit" disabled={saving || !assignResult?.exists}
-                      className="px-3 py-2.5 rounded-xl text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-40 transition-all">
-                      Assign
+                    {selectedUser && (
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary-50 border border-primary-200">
+                        <div className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
+                          <span className="text-primary-700 text-[9px] font-bold">{selectedUser.name?.charAt(0)?.toUpperCase()}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-primary-800 truncate">{selectedUser.name}</p>
+                          <p className="text-[10px] text-primary-500 truncate">{selectedUser.email}</p>
+                        </div>
+                        <button type="button" onClick={() => { setSelectedUser(null); setAssignSearch(''); }}
+                          className="text-primary-400 hover:text-red-500 p-0.5">
+                          <HiOutlineXMark className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                    <button type="submit" disabled={saving || !selectedUser}
+                      className="w-full px-3 py-2.5 rounded-xl text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-40 transition-all">
+                      {saving ? 'Adding...' : 'Add to Shop'}
                     </button>
                   </form>
-                  {assignResult?.exists && <p className="text-xs text-green-600">✓ Found: <b>{assignResult.name}</b></p>}
-                  {assignResult && !assignResult.exists && <p className="text-xs text-amber-600">User not found. Create in Users page first.</p>}
 
                   {/* Staff list */}
                   {staffLoading ? (
@@ -567,13 +625,13 @@ export default function AdminShops() {
                             <p className="text-xs font-medium text-gray-900 truncate">{m.name}</p>
                             <p className="text-[10px] text-gray-400 truncate">{m.email}</p>
                           </div>
-                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${m.role === 'admin' ? 'bg-purple-100 text-purple-700' : m.role === 'manager' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
-                            {m.role === 'admin' ? 'Owner' : m.role === 'manager' ? 'Manager' : 'Staff'}
-                          </span>
                           {m.role !== 'admin' && (
-                            <button onClick={() => setConfirmRemove(m)} className="p-1 rounded text-gray-400 hover:text-red-500" title="Remove">
+                            <button onClick={() => setConfirmRemove(m)} className="p-1 rounded text-gray-400 hover:text-red-500" title="Remove from shop">
                               <HiOutlineTrash className="w-3.5 h-3.5" />
                             </button>
+                          )}
+                          {m.role === 'admin' && (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Owner</span>
                           )}
                         </div>
                       ))}
