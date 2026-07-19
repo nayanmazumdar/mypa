@@ -181,7 +181,7 @@ export default function AdminRoles() {
         <div>
           <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
             <HiOutlineShieldCheck className="w-6 h-6 text-primary-600" />
-            Role Management
+            Role Management <span className="text-sm font-medium text-gray-400">(What Employees can access!)</span>
           </h1>
           <p className="text-sm text-gray-500 mt-1">Create roles and configure feature permissions</p>
         </div>

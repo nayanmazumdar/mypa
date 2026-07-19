@@ -276,7 +276,7 @@ export default function AdminUsers() {
         <div>
           <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
             <HiOutlineUserGroup className="w-6 h-6 text-primary-600" />
-            User Management
+            User Management <span className="text-sm font-medium text-gray-400">(Staff/Employee)</span>
           </h1>
           <p className="text-sm text-gray-500 mt-1">
             Create users, assign RBAC roles, and manage account details.

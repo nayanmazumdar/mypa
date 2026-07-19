@@ -10,6 +10,7 @@ import {
 import api from '../../api/axios';
 import { LoadingSpinner } from '../../components/common';
 import { usePageTitle } from '../../hooks/usePageTitle';
+import { useSelector } from 'react-redux';
 
 const NEO = {
   raised: { background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' },
@@ -18,6 +19,7 @@ const NEO = {
 
 export default function AdminDashboard() {
   usePageTitle('Business Overview');
+  const { user } = useSelector((state) => state.auth);
   const [loading,     setLoading]     = useState(true);
   const [overview,    setOverview]    = useState(null);
   const [topProducts, setTopProducts] = useState([]);
@@ -25,8 +27,19 @@ export default function AdminDashboard() {
   const [salesChart,  setSalesChart]  = useState([]);
   const [chartDays,   setChartDays]   = useState(7);
 
+  // Shop Performance state
+  const [shops, setShops] = useState([]);
+  const [shopStats, setShopStats] = useState({});
+  const getLocalDate = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  };
+  const [perfFrom, setPerfFrom] = useState(getLocalDate());
+  const [perfTo, setPerfTo] = useState(getLocalDate());
+
   useEffect(() => { loadAll(); }, []);
   useEffect(() => { loadChart(); }, [chartDays]);
+  useEffect(() => { if (shops.length > 0) loadShopStats(shops); }, [perfFrom, perfTo]);
 
   const loadAll = async () => {
     setLoading(true);
@@ -41,11 +54,34 @@ export default function AdminDashboard() {
       if (tpRes.status === 'fulfilled')    setTopProducts(tpRes.value.data || tpRes.value || []);
       if (scRes.status === 'fulfilled')    setShopComp(scRes.value.data || scRes.value || []);
       if (chartRes.status === 'fulfilled') setSalesChart(chartRes.value.data || chartRes.value || []);
+      // Load shops for performance section
+      await loadShops();
     } catch {
       toast.error('Failed to load dashboard');
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadShops = async () => {
+    try {
+      const res = await api.get('/auth/profile');
+      const allShops = res.data?.shops || [];
+      const ownedShops = allShops.filter(s => s.user_role === 'admin');
+      setShops(ownedShops);
+      loadShopStats(ownedShops);
+    } catch { setShops(user?.shops || []); }
+  };
+
+  const loadShopStats = async (shopsList) => {
+    const stats = {};
+    for (const shop of shopsList) {
+      try {
+        const res = await api.get('/shop/stats', { params: { shop_id: shop.id, start_date: perfFrom, end_date: perfTo } });
+        stats[shop.id] = res.data || {};
+      } catch { stats[shop.id] = {}; }
+    }
+    setShopStats(stats);
   };
 
   const loadChart = async () => {
@@ -164,7 +200,7 @@ export default function AdminDashboard() {
         <KpiCard icon={<HiOutlineBuildingStorefront className="w-5 h-5 text-purple-500" />}
           label="Shops" value={o.shops} color="text-gray-800" />
         <KpiCard icon={<HiOutlineUserGroup className="w-5 h-5 text-blue-500" />}
-          label="Staff" value={o.staff} sub={`${o.active_staff || 0} online`} color="text-gray-800" />
+          label="Staff" value={o.staff} sub={`${o.active_staff || 0} online (Admin)`} color="text-gray-800" />
         <KpiCard icon={<HiOutlineCube className="w-5 h-5 text-indigo-500" />}
           label="Products" value={o.products} color="text-gray-800" />
         <KpiCard icon={<HiOutlineUsers className="w-5 h-5 text-teal-500" />}
@@ -213,34 +249,64 @@ export default function AdminDashboard() {
         )}
       </div>
 
-      {/* Shop Comparison Table */}
-      {shopComp.length > 1 && (
+      {/* ═══ Shop Performance ═══ */}
+      {shops.length > 0 && (
         <div className="rounded-2xl p-5" style={NEO.raised}>
-          <h3 className="text-sm font-bold text-gray-800 mb-3">Shop Performance Comparison</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr>
-                  <th className="text-left pb-2 text-[10px] font-semibold text-gray-400 uppercase">Shop</th>
-                  <th className="text-right pb-2 text-[10px] font-semibold text-gray-400 uppercase">Revenue</th>
-                  <th className="text-right pb-2 text-[10px] font-semibold text-gray-400 uppercase">Transactions</th>
-                  <th className="text-right pb-2 text-[10px] font-semibold text-gray-400 uppercase">Products</th>
-                  <th className="text-right pb-2 text-[10px] font-semibold text-gray-400 uppercase">Staff</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shopComp.map((s) => (
-                  <tr key={s.id} className="border-t border-gray-100/50">
-                    <td className="py-2.5 font-medium text-gray-800">{s.name}</td>
-                    <td className="py-2.5 text-right font-semibold text-green-700">{fmt(parseFloat(s.month_revenue))}</td>
-                    <td className="py-2.5 text-right text-gray-600">{s.month_transactions}</td>
-                    <td className="py-2.5 text-right text-gray-600">{s.product_count}</td>
-                    <td className="py-2.5 text-right text-gray-600">{s.staff_count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+            <h3 className="text-sm font-bold text-gray-800">Shop Performance</h3>
+            <div className="flex items-center gap-2 text-xs">
+              <label className="text-gray-500 font-medium">From:</label>
+              <input type="date" value={perfFrom} onChange={(e) => setPerfFrom(e.target.value)} className="input-field w-auto text-xs py-1" />
+              <label className="text-gray-500 font-medium">To:</label>
+              <input type="date" value={perfTo} onChange={(e) => setPerfTo(e.target.value)} className="input-field w-auto text-xs py-1" />
+              <button onClick={() => { setPerfFrom(getLocalDate()); setPerfTo(getLocalDate()); }} className="text-[10px] text-primary-600 font-medium hover:text-primary-700">Today</button>
+            </div>
           </div>
+          <HighchartsReact highcharts={Highcharts} options={{
+            chart: { type: 'column', height: Math.max(300, shops.length * 60), backgroundColor: 'transparent' },
+            title: { text: null },
+            credits: { enabled: false },
+            xAxis: {
+              categories: shops.map(shop => shop.name),
+              labels: { style: { fontSize: '11px', color: '#374151', fontWeight: '500' } },
+              lineColor: 'rgba(200,207,216,0.4)',
+            },
+            yAxis: {
+              title: { text: null },
+              labels: { style: { fontSize: '10px', color: '#9ca3af' }, formatter() { return fmt(this.value); } },
+              gridLineColor: 'rgba(200,207,216,0.3)',
+            },
+            legend: { align: 'center', verticalAlign: 'bottom', itemStyle: { fontSize: '11px', fontWeight: '500', color: '#6b7280' } },
+            tooltip: {
+              shared: true,
+              backgroundColor: '#fff',
+              borderRadius: 12,
+              shadow: true,
+              style: { fontSize: '11px' },
+              formatter() {
+                let tip = `<b>${this.x}</b><br/>`;
+                this.points.forEach(p => { tip += `<span style="color:${p.color}">\u25CF</span> ${p.series.name}: <b>\u20B9${p.y?.toLocaleString('en-IN') || 0}</b><br/>`; });
+                return tip;
+              },
+            },
+            plotOptions: {
+              column: {
+                borderRadius: 4,
+                groupPadding: 0.15,
+                pointPadding: 0.05,
+                dataLabels: { enabled: true, style: { fontSize: '9px', fontWeight: '600', color: '#374151' }, formatter() { return fmt(this.y); } },
+              },
+            },
+            series: [
+              { name: 'Revenue', data: shops.map(shop => parseFloat((shopStats[shop.id] || {}).total_sales) || 0), color: '#10b981' },
+              { name: 'Expenses', data: shops.map(shop => parseFloat((shopStats[shop.id] || {}).total_expenses) || 0), color: '#ef4444' },
+              { name: 'Purchases', data: shops.map(shop => parseFloat((shopStats[shop.id] || {}).total_purchases) || 0), color: '#f59e0b' },
+              { name: 'Net Profit', data: shops.map(shop => {
+                const s = shopStats[shop.id] || {};
+                return (parseFloat(s.total_sales) || 0) - (parseFloat(s.total_expenses) || 0) - (parseFloat(s.total_purchases) || 0);
+              }), color: '#6366f1' },
+            ],
+          }} />
         </div>
       )}
     </div>

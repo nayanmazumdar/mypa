@@ -247,7 +247,7 @@ export default function AdminStaffActivity() {
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="font-semibold text-gray-900">{staff.name}</p>
+                        <p className="text-sm font-semibold text-gray-800 tracking-tight">{staff.name}</p>
                         {staff.isOnline && (
                           <span className="flex items-center gap-1 text-[10px] font-semibold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">
                             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
@@ -255,7 +255,23 @@ export default function AdminStaffActivity() {
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-gray-400">{staff.email}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs text-gray-400">{staff.email}</p>
+                        {(() => {
+                          if (staff.sessions.length === 0) return null;
+                          const sorted = [...staff.sessions].sort((a, b) => new Date(b.login_at || 0) - new Date(a.login_at || 0));
+                          const latest = sorted[0];
+                          if (staff.isOnline && latest?.login_at) {
+                            return <span className="text-[10px] font-medium"><span className="text-green-600">• Active Since : </span><span className="text-purple-600">{new Date(latest.login_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></span>;
+                          }
+                          // Find the most recent logout
+                          const lastLogout = sorted.find(s => s.logout_at);
+                          if (lastLogout?.logout_at) {
+                            return <span className="text-[10px] font-medium"><span className="text-red-500">• Last Logout : </span><span className="text-purple-600">{new Date(lastLogout.logout_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></span>;
+                          }
+                          return null;
+                        })()}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
