@@ -50,11 +50,9 @@ export default function AdminUsers() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', phone: '', role: 'staff', isActive: true });
   const [editTarget, setEditTarget] = useState(null);
-  const [savingEdit, setSavingEdit] = useState(false);
 
-  useEffect(() => { loadUsers(); }, []);
+  useEffect(() => { load(); }, []);
 
-  const loadUsers = async () => {
   // Load users + all RBAC roles in parallel
   const load = useCallback(async () => {
     setLoading(true);

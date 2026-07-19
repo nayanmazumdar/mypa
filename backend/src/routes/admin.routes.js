@@ -123,7 +123,12 @@ router.get('/users', async (req, res, next) => {
        ORDER BY u.name ASC`,
       [req.user.id, req.user.id]
     );
-    return ApiResponse.success(res, users);
+    // Derive status from is_active + shop assignment
+    const enriched = users.map(u => ({
+      ...u,
+      status: !u.is_active ? 'disabled' : u.shop_ids ? 'active' : 'unassigned',
+    }));
+    return ApiResponse.success(res, enriched);
   } catch (err) { next(err); }
 });
 
