@@ -337,17 +337,9 @@ ${balance > 0 ? `<tr class="due"><td>Balance Due</td><td class="right">₹${bala
               <span className="text-base font-bold text-primary-700 px-4 py-2 rounded-xl" style={{ background: '#e8edf5', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}>Total: ₹{t.total.toFixed(2)}</span>
             </div>
             {role === 'admin' && Object.keys(billerTotals).length > 0 && (
-              <div className="flex flex-wrap gap-3 pt-2" style={{ borderTop: '1px solid rgba(200,207,216,0.4)' }}>
-                {Object.entries(billerTotals).map(([name, data], idx, arr) => (
-                  <div key={name} className="flex items-center gap-2 px-3 py-2 text-xs">
-                    <span className="font-semibold text-gray-800">{name}</span>
-                    <span className="text-gray-400">·</span>
-                    <span className="text-primary-600 font-bold">{data.count} bills</span>
-                    <span className="text-gray-400">·</span>
-                    <span className="text-green-600 font-bold">₹{data.revenue.toFixed(0)}</span>
-                    {idx < arr.length - 1 && <span className="text-gray-300 ml-2">|</span>}
-                  </div>
-                ))}
+              <div className="pt-3" style={{ borderTop: '1px solid rgba(200,207,216,0.4)' }}>
+                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-3">Staff Performance</p>
+                <StaffSalesChart billerTotals={billerTotals} />
               </div>
             )}
           </div>
@@ -680,3 +672,189 @@ ${balance > 0 ? `<tr class="due"><td>Balance Due</td><td class="right">₹${bala
     </div>
   );
 }
+
+// ─── Staff Sales Donut Chart ──────────────────────────────────────────────────
+const PALETTE = [
+  '#6366f1', '#10b981', '#f59e0b', '#ef4444',
+  '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6',
+];
+
+function StaffSalesChart({ billerTotals }) {
+  const entries      = Object.entries(billerTotals).sort((a, b) => b[1].revenue - a[1].revenue);
+  const totalRevenue = entries.reduce((s, [, d]) => s + d.revenue, 0);
+  const totalBills   = entries.reduce((s, [, d]) => s + d.count, 0);
+
+  // SVG donut parameters
+  const SIZE   = 140;          // viewBox size
+  const CX     = SIZE / 2;
+  const CY     = SIZE / 2;
+  const R      = 52;           // outer radius
+  const INNER  = 32;           // inner radius (hole)
+  const GAP    = 2;            // degrees between segments
+
+  // Build arc path segments
+  const segments = [];
+  let cursor = -90; // start at 12 o'clock
+
+  entries.forEach(([name, data], i) => {
+    const pct      = data.revenue / totalRevenue;
+    const degrees  = pct * 360 - GAP;
+    const startRad = (cursor * Math.PI) / 180;
+    const endRad   = ((cursor + degrees) * Math.PI) / 180;
+
+    const x1 = CX + R * Math.cos(startRad);
+    const y1 = CY + R * Math.sin(startRad);
+    const x2 = CX + R * Math.cos(endRad);
+    const y2 = CY + R * Math.sin(endRad);
+    const ix1 = CX + INNER * Math.cos(startRad);
+    const iy1 = CY + INNER * Math.sin(startRad);
+    const ix2 = CX + INNER * Math.cos(endRad);
+    const iy2 = CY + INNER * Math.sin(endRad);
+    const large = degrees > 180 ? 1 : 0;
+
+    const d = [
+      `M ${x1} ${y1}`,
+      `A ${R} ${R} 0 ${large} 1 ${x2} ${y2}`,
+      `L ${ix2} ${iy2}`,
+      `A ${INNER} ${INNER} 0 ${large} 0 ${ix1} ${iy1}`,
+      'Z',
+    ].join(' ');
+
+    segments.push({ name, data, color: PALETTE[i % PALETTE.length], d, pct });
+    cursor += pct * 360;
+  });
+
+  const [hovered, setHovered] = useState(null);
+  const active = hovered !== null ? segments[hovered] : null;
+
+  return (
+    <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
+
+      {/* ── Donut SVG ── */}
+      <div className="relative flex-shrink-0" style={{ width: SIZE, height: SIZE }}>
+        <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
+          {/* Inset shadow ring (decorative) */}
+          <circle
+            cx={CX} cy={CY} r={R + 4}
+            fill="none"
+            stroke="rgba(200,207,216,0.5)"
+            strokeWidth="2"
+          />
+          <circle
+            cx={CX} cy={CY} r={INNER - 4}
+            fill="#e8edf5"
+          />
+
+          {/* Segments */}
+          {segments.map((seg, i) => (
+            <path
+              key={seg.name}
+              d={seg.d}
+              fill={seg.color}
+              opacity={hovered === null || hovered === i ? 1 : 0.35}
+              style={{
+                cursor: 'pointer',
+                transition: 'opacity 0.2s, transform 0.2s',
+                transformOrigin: `${CX}px ${CY}px`,
+                transform: hovered === i ? 'scale(1.06)' : 'scale(1)',
+                filter: hovered === i ? `drop-shadow(0 0 6px ${seg.color}88)` : 'none',
+              }}
+              onMouseEnter={() => setHovered(i)}
+              onMouseLeave={() => setHovered(null)}
+            />
+          ))}
+
+          {/* Centre label — shows hovered or default total */}
+          <text
+            x={CX} y={CY - 7}
+            textAnchor="middle"
+            fontSize="11"
+            fontWeight="700"
+            fill={active ? active.color : '#374151'}
+            style={{ transition: 'fill 0.2s' }}
+          >
+            {active
+              ? `₹${active.data.revenue >= 1000 ? (active.data.revenue / 1000).toFixed(1) + 'k' : active.data.revenue.toFixed(0)}`
+              : `₹${totalRevenue >= 1000 ? (totalRevenue / 1000).toFixed(1) + 'k' : totalRevenue.toFixed(0)}`}
+          </text>
+          <text
+            x={CX} y={CY + 7}
+            textAnchor="middle"
+            fontSize="8"
+            fill={active ? active.color : '#9ca3af'}
+            style={{ transition: 'fill 0.2s' }}
+          >
+            {active ? `${active.pct * 100 < 1 ? '<1' : (active.pct * 100).toFixed(0)}%` : `${totalBills} bills`}
+          </text>
+        </svg>
+      </div>
+
+      {/* ── Legend table ── */}
+      <div className="flex-1 w-full space-y-2">
+        {segments.map((seg, i) => {
+          const sharePct = (seg.pct * 100).toFixed(1);
+          const isActive = hovered === i;
+          return (
+            <div
+              key={seg.name}
+              className="flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-150 cursor-default"
+              style={{
+                background: isActive
+                  ? `${seg.color}12`
+                  : '#e8edf5',
+                boxShadow: isActive
+                  ? `inset 2px 2px 5px ${seg.color}22, inset -2px -2px 5px #ffffff`
+                  : 'inset 2px 2px 4px #c8cfd8, inset -2px -2px 4px #ffffff',
+                opacity: hovered !== null && !isActive ? 0.5 : 1,
+              }}
+              onMouseEnter={() => setHovered(i)}
+              onMouseLeave={() => setHovered(null)}
+            >
+              {/* Colour swatch */}
+              <span
+                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                style={{ background: seg.color, boxShadow: `0 0 6px ${seg.color}88` }}
+              />
+
+              {/* Name */}
+              <span className="flex-1 text-xs font-semibold text-gray-800 truncate min-w-0">
+                {seg.name}
+              </span>
+
+              {/* Bills badge */}
+              <span
+                className="text-[10px] font-medium px-1.5 py-0.5 rounded-md flex-shrink-0"
+                style={{ background: seg.color + '18', color: seg.color }}
+              >
+                {seg.data.count} bills
+              </span>
+
+              {/* Revenue */}
+              <span className="text-xs font-bold flex-shrink-0" style={{ color: seg.color, minWidth: '52px', textAlign: 'right' }}>
+                ₹{seg.data.revenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              </span>
+
+              {/* Share % */}
+              <span className="text-[10px] text-gray-400 flex-shrink-0 w-8 text-right">
+                {sharePct}%
+              </span>
+            </div>
+          );
+        })}
+
+        {/* Footer totals */}
+        <div
+          className="flex items-center justify-between pt-2 text-xs text-gray-500"
+          style={{ borderTop: '1px solid rgba(200,207,216,0.4)' }}
+        >
+          <span>{entries.length} staff · {totalBills} bills</span>
+          <span className="font-bold text-gray-800">
+            ₹{totalRevenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+

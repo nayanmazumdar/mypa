@@ -15,6 +15,7 @@ export default function Register() {
   const [errors, setErrors] = useState({});
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
+  const [registered, setRegistered] = useState(false);
 
   const validate = () => {
     const e = {};
@@ -34,16 +35,42 @@ export default function Register() {
 
     const result = await dispatch(registerUser(form));
     if (registerUser.fulfilled.match(result)) {
-      // Role is not set yet — send to role picker on first login
-      toast.success('Account created! Please choose your account type.');
-      navigate('/choose-role');
+      // Show welcome screen briefly, then go to role picker
+      setRegistered(true);
+      setTimeout(() => navigate('/choose-role'), 2200);
     } else {
       toast.error(result.payload || 'Registration failed');
     }
   };
 
   return (
-    <div className="card">
+    <div className="card relative">
+      {registered && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center rounded-2xl z-10 overflow-hidden"
+          style={{ background: '#e8edf5', boxShadow: '6px 6px 12px #c8cfd8, -6px -6px 12px #ffffff' }}>
+          <div className="text-center px-6 animate-[fadeIn_0.4s_ease-out]">
+            <div className="w-16 h-16 rounded-2xl mx-auto mb-5 flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg, #3b82f6, #7c3aed, #10b981)', boxShadow: '4px 4px 10px #c8cfd8, -4px -4px 10px #ffffff' }}>
+              <img src="/logo.png" alt="myPA" className="w-10 h-10 rounded-lg" />
+            </div>
+            <p className="text-lg font-extrabold text-gray-900 mb-2">
+              Welcome to the MyPA family.
+            </p>
+            <div className="flex items-center justify-center gap-2 text-sm font-bold mt-1">
+              <span className="text-orange-500">create</span>
+              <span className="text-gray-400">›</span>
+              <span className="text-purple-600">manage</span>
+              <span className="text-gray-400">›</span>
+              <span className="text-green-600">grow</span>
+            </div>
+            <p className="text-xs text-gray-400 mt-4">Setting up your workspace…</p>
+            <div className="flex justify-center mt-3">
+              <span className="w-5 h-5 border-2 border-violet-400 border-t-violet-600 rounded-full animate-spin" />
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="text-center mb-8">
         <div className="w-14 h-14 bg-primary-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
           <span className="text-primary-700 text-xl font-bold">M</span>

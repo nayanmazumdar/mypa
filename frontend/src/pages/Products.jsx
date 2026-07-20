@@ -42,7 +42,7 @@ export default function Products() {
   const [page, setPage] = useState(1);
 
   useEffect(() => {
-    dispatch(fetchProducts({ page, limit: 25, search }));
+    dispatch(fetchProducts({ page, limit: 20, search }));
   }, [dispatch, search, page]);
 
   useEffect(() => {
@@ -50,7 +50,7 @@ export default function Products() {
   }, []);
 
   if (error && items.length === 0 && !loading) {
-    return <PageError error={error} onRetry={() => dispatch(fetchProducts({ page: 1, limit: 25 }))} />;
+    return <PageError error={error} onRetry={() => dispatch(fetchProducts({ page: 1, limit: 20 }))} />;
   }
 
   const openCreate = () => {
@@ -100,7 +100,7 @@ export default function Products() {
       if (updateProduct.fulfilled.match(result)) {
         toast.success('Product updated');
         setShowModal(false);
-        dispatch(fetchProducts({ page, limit: 25, search }));
+        dispatch(fetchProducts({ page, limit: 20, search }));
       } else toast.error(result.payload?.message || 'Failed to update');
     } else {
       result = await dispatch(createProduct(payload));

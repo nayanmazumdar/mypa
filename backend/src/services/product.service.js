@@ -52,8 +52,14 @@ class ProductService {
 
   async create(shopId, data, userId) {
     const uuid = generateId();
+    // Coerce empty strings to null for unique-constrained fields so that
+    // multiple products without a SKU/barcode don't collide on the unique index.
+    const sku = data.sku?.trim() || null;
+    const barcode = data.barcode?.trim() || null;
     const product = await Product.create({
       ...data,
+      sku,
+      barcode,
       uuid,
       user_id: userId,
       shop_id: shopId,
@@ -80,7 +86,11 @@ class ProductService {
       error.statusCode = 404;
       throw error;
     }
-    await product.update(data);
+    // Coerce empty strings to null for unique-constrained fields
+    const updates = { ...data };
+    if ('sku' in updates) updates.sku = updates.sku?.trim() || null;
+    if ('barcode' in updates) updates.barcode = updates.barcode?.trim() || null;
+    await product.update(updates);
     return product;
   }
 

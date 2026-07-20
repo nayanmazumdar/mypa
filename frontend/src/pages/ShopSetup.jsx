@@ -6,6 +6,7 @@ import { HiOutlineBuildingStorefront } from 'react-icons/hi2';
 import api from '../api/axios';
 import { loadUser } from '../store/authSlice';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { subscriptionApi } from '../api/subscription.api';
 
 export default function ShopSetup() {
   usePageTitle('Shop Setup');
@@ -33,6 +34,18 @@ export default function ShopSetup() {
       localStorage.setItem('token', token);
       const updatedUser = { ...user, shop_id: shop.id, shop_name: shop.name, shops: [...(user.shops || []), { id: shop.id, name: shop.name, user_role: 'admin' }] };
       localStorage.setItem('user', JSON.stringify(updatedUser));
+
+      // Apply the plan chosen during onboarding (if any)
+      const pendingPlanId = localStorage.getItem('pending_plan_id');
+      if (pendingPlanId) {
+        try {
+          await subscriptionApi.subscribe({ plan_id: parseInt(pendingPlanId, 10), billing_cycle: 'monthly' });
+        } catch {
+          // non-fatal — subscription can be set later from settings
+        } finally {
+          localStorage.removeItem('pending_plan_id');
+        }
+      }
 
       // Reload user state
       dispatch(loadUser());

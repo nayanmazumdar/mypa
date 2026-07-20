@@ -143,54 +143,64 @@ export default function Subscription() {
   const currentPlanName = currentSubscription?.plan_name || 'free';
   const days = daysRemaining();
 
+  // Find the full plan object matching current subscription for richer display
+  const activePlan = plans.find(p => p.id === currentSubscription?.plan_id)
+    || plans.find(p => p.name === 'free');
+  const activeMeta = PLAN_META[currentPlanName] || PLAN_META.free;
+
   /* ─── Render ─────────────────────────────────────────────── */
   return (
     <div className="space-y-8 pb-8">
 
       {/* ═══ Hero Header ═══ */}
       <div className="rounded-3xl p-6 sm:p-8 relative overflow-hidden" style={NEO.raised}>
-        {/* Decorative gradient blobs */}
+        {/* Decorative blobs */}
         <div className="absolute -top-20 -right-20 w-48 h-48 rounded-full bg-gradient-to-br from-purple-200/40 to-blue-200/40 blur-3xl pointer-events-none" />
         <div className="absolute -bottom-16 -left-16 w-40 h-40 rounded-full bg-gradient-to-br from-emerald-200/30 to-sky-200/30 blur-3xl pointer-events-none" />
 
         <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          {/* Left: Current plan info */}
+          {/* Left: Active plan */}
           <div className="flex items-center gap-5">
-            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center bg-gradient-to-br ${PLAN_META[currentPlanName]?.gradient || 'from-gray-400 to-gray-600'} shadow-lg`}>
-              {(() => { const Icon = PLAN_META[currentPlanName]?.icon || HiOutlineCreditCard; return <Icon className="w-8 h-8 text-white" />; })()}
+            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center bg-gradient-to-br ${activeMeta.gradient} shadow-lg`}>
+              {(() => { const Icon = activeMeta.icon; return <Icon className="w-8 h-8 text-white" />; })()}
             </div>
             <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em]">Your Plan</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em]">Active Plan</p>
               <h2 className="text-2xl font-extrabold text-gray-800 mt-0.5">
-                {currentSubscription?.plan_display_name || 'Free Plan'}
+                {currentSubscription?.plan_display_name || activePlan?.display_name || 'Free Plan'}
               </h2>
-              {currentSubscription && (
+              {currentSubscription ? (
                 <p className="text-xs text-gray-500 mt-1 flex items-center gap-1.5">
                   <HiOutlineClock className="w-3.5 h-3.5" />
                   {currentSubscription.billing_cycle} billing &bull; {days} day{days !== 1 ? 's' : ''} left
                 </p>
+              ) : (
+                <p className="text-xs text-gray-400 mt-1">No active subscription — on Free plan</p>
               )}
             </div>
           </div>
 
-          {/* Right: Status badge + Cancel */}
-          <div className="flex items-center gap-3">
-            {currentSubscription && (
-              <>
-                <span className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                  currentSubscription.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
-                  currentSubscription.status === 'trial' ? 'bg-amber-100 text-amber-700' :
-                  'bg-red-100 text-red-700'
-                }`}>
-                  {currentSubscription.status === 'active' ? '● Active' : currentSubscription.status === 'trial' ? '◐ Trial' : '○ Expired'}
-                </span>
-                {isAdmin && (
-                  <button onClick={handleCancel}
-                    className="px-4 py-2 rounded-xl text-xs font-medium text-red-500 hover:text-white hover:bg-red-500 border border-red-200 hover:border-red-500 transition-all duration-200">
-                    Cancel
-                  </button>
-                )}
-              </>
+          {/* Right: Status badge + limits summary + Cancel */}
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Active plan badge — always visible */}
+            <span className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+              !currentSubscription
+                ? 'bg-slate-100 text-slate-600'
+                : currentSubscription.status === 'active' ? 'bg-emerald-100 text-emerald-700'
+                : currentSubscription.status === 'trial'  ? 'bg-amber-100 text-amber-700'
+                : 'bg-red-100 text-red-700'
+            }`}>
+              {!currentSubscription ? '○ Free'
+                : currentSubscription.status === 'active' ? '● Active'
+                : currentSubscription.status === 'trial'  ? '◐ Trial'
+                : '○ Expired'}
+            </span>
+
+            {currentSubscription && isAdmin && (
+              <button onClick={handleCancel}
+                className="px-4 py-2 rounded-xl text-xs font-medium text-red-500 hover:text-white hover:bg-red-500 border border-red-200 hover:border-red-500 transition-all duration-200">
+                Cancel
+              </button>
             )}
           </div>
         </div>
@@ -273,7 +283,9 @@ export default function Subscription() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
           {plans.map((plan) => {
-            const isCurrentPlan = currentSubscription?.plan_id === plan.id;
+            const isCurrentPlan = currentSubscription
+              ? currentSubscription.plan_id === plan.id
+              : plan.name === 'free';
             const price = getPriceForCycle(plan);
             const monthlyEq = getMonthlyEquivalent(plan);
             const meta = PLAN_META[plan.name] || PLAN_META.free;
