@@ -235,6 +235,41 @@ router.post('/checkout', authenticate, permit('pos:checkout'), async (req, res, 
     try {
       await connection.beginTransaction();
 
+      // Validate customer_id if provided — prevent FK violation
+      let validCustomerId = customer_id || null;
+      if (validCustomerId) {
+        const [custRows] = await connection.query(
+          'SELECT id FROM customers WHERE id = ? AND shop_id = ?',
+          [validCustomerId, req.user.shop_id]
+        );
+        if (custRows.length === 0) {
+          // Customer doesn't exist or belongs to another shop — treat as walk-in
+          validCustomerId = null;
+        }
+      }
+
+      // Auto-create customer if name provided but no valid customer_id
+      if (!validCustomerId && customer_name && customer_name.trim()) {
+        const trimmedName = customer_name.trim();
+        // Check if a customer with this exact name already exists for this shop
+        const [existingCust] = await connection.query(
+          'SELECT id FROM customers WHERE name = ? AND shop_id = ? LIMIT 1',
+          [trimmedName, req.user.shop_id]
+        );
+        if (existingCust.length > 0) {
+          validCustomerId = existingCust[0].id;
+        } else {
+          // Create new customer record
+          const custUuid = generateId();
+          const [newCust] = await connection.query(
+            `INSERT INTO customers (uuid, user_id, shop_id, name, is_active)
+             VALUES (?, ?, ?, ?, 1)`,
+            [custUuid, req.user.id, req.user.shop_id, trimmedName]
+          );
+          validCustomerId = newCust.insertId;
+        }
+      }
+
       // Calculate totals
       let totalAmount = 0;
       const processedItems = items.map((item) => {
@@ -322,7 +357,7 @@ router.post('/checkout', authenticate, permit('pos:checkout'), async (req, res, 
       const [txResult] = await connection.query(
         `INSERT INTO pos_transactions (uuid, user_id, biller_id, shop_id, customer_name, customer_id, total_amount, discount, net_amount, cgst_amount, sgst_amount, payment_method, amount_received, change_amount, receipt_number, payments_json)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [uuid, req.user.id, req.user.id, req.user.shop_id, customer_name || null, customer_id || null, totalAmount, discountAmount, finalNetAmount, totalCgst, totalSgst, resolvedPaymentMethod, resolvedAmountReceived, changeAmount > 0 ? changeAmount : 0, receiptNumber, paymentsJson]
+        [uuid, req.user.id, req.user.id, req.user.shop_id, customer_name || null, validCustomerId, totalAmount, discountAmount, finalNetAmount, totalCgst, totalSgst, resolvedPaymentMethod, resolvedAmountReceived, changeAmount > 0 ? changeAmount : 0, receiptNumber, paymentsJson]
       );
       const transactionId = txResult.insertId;
 

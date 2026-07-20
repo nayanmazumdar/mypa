@@ -30,17 +30,36 @@ const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
  */
 router.get('/', authenticate, permit('customers:read'), async (req, res, next) => {
   try {
+    const shopId = req.user.shop_id;
+    if (!shopId) {
+      return ApiResponse.error(res, 'No shop selected. Please select a shop first.', 400);
+    }
+
     const { page, limit, offset } = parsePagination(req.query);
     const { search } = req.query;
 
-    const where = { shop_id: req.user.shop_id };
-    if (search) {
-      where[Op.or] = [
-        { name: { [Op.like]: `%${search}%` } },
-        { phone: { [Op.like]: `%${search}%` } },
-        { email: { [Op.like]: `%${search}%` } },
-      ];
-    }
+    // Include customers belonging to this shop OR orphaned customers (shop_id NULL) created by the same user
+    const ownershipFilter = {
+      [Op.or]: [
+        { shop_id: shopId },
+        { shop_id: null, user_id: req.user.id },
+      ],
+    };
+
+    const where = search
+      ? {
+          [Op.and]: [
+            ownershipFilter,
+            {
+              [Op.or]: [
+                { name: { [Op.like]: `%${search}%` } },
+                { phone: { [Op.like]: `%${search}%` } },
+                { email: { [Op.like]: `%${search}%` } },
+              ],
+            },
+          ],
+        }
+      : ownershipFilter;
 
     const { rows, count } = await Customer.findAndCountAll({
       where,
@@ -48,6 +67,15 @@ router.get('/', authenticate, permit('customers:read'), async (req, res, next) =
       limit,
       offset,
     });
+
+    // Auto-fix: assign shop_id to any orphaned customers found
+    const orphaned = rows.filter((c) => !c.shop_id);
+    if (orphaned.length > 0) {
+      await Customer.update(
+        { shop_id: shopId },
+        { where: { id: orphaned.map((c) => c.id), shop_id: null } }
+      );
+    }
 
     const pagination = buildPaginationMeta(count, page, limit);
     return ApiResponse.paginated(res, rows, pagination);

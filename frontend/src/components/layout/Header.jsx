@@ -98,8 +98,8 @@ export default function Header({ onMenuClick }) {
           </span>
         </div>
 
-        {/* Switch Shop */}
-        {user?.shops?.length > 1 && (
+        {/* Switch Shop — always visible for owner (admin), otherwise only when multiple shops */}
+        {(user?.role === 'admin' || user?.shops?.length > 1) && (
           <button
             onClick={handleSwitchShop}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-gray-500 hover:text-gray-700 transition-all"

@@ -110,7 +110,7 @@ class PurchaseService {
         // Log stock movement
         await StockMovement.create({
           product_id: item.product_id,
-          user_id: shopId,
+          user_id: userId,
           shop_id: shopId,
           type: 'in',
           quantity: item.quantity,

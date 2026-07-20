@@ -60,7 +60,7 @@ class InventoryService {
     });
   }
 
-  async addStock(shopId, productId, quantity, type, referenceType, referenceId, notes) {
+  async addStock(shopId, userId, productId, quantity, type, referenceType, referenceId, notes) {
     await sequelize.transaction(async (t) => {
       const existing = await Inventory.findOne({
         where: { shop_id: shopId, product_id: productId },
@@ -76,7 +76,7 @@ class InventoryService {
       } else {
         await Inventory.create({
           product_id: productId,
-          user_id: shopId,
+          user_id: userId,
           shop_id: shopId,
           quantity: type === 'in' ? quantity : -quantity,
         }, { transaction: t });
@@ -84,7 +84,7 @@ class InventoryService {
 
       await StockMovement.create({
         product_id: productId,
-        user_id: shopId,
+        user_id: userId,
         shop_id: shopId,
         type,
         quantity,

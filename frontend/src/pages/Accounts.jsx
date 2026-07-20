@@ -133,7 +133,7 @@ export default function Accounts() {
             <HiOutlineBanknotes className={`w-6 h-6 ${(summary.net_income || 0) >= 0 ? 'text-emerald-600' : 'text-red-500'}`} />
           </div>
           <div>
-            <p className="text-xs text-gray-500 font-medium">Net Income</p>
+            <p className="text-xs text-gray-500 font-medium">Net Cash Flow</p>
             <p className={`text-xl font-bold ${(summary.net_income || 0) >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
               ₹{parseFloat(summary.net_income || 0).toFixed(0)}
             </p>

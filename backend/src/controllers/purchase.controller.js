@@ -5,7 +5,7 @@ const logger = require('../config/logger');
 class PurchaseController {
   async getAll(req, res) {
     try {
-      const result = await purchaseService.getAll(req.user.id, req.user.shop_id, req.query);
+      const result = await purchaseService.getAll(req.user.shop_id, req.query);
       return ApiResponse.paginated(res, result.purchases, result.pagination);
     } catch (error) {
       logger.error('Get purchases error:', error.message);

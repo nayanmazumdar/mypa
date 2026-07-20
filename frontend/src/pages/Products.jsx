@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { HiOutlineCube, HiOutlinePhoto } from 'react-icons/hi2';
+import { HiOutlineCube, HiOutlinePhoto, HiOutlinePlus } from 'react-icons/hi2';
 import toast from 'react-hot-toast';
 import { fetchProducts, createProduct, updateProduct, deleteProduct } from '../store/productSlice';
 import {
@@ -40,6 +40,9 @@ export default function Products() {
   const [categories, setCategories] = useState([]);
   const [imagePreview, setImagePreview] = useState('');
   const [page, setPage] = useState(1);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [categoryLoading, setCategoryLoading] = useState(false);
 
   useEffect(() => {
     dispatch(fetchProducts({ page, limit: 20, search }));
@@ -48,6 +51,29 @@ export default function Products() {
   useEffect(() => {
     api.get('/categories').then(res => setCategories(res.data || [])).catch(() => {});
   }, []);
+
+  const fetchCategories = () => {
+    api.get('/categories').then(res => setCategories(res.data || [])).catch(() => {});
+  };
+
+  const handleAddCategory = async (e) => {
+    e.preventDefault();
+    if (!newCategoryName.trim()) return;
+    setCategoryLoading(true);
+    try {
+      const res = await api.post('/categories', { name: newCategoryName.trim() });
+      const created = res.data?.data || res.data;
+      toast.success('Category created');
+      setNewCategoryName('');
+      setShowCategoryModal(false);
+      await fetchCategories();
+      if (created?.id) updateForm('category_id', String(created.id));
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to create category');
+    } finally {
+      setCategoryLoading(false);
+    }
+  };
 
   if (error && items.length === 0 && !loading) {
     return <PageError error={error} onRetry={() => dispatch(fetchProducts({ page: 1, limit: 20 }))} />;
@@ -235,7 +261,21 @@ export default function Products() {
 
           <FormRow>
             <FormField label="Brand" value={form.brand} onChange={(v) => updateForm('brand', v)} placeholder="e.g. Amul, Tata" />
-            <FormField label="Category" type="select" value={form.category_id} onChange={(v) => updateForm('category_id', v)} options={categoryOptions} />
+            <div className="flex-1">
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <FormField label="Category" type="select" value={form.category_id} onChange={(v) => updateForm('category_id', v)} options={categoryOptions} />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCategoryModal(true)}
+                  className="mb-[2px] p-2.5 rounded-xl text-primary-600 hover:text-primary-700 hover:bg-primary-50 transition-all border border-primary-200"
+                  title="Add new category"
+                >
+                  <HiOutlinePlus className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
           </FormRow>
 
           <FormSection title="Pricing">
@@ -280,6 +320,25 @@ export default function Products() {
           <div className="flex justify-end gap-3 pt-5 border-t border-gray-100">
             <button type="button" onClick={() => setShowModal(false)} className="btn-secondary text-sm">Cancel</button>
             <button type="submit" className="btn-primary text-sm">{editingId ? 'Save Changes' : 'Create Product'}</button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Add Category Modal */}
+      <Modal open={showCategoryModal} onClose={() => setShowCategoryModal(false)} title="Add New Category" size="sm">
+        <form onSubmit={handleAddCategory} className="space-y-5">
+          <FormField
+            label="Category Name"
+            required
+            value={newCategoryName}
+            onChange={(v) => setNewCategoryName(v)}
+            placeholder="e.g. Electronics, Groceries"
+          />
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+            <button type="button" onClick={() => setShowCategoryModal(false)} className="btn-secondary text-sm">Cancel</button>
+            <button type="submit" disabled={categoryLoading || !newCategoryName.trim()} className="btn-primary text-sm disabled:opacity-50">
+              {categoryLoading ? 'Creating...' : 'Create Category'}
+            </button>
           </div>
         </form>
       </Modal>

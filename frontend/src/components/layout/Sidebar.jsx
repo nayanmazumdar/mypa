@@ -8,7 +8,7 @@ import {
   HiOutlineArchiveBox,
   HiOutlineUsers,
   HiOutlineBuildingStorefront,
-  HiOutlineCog6Tooth,
+
   HiOutlineXMark,
   HiOutlineScale,
   HiOutlineBanknotes,
@@ -124,19 +124,7 @@ export default function Sidebar({ open, onClose }) {
             </div>
           ))}
 
-          {/* Admin Panel link (admin only) */}
-          {user?.role === 'admin' && (
-            <div className="mt-5 pt-4" style={{ borderTop: '1px solid rgba(200,207,216,0.4)' }}>
-              <NavLink
-                to="/admin/shops"
-                onClick={onClose}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium text-primary-600 hover:text-primary-700 transition-all"
-              >
-                <HiOutlineCog6Tooth className="w-[18px] h-[18px] flex-shrink-0" />
-                Admin Panel
-              </NavLink>
-            </div>
-          )}
+
         </nav>
 
         {/* Footer */}

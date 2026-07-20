@@ -30,6 +30,16 @@ export default function Purchase() {
   const [purchaseForm, setPurchaseForm] = useState({ supplier_id: '', payment_method: 'cash', payment_status: 'paid', discount: 0, notes: '' });
   const [purchaseItems, setPurchaseItems] = useState([{ product_id: '', quantity: 1, unit_price: 0 }]);
 
+  // Add Supplier sub-modal
+  const [showSupplierModal, setShowSupplierModal] = useState(false);
+  const [newSupplierForm, setNewSupplierForm] = useState({ name: '', company: '', phone: '' });
+  const [supplierLoading, setSupplierLoading] = useState(false);
+
+  // Add Product sub-modal
+  const [showProductModal, setShowProductModal] = useState(false);
+  const [newProductForm, setNewProductForm] = useState({ name: '', purchase_price: '', selling_price: '', unit: 'piece' });
+  const [productLoading, setProductLoading] = useState(false);
+
   useEffect(() => {
     dispatch(fetchPurchases({ page, limit: 20, status: statusFilter || undefined, search: search || undefined }));
   }, [dispatch, page, statusFilter, search]);
@@ -50,6 +60,61 @@ export default function Purchase() {
     setPurchaseForm({ supplier_id: '', payment_method: 'cash', payment_status: 'paid', discount: 0, notes: '' });
     setPurchaseItems([{ product_id: '', quantity: 1, unit_price: 0 }]);
     setShowCreateModal(true);
+  };
+
+  const handleAddSupplier = async (e) => {
+    e.preventDefault();
+    if (!newSupplierForm.name.trim()) return;
+    setSupplierLoading(true);
+    try {
+      const res = await api.post('/suppliers', {
+        name: newSupplierForm.name.trim(),
+        company: newSupplierForm.company.trim() || undefined,
+        phone: newSupplierForm.phone.trim() || undefined,
+      });
+      const created = res.data?.data || res.data;
+      toast.success('Supplier created');
+      setNewSupplierForm({ name: '', company: '', phone: '' });
+      setShowSupplierModal(false);
+      // Refresh suppliers list and auto-select the new one
+      const suppRes = await api.get('/suppliers', { params: { limit: 200 } });
+      setSuppliers(suppRes.data || []);
+      if (created?.id) setPurchaseForm((prev) => ({ ...prev, supplier_id: String(created.id) }));
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to create supplier');
+    } finally {
+      setSupplierLoading(false);
+    }
+  };
+
+  const handleAddProduct = async (e) => {
+    e.preventDefault();
+    if (!newProductForm.name.trim() || !newProductForm.purchase_price || !newProductForm.selling_price) return;
+    setProductLoading(true);
+    try {
+      const res = await api.post('/products', {
+        name: newProductForm.name.trim(),
+        purchase_price: parseFloat(newProductForm.purchase_price),
+        selling_price: parseFloat(newProductForm.selling_price),
+        mrp: parseFloat(newProductForm.selling_price),
+        unit: newProductForm.unit,
+      });
+      const created = res.data?.data || res.data;
+      toast.success('Product created');
+      setNewProductForm({ name: '', purchase_price: '', selling_price: '', unit: 'piece' });
+      setShowProductModal(false);
+      // Refresh products list
+      const prodRes = await api.get('/products', { params: { limit: 200 } });
+      setProducts(prodRes.data || []);
+      // Auto-add as a new item row with the created product selected
+      if (created?.id) {
+        setPurchaseItems((prev) => [...prev, { product_id: String(created.id), quantity: 1, unit_price: parseFloat(newProductForm.purchase_price) || 0 }]);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to create product');
+    } finally {
+      setProductLoading(false);
+    }
   };
 
   const openDetail = async (purchase) => {
@@ -203,10 +268,20 @@ export default function Purchase() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
-              <select value={purchaseForm.supplier_id} onChange={(e) => setPurchaseForm({ ...purchaseForm, supplier_id: e.target.value })} className="input w-full">
-                <option value="">No Supplier</option>
-                {(suppliers || []).map(s => <option key={s.id} value={s.id}>{s.name}{s.company ? ` (${s.company})` : ''}</option>)}
-              </select>
+              <div className="flex items-end gap-2">
+                <select value={purchaseForm.supplier_id} onChange={(e) => setPurchaseForm({ ...purchaseForm, supplier_id: e.target.value })} className="input w-full">
+                  <option value="">No Supplier</option>
+                  {(suppliers || []).map(s => <option key={s.id} value={s.id}>{s.name}{s.company ? ` (${s.company})` : ''}</option>)}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setShowSupplierModal(true)}
+                  className="mb-[2px] p-2.5 rounded-xl text-primary-600 hover:text-primary-700 hover:bg-primary-50 transition-all border border-primary-200"
+                  title="Add new supplier"
+                >
+                  <HiOutlinePlus className="w-4 h-4" />
+                </button>
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
@@ -221,9 +296,16 @@ export default function Purchase() {
 
           {/* Items */}
           <div>
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2 mb-2">
               <label className="text-sm font-medium text-gray-700">Items *</label>
-              <button type="button" onClick={addItem} className="text-xs text-primary-600 hover:text-primary-700 font-medium">+ Add Item</button>
+              <button
+                type="button"
+                onClick={() => setShowProductModal(true)}
+                className="p-1.5 rounded-xl text-primary-600 hover:text-primary-700 hover:bg-primary-50 transition-all border border-primary-200"
+                title="Add new product"
+              >
+                <HiOutlinePlus className="w-3.5 h-3.5" />
+              </button>
             </div>
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {purchaseItems.map((item, idx) => (
@@ -232,7 +314,7 @@ export default function Purchase() {
                     <option value="">Select Product</option>
                     {(products || []).map(p => <option key={p.id} value={p.id}>{p.name} (₹{p.purchase_price})</option>)}
                   </select>
-                  <input type="number" min="0.01" step="0.01" value={item.quantity} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} className="input w-16 text-sm" placeholder="Qty" />
+                  <input type="number" min="0.01" step="0.01" value={item.quantity} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} className="input w-24 text-sm" placeholder="Qty" />
                   <input type="number" min="0" step="0.01" value={item.unit_price} onChange={(e) => updateItem(idx, 'unit_price', e.target.value)} className="input w-20 text-sm" placeholder="Price" />
                   {purchaseItems.length > 1 && (
                     <button type="button" onClick={() => removeItem(idx)} className="p-1 text-red-500 hover:text-red-700">
@@ -311,6 +393,119 @@ export default function Purchase() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Add Supplier Modal */}
+      <Modal open={showSupplierModal} onClose={() => setShowSupplierModal(false)} title="Add New Supplier" size="sm">
+        <form onSubmit={handleAddSupplier} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Supplier Name *</label>
+            <input
+              type="text"
+              required
+              value={newSupplierForm.name}
+              onChange={(e) => setNewSupplierForm({ ...newSupplierForm, name: e.target.value })}
+              className="input w-full"
+              placeholder="e.g. Ravi Traders"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>
+            <input
+              type="text"
+              value={newSupplierForm.company}
+              onChange={(e) => setNewSupplierForm({ ...newSupplierForm, company: e.target.value })}
+              className="input w-full"
+              placeholder="e.g. ABC Distributors Pvt Ltd"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+            <input
+              type="text"
+              value={newSupplierForm.phone}
+              onChange={(e) => setNewSupplierForm({ ...newSupplierForm, phone: e.target.value })}
+              className="input w-full"
+              placeholder="e.g. 9876543210"
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+            <button type="button" onClick={() => setShowSupplierModal(false)} className="btn-secondary text-sm">Cancel</button>
+            <button type="submit" disabled={supplierLoading || !newSupplierForm.name.trim()} className="btn-primary text-sm disabled:opacity-50">
+              {supplierLoading ? 'Creating...' : 'Create Supplier'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Add Product Modal */}
+      <Modal open={showProductModal} onClose={() => setShowProductModal(false)} title="Add New Product" size="sm">
+        <form onSubmit={handleAddProduct} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Product Name *</label>
+            <input
+              type="text"
+              required
+              value={newProductForm.name}
+              onChange={(e) => setNewProductForm({ ...newProductForm, name: e.target.value })}
+              className="input w-full"
+              placeholder="e.g. Tata Salt 1kg"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Purchase Price *</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                required
+                value={newProductForm.purchase_price}
+                onChange={(e) => setNewProductForm({ ...newProductForm, purchase_price: e.target.value })}
+                className="input w-full"
+                placeholder="₹ Cost"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Selling Price *</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                required
+                value={newProductForm.selling_price}
+                onChange={(e) => setNewProductForm({ ...newProductForm, selling_price: e.target.value })}
+                className="input w-full"
+                placeholder="₹ Sell"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+            <select
+              value={newProductForm.unit}
+              onChange={(e) => setNewProductForm({ ...newProductForm, unit: e.target.value })}
+              className="input w-full"
+            >
+              <option value="piece">Piece</option>
+              <option value="kg">Kg</option>
+              <option value="gram">Gram</option>
+              <option value="litre">Litre</option>
+              <option value="ml">ml</option>
+              <option value="meter">Meter</option>
+              <option value="box">Box</option>
+              <option value="dozen">Dozen</option>
+              <option value="packet">Packet</option>
+              <option value="bottle">Bottle</option>
+            </select>
+          </div>
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+            <button type="button" onClick={() => setShowProductModal(false)} className="btn-secondary text-sm">Cancel</button>
+            <button type="submit" disabled={productLoading || !newProductForm.name.trim() || !newProductForm.purchase_price || !newProductForm.selling_price} className="btn-primary text-sm disabled:opacity-50">
+              {productLoading ? 'Creating...' : 'Create Product'}
+            </button>
+          </div>
+        </form>
       </Modal>
     </div>
   );

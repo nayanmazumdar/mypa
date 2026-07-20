@@ -370,13 +370,46 @@ class AuthService {
       const decoded = verifyRefreshToken(refreshToken);
       const pool = getPool();
       const [[user]] = await pool.query(
-        'SELECT id, uuid, email, role, default_module, is_active FROM users WHERE id = ?',
+        'SELECT id, uuid, email, role, default_module, shop_id, is_active FROM users WHERE id = ?',
         [decoded.id]
       );
       if (!user || !user.is_active) {
         const e = new Error('User not found or inactive'); e.statusCode = 401; throw e;
       }
-      const token = generateToken({ id: user.id, uuid: user.uuid, email: user.email, role: user.role, default_module: user.default_module });
+
+      // Resolve the user's active shop — prefer their stored shop_id
+      let shopId = user.shop_id || null;
+      let membershipRole = user.role;
+      let rbacPerms = {};
+      let rbacRoles = [];
+
+      if (shopId) {
+        // Verify membership still exists
+        const [[membership]] = await pool.query(
+          'SELECT role FROM user_shops WHERE user_id = ? AND shop_id = ?',
+          [user.id, shopId]
+        );
+        if (membership) {
+          membershipRole = membership.role;
+          const resolved = await rbacService.resolveUserPermissions(user.id);
+          rbacPerms = resolved.permissions;
+          rbacRoles = resolved.roles;
+        } else {
+          // User no longer has access to this shop
+          shopId = null;
+        }
+      }
+
+      const token = generateToken({
+        id: user.id,
+        uuid: user.uuid,
+        email: user.email,
+        role: membershipRole,
+        shop_id: shopId,
+        default_module: user.default_module || null,
+        rbac_roles: rbacRoles,
+        rbac_perms: rbacPerms,
+      });
       const newRefreshToken = generateRefreshToken({ id: user.id, uuid: user.uuid, email: user.email });
       return { token, refresh_token: newRefreshToken };
     } catch (err) {

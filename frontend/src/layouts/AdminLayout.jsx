@@ -154,14 +154,6 @@ export default function AdminLayout() {
               <p className="text-xs font-medium text-gray-800 truncate">{user?.name}</p>
               <p className="text-[11px] text-gray-400 capitalize">Admin</p>
             </div>
-            <button
-              onClick={handleLogout}
-              className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 transition-colors"
-              title="Logout"
-              aria-label="Logout"
-            >
-              <HiOutlineArrowLeftOnRectangle className="w-4 h-4" />
-            </button>
           </div>
         </div>
       </aside>
@@ -184,6 +176,18 @@ export default function AdminLayout() {
               <p className="text-[11px] text-gray-400 hidden sm:block">Manage your business</p>
             </div>
           </div>
+
+          {/* Logout */}
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-gray-500 hover:text-red-600 transition-all"
+            style={{ background: '#e8edf5', boxShadow: '3px 3px 6px #c8cfd8, -3px -3px 6px #ffffff' }}
+            title="Logout"
+            aria-label="Logout"
+          >
+            <HiOutlineArrowLeftOnRectangle className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Logout</span>
+          </button>
         </header>
 
         <main className="flex-1 overflow-y-auto">

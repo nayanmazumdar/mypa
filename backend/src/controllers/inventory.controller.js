@@ -29,11 +29,14 @@ class InventoryController {
   async addStock(req, res) {
     try {
       const { product_id, quantity, type, notes } = req.body;
-      await inventoryService.addStock(req.user.shop_id, product_id, quantity, type, 'manual', null, notes);
+      if (!product_id) return ApiResponse.error(res, 'product_id is required', 400);
+      if (!quantity || quantity <= 0) return ApiResponse.error(res, 'Valid quantity is required', 400);
+      if (!type || !['in', 'out', 'adjustment'].includes(type)) return ApiResponse.error(res, 'Invalid stock type', 400);
+      await inventoryService.addStock(req.user.shop_id, req.user.id, product_id, quantity, type, 'manual', null, notes);
       return ApiResponse.success(res, null, 'Stock updated successfully');
     } catch (error) {
-      logger.error('Add stock error:', error.message);
-      return ApiResponse.error(res, error.message, error.statusCode || 500);
+      logger.error('Add stock error:', error.message || error.original?.message || error);
+      return ApiResponse.error(res, error.message || 'Failed to update stock', error.statusCode || 500);
     }
   }
 

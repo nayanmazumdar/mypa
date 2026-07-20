@@ -12,6 +12,7 @@ import {
   HiOutlineArrowTrendingUp,
   HiOutlineArrowTrendingDown,
   HiOutlineChevronRight,
+
 } from 'react-icons/hi2';
 import api from '../api/axios';
 import { posApi } from '../api/pos.api';
@@ -84,13 +85,16 @@ export default function Dashboard() {
           <h1 className="text-2xl font-bold text-gray-800">{greeting()}, {user?.name?.split(' ')[0]} 👋</h1>
           <p className="text-sm text-gray-500 mt-1">Here's how your shop is doing today.</p>
         </div>
-        <button
-          onClick={() => navigate('/pos')}
-          className="flex items-center gap-2.5 px-5 py-3 rounded-2xl text-sm font-semibold text-white self-start sm:self-auto transition-all"
-          style={{ background: 'linear-gradient(145deg, #5a4dd4, #4f46e5)', boxShadow: '5px 5px 10px #c8cfd8, -5px -5px 10px #ffffff' }}
-        >
-          <HiOutlineScale className="w-5 h-5" /> Open POS
-        </button>
+        <div className="flex items-center gap-3 self-start sm:self-auto">
+
+          <button
+            onClick={() => navigate('/pos')}
+            className="flex items-center gap-2.5 px-5 py-3 rounded-2xl text-sm font-semibold text-white transition-all"
+            style={{ background: 'linear-gradient(145deg, #5a4dd4, #4f46e5)', boxShadow: '5px 5px 10px #c8cfd8, -5px -5px 10px #ffffff' }}
+          >
+            <HiOutlineScale className="w-5 h-5" /> Open POS
+          </button>
+        </div>
       </div>
 
       {/* ─── Today's Performance ─────────────────────────────── */}

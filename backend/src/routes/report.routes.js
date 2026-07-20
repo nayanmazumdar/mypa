@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { Op, fn, col, literal } = require('sequelize');
-const { Sale, SaleItem, Product, Customer, Inventory } = require('../models');
+const { PosTransaction, PosTransactionItem, Product, Customer, Inventory } = require('../models');
 const { authenticate, permit } = require('../middlewares/auth.middleware');
 const { requireFeature } = require('../middlewares/subscription.middleware');
 const ApiResponse = require('../utils/response');
@@ -22,9 +22,9 @@ router.get('/dashboard', authenticate, permit('reports:read'), requireFeature('r
     const today = new Date().toISOString().split('T')[0];
 
     const [todaySales, totalProducts, totalCustomers, lowStock] = await Promise.all([
-      Sale.findOne({
+      PosTransaction.findOne({
         attributes: [[fn('COUNT', col('id')), 'count'], [fn('COALESCE', fn('SUM', col('net_amount')), 0), 'revenue']],
-        where: { shop_id: shopId, sale_date: today, status: 'completed' },
+        where: { shop_id: shopId, status: 'completed', [Op.and]: [literal(`DATE(created_at) = '${today}'`)] },
         raw: true,
       }),
       Product.count({ where: { shop_id: shopId, is_active: true } }),
@@ -61,13 +61,13 @@ router.get('/dashboard', authenticate, permit('reports:read'), requireFeature('r
 router.get('/daily-sales', authenticate, permit('reports:read'), requireFeature('reports'), async (req, res, next) => {
   try {
     const date = req.query.date || new Date().toISOString().split('T')[0];
-    const result = await Sale.findOne({
+    const result = await PosTransaction.findOne({
       attributes: [
         [fn('COUNT', col('id')), 'total_sales'],
         [fn('COALESCE', fn('SUM', col('net_amount')), 0), 'total_revenue'],
         [fn('COALESCE', fn('SUM', col('discount')), 0), 'total_discount'],
       ],
-      where: { shop_id: req.user.shop_id, sale_date: date, status: 'completed' },
+      where: { shop_id: req.user.shop_id, status: 'completed', [Op.and]: [literal(`DATE(created_at) = '${date}'`)] },
       raw: true,
     });
     return ApiResponse.success(res, result);
@@ -99,9 +99,9 @@ router.get('/monthly-sales', authenticate, permit('reports:read'), requireFeatur
     const year = parseInt(req.query.year) || now.getFullYear();
     const month = parseInt(req.query.month) || now.getMonth() + 1;
 
-    const rows = await Sale.findAll({
+    const rows = await PosTransaction.findAll({
       attributes: [
-        [fn('DATE', col('sale_date')), 'date'],
+        [fn('DATE', col('created_at')), 'date'],
         [fn('COUNT', col('id')), 'total_sales'],
         [fn('COALESCE', fn('SUM', col('net_amount')), 0), 'total_revenue'],
       ],
@@ -109,12 +109,12 @@ router.get('/monthly-sales', authenticate, permit('reports:read'), requireFeatur
         shop_id: req.user.shop_id,
         status: 'completed',
         [Op.and]: [
-          literal(`YEAR(sale_date) = ${year}`),
-          literal(`MONTH(sale_date) = ${month}`),
+          literal(`YEAR(created_at) = ${year}`),
+          literal(`MONTH(created_at) = ${month}`),
         ],
       },
-      group: [fn('DATE', col('sale_date'))],
-      order: [[fn('DATE', col('sale_date')), 'ASC']],
+      group: [fn('DATE', col('created_at'))],
+      order: [[fn('DATE', col('created_at')), 'ASC']],
       raw: true,
     });
 
@@ -151,19 +151,22 @@ router.get('/top-products', authenticate, permit('reports:read'), requireFeature
     const { start_date, end_date, limit: queryLimit } = req.query;
     const topLimit = parseInt(queryLimit) || 10;
 
-    const rows = await SaleItem.findAll({
+    const rows = await PosTransactionItem.findAll({
       attributes: [
-        [fn('SUM', col('SaleItem.quantity')), 'total_quantity'],
-        [fn('SUM', col('SaleItem.total')), 'total_revenue'],
+        [fn('SUM', col('PosTransactionItem.quantity')), 'total_quantity'],
+        [fn('SUM', col('PosTransactionItem.total')), 'total_revenue'],
       ],
       include: [
         {
-          model: Sale,
+          model: PosTransaction,
           attributes: [],
           where: {
             shop_id: req.user.shop_id,
             status: 'completed',
-            sale_date: { [Op.between]: [start_date, end_date] },
+            [Op.and]: [
+              literal(`DATE(PosTransaction.created_at) >= '${start_date}'`),
+              literal(`DATE(PosTransaction.created_at) <= '${end_date}'`),
+            ],
           },
         },
         {
@@ -172,7 +175,7 @@ router.get('/top-products', authenticate, permit('reports:read'), requireFeature
         },
       ],
       group: ['Product.id'],
-      order: [[fn('SUM', col('SaleItem.total')), 'DESC']],
+      order: [[fn('SUM', col('PosTransactionItem.total')), 'DESC']],
       limit: topLimit,
       raw: true,
       nest: true,
@@ -215,19 +218,22 @@ router.get('/profit', authenticate, permit('reports:read'), requireFeature('repo
   try {
     const { start_date, end_date } = req.query;
 
-    const result = await SaleItem.findOne({
+    const result = await PosTransactionItem.findOne({
       attributes: [
-        [fn('COALESCE', fn('SUM', col('Sale.net_amount')), 0), 'total_sales'],
-        [fn('COALESCE', fn('SUM', literal('SaleItem.quantity * Product.purchase_price')), 0), 'total_cost'],
+        [fn('COALESCE', fn('SUM', col('PosTransactionItem.total')), 0), 'total_sales'],
+        [fn('COALESCE', fn('SUM', literal('PosTransactionItem.quantity * Product.purchase_price')), 0), 'total_cost'],
       ],
       include: [
         {
-          model: Sale,
+          model: PosTransaction,
           attributes: [],
           where: {
             shop_id: req.user.shop_id,
             status: 'completed',
-            sale_date: { [Op.between]: [start_date, end_date] },
+            [Op.and]: [
+              literal(`DATE(PosTransaction.created_at) >= '${start_date}'`),
+              literal(`DATE(PosTransaction.created_at) <= '${end_date}'`),
+            ],
           },
         },
         {
