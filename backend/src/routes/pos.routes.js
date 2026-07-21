@@ -2,10 +2,16 @@ const express = require('express');
 const router = express.Router();
 const { getPool } = require('../config/db');
 const { authenticate, permit } = require('../middlewares/auth.middleware');
+const { requireShopOpen } = require('../middlewares/shopOpen.middleware');
 const ApiResponse = require('../utils/response');
 const { generateId, localDateStr } = require('../utils/helper');
 const { parsePagination, buildPaginationMeta } = require('../utils/pagination');
 const { broadcastToShop } = require('./sse.routes');
+
+// Block all POS operations when the shop is closed (admins bypass).
+// requireShopOpen needs req.user, so it's placed after authenticate on each route.
+// We use router-level middleware here; authenticate runs again per-route but that's harmless.
+router.use(authenticate, requireShopOpen);
 
 // Generate receipt number
 const generateReceiptNumber = () => {

@@ -97,8 +97,16 @@ router.patch('/shops/:id/open', async (req, res, next) => {
 
     const newVal = shop.is_open ? 0 : 1;
     await pool.query('UPDATE shops SET is_open=? WHERE id=?', [newVal, req.params.id]);
-    // Sync staff access
-    await pool.query('UPDATE user_shops SET is_active=? WHERE shop_id=? AND role != ?', [newVal, req.params.id, 'admin']);
+    // Sync staff access — user_shops and users tables
+    await pool.query(
+      `UPDATE user_shops SET is_active=? WHERE shop_id=? AND role != 'admin'`,
+      [newVal, req.params.id]
+    );
+    await pool.query(
+      `UPDATE users u JOIN user_shops us ON us.user_id = u.id
+       SET u.is_active = ? WHERE us.shop_id = ? AND us.role != 'admin'`,
+      [newVal, req.params.id]
+    );
     return ApiResponse.success(res, { is_open: newVal }, newVal ? 'Shop opened' : 'Shop closed');
   } catch (err) { next(err); }
 });
@@ -109,26 +117,128 @@ router.patch('/shops/:id/open', async (req, res, next) => {
 router.get('/users', async (req, res, next) => {
   try {
     const pool = getPool();
-    // Get users in admin's shops + any user created via admin (those with no shop yet)
-    const [users] = await pool.query(
+    
+    // First, get all shops where this admin is the owner
+    const [adminShops] = await pool.query(
+      `SELECT shop_id FROM user_shops WHERE user_id = ? AND role = 'admin'`,
+      [req.user.id]
+    );
+    
+    if (adminShops.length === 0) {
+      // No shops yet — still return the owner themselves
+      const [[ownerOnly]] = await pool.query(
+        `SELECT u.id, u.uuid, u.name, u.email, u.phone, u.role, u.is_active, u.created_at,
+                NULL AS shop_names, NULL AS shop_ids, NULL AS shop_roles
+         FROM users u WHERE u.id = ?`,
+        [req.user.id]
+      );
+      return ApiResponse.success(res, ownerOnly ? [{ ...ownerOnly, is_owner: true, status: 'owner' }] : []);
+    }
+    
+    const shopIds = adminShops.map(s => s.shop_id);
+    const placeholders = shopIds.map(() => '?').join(',');
+
+    // 1. Users assigned to the admin's shops (staff/managers)
+    const [shopUsers] = await pool.query(
+      `SELECT u.id, u.uuid, u.name, u.email, u.phone, u.role, u.is_active, u.created_at,
+              GROUP_CONCAT(DISTINCT s.name ORDER BY s.name SEPARATOR ', ') AS shop_names,
+              GROUP_CONCAT(DISTINCT us.shop_id ORDER BY s.name SEPARATOR ',') AS shop_ids,
+              GROUP_CONCAT(DISTINCT us.role ORDER BY s.name SEPARATOR ',') AS shop_roles,
+              MIN(s.is_open) AS any_shop_open,
+              MIN(us.is_active) AS staff_active
+       FROM users u
+       INNER JOIN user_shops us ON us.user_id = u.id AND us.shop_id IN (${placeholders})
+       LEFT JOIN shops s ON s.id = us.shop_id
+       WHERE u.id != ?
+       GROUP BY u.id`,
+      [...shopIds, req.user.id]
+    );
+
+    // 2. The logged-in owner themselves
+    const [[ownerRow]] = await pool.query(
       `SELECT u.id, u.uuid, u.name, u.email, u.phone, u.role, u.is_active, u.created_at,
               GROUP_CONCAT(DISTINCT s.name ORDER BY s.name SEPARATOR ', ') AS shop_names,
               GROUP_CONCAT(DISTINCT us.shop_id ORDER BY s.name SEPARATOR ',') AS shop_ids,
               GROUP_CONCAT(DISTINCT us.role ORDER BY s.name SEPARATOR ',') AS shop_roles
        FROM users u
        LEFT JOIN user_shops us ON us.user_id = u.id
-       LEFT JOIN shops s ON s.id = us.shop_id AND s.owner_id = ?
-       WHERE u.id != ?
-       GROUP BY u.id
-       ORDER BY u.name ASC`,
-      [req.user.id, req.user.id]
+       LEFT JOIN shops s ON s.id = us.shop_id AND s.owner_id = u.id
+       WHERE u.id = ?
+       GROUP BY u.id`,
+      [req.user.id]
     );
-    // Derive status from is_active + shop assignment
-    const enriched = users.map(u => ({
+
+    // 3. Users created by this admin but not assigned to any shop yet (unassigned)
+    const [unassignedUsers] = await pool.query(
+      `SELECT u.id, u.uuid, u.name, u.email, u.phone, u.role, u.is_active, u.created_at,
+              NULL AS shop_names, NULL AS shop_ids, NULL AS shop_roles
+       FROM users u
+       LEFT JOIN user_shops us ON us.user_id = u.id
+       WHERE us.user_id IS NULL
+         AND u.id != ?
+         AND u.role != 'admin'
+       ORDER BY u.name ASC`,
+      [req.user.id]
+    );
+
+    // Merge and deduplicate by id (shop users take priority over unassigned)
+    const seen = new Set();
+    const merged = [];
+
+    // Owner first — tag with is_owner so the frontend can style it distinctly
+    if (ownerRow) { seen.add(ownerRow.id); merged.push({ ...ownerRow, is_owner: true }); }
+    // Shop-assigned users
+    for (const u of shopUsers) { if (!seen.has(u.id)) { seen.add(u.id); merged.push(u); } }
+    // Unassigned users
+    for (const u of unassignedUsers) { if (!seen.has(u.id)) { seen.add(u.id); merged.push(u); } }
+
+    // Sort by name (owner stays first, rest alphabetically)
+    merged.sort((a, b) => {
+      if (a.id === req.user.id) return -1;
+      if (b.id === req.user.id) return 1;
+      return a.name.localeCompare(b.name);
+    });
+
+    // Derive status from is_active + shop open state
+    const enriched = merged.map(u => {
+      let status;
+      if (u.is_owner) {
+        status = 'owner';
+      } else if (u.shop_ids) {
+        const shopOpen = u.any_shop_open == null ? true : !!u.any_shop_open;
+        const staffActive = u.staff_active == null ? !!u.is_active : !!u.staff_active;
+        status = (shopOpen && staffActive) ? 'active' : 'disabled';
+      } else {
+        status = !u.is_active ? 'disabled' : 'unassigned';
+      }
+      return { ...u, status, shop_closed: u.shop_ids ? !u.any_shop_open : false };
+    });
+
+    // Attach RBAC role names for all users in one query
+    const allUserIds = enriched.map(u => u.id);
+    let rbacMap = {};
+    if (allUserIds.length > 0) {
+      const rbacPH = allUserIds.map(() => '?').join(',');
+      const [rbacRows] = await pool.query(
+        `SELECT ur.user_id, r.name
+         FROM rbac_user_roles ur
+         JOIN rbac_roles r ON r.id = ur.role_id
+         WHERE ur.user_id IN (${rbacPH})
+         ORDER BY r.name ASC`,
+        allUserIds
+      );
+      for (const row of rbacRows) {
+        if (!rbacMap[row.user_id]) rbacMap[row.user_id] = [];
+        rbacMap[row.user_id].push(row.name);
+      }
+    }
+
+    const final = enriched.map(u => ({
       ...u,
-      status: !u.is_active ? 'disabled' : u.shop_ids ? 'active' : 'unassigned',
+      rbac_role_names: rbacMap[u.id] || [],
     }));
-    return ApiResponse.success(res, enriched);
+
+    return ApiResponse.success(res, final);
   } catch (err) { next(err); }
 });
 
@@ -146,7 +256,7 @@ router.post('/users', async (req, res, next) => {
     const hashed = await bcrypt.hash(password, 10);
     const uuid = uuidv4();
     const [result] = await pool.query(
-      'INSERT INTO users (uuid, name, email, phone, password, role, is_active) VALUES (?,?,?,?,?,?,1)',
+      'INSERT INTO users (uuid, name, email, phone, password, role, is_active) VALUES (?,?,?,?,?,?,0)',
       [uuid, name.trim(), email.toLowerCase().trim(), phone || null, hashed, role]
     );
     const userId = result.insertId;

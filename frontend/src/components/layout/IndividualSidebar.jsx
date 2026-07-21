@@ -97,15 +97,21 @@ export default function IndividualSidebar({ open, onClose }) {
         {/* Footer */}
         <div className="px-4 py-3 flex-shrink-0" style={{ borderTop: '1px solid rgba(200,207,216,0.4)' }}>
           <div className="flex items-center gap-3 p-2 rounded-xl" style={{ background: '#e8edf5', boxShadow: 'inset 2px 2px 4px #c8cfd8, inset -2px -2px 4px #ffffff' }}>
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: '#e8edf5', boxShadow: '2px 2px 4px #c8cfd8, -2px -2px 4px #ffffff' }}>
-              <HiOutlineUser className="w-4 h-4 text-primary-600" />
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)', boxShadow: '2px 2px 5px #c8cfd8, -2px -2px 5px #ffffff' }}>
+              {user?.avatar ? (
+                <img src={user.avatar} alt={user.name} className="w-full h-full rounded-lg object-cover" />
+              ) : (
+                <span className="text-white text-xs font-bold">
+                  {user?.name?.charAt(0)?.toUpperCase() || 'I'}
+                </span>
+              )}
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-semibold text-gray-700 truncate">Individual</p>
-              <p className="text-[10px] text-gray-400">Personal mode</p>
+              <p className="text-xs font-semibold text-purple-700 truncate">{user?.name || 'Individual'}</p>
+              <p className="text-[10px] text-purple-400 font-medium">Personal mode</p>
             </div>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0 ml-auto" title="Active" />
           </div>
-
         </div>
       </aside>
     </>

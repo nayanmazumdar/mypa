@@ -66,7 +66,7 @@ export default function Header({ onMenuClick }) {
               </span>
             )}
           </div>
-          <p className="text-[11px] text-gray-400 hidden sm:block">Welcome back, {user?.role === 'admin' ? 'Business Owner' : user?.name}</p>
+          <p className="text-[11px] text-gray-400 hidden sm:block">Welcome, {user?.name}</p>
           <p className="text-[10px] text-primary-600 font-medium hidden sm:block">{dateStr} · {timeStr}</p>
         </div>
       </div>

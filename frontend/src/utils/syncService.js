@@ -71,8 +71,9 @@ async function fetchAndCacheCustomers() {
       await cacheCustomers(data);
       await setMeta('customersCount', data.length);
     }
-  } catch {
-    // Customers might not be accessible for staff — skip silently
+  } catch (err) {
+    // Log so the failure is visible during debugging; non-fatal for POS
+    console.warn('[Sync] Failed to cache customers:', err.response?.status, err.message);
   }
 }
 

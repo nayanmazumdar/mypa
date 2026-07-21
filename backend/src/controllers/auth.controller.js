@@ -1,6 +1,7 @@
 const authService = require('../services/auth.service');
 const ApiResponse = require('../utils/response');
 const logger = require('../config/logger');
+const { broadcastToShop } = require('../routes/sse.routes');
 
 class AuthController {
   async register(req, res) {

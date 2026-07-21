@@ -9,7 +9,7 @@ export default function ConfirmDialog({ open, title, message, onConfirm, onCance
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-gray-900/25 backdrop-blur-[2px]" onClick={onCancel} aria-hidden="true" />
+      <div className="absolute inset-0 bg-gray-900/25 backdrop-blur-[2px]" aria-hidden="true" />
       <div
         className="relative w-full max-w-sm p-7 rounded-3xl"
         style={{

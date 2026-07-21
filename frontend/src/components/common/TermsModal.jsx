@@ -92,7 +92,6 @@ export default function TermsModal({ open, onClose }) {
   return (
     <div
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-      onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label="Service Terms and Conditions"
@@ -100,7 +99,6 @@ export default function TermsModal({ open, onClose }) {
       <div
         className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col"
         style={{ height: 'min(88vh, 720px)' }}
-        onClick={(e) => e.stopPropagation()}
       >
         {/* ── Header ── */}
         <div className="flex-shrink-0 bg-primary-600 rounded-t-2xl px-6 py-4 flex items-center justify-between">

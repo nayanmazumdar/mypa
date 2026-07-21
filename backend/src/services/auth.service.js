@@ -218,9 +218,18 @@ class AuthService {
     // Update shop open/closed flag
     await pool.query('UPDATE shops SET is_open = ? WHERE id = ?', [newStatus, shopId]);
 
-    // Disable all non-admin staff when closing, re-enable them when opening
+    // Disable all non-admin staff when closing, re-enable when opening
+    // 1. Sync user_shops.is_active
     await pool.query(
       `UPDATE user_shops SET is_active = ? WHERE shop_id = ? AND role != 'admin'`,
+      [newStatus, shopId]
+    );
+    // 2. Sync users.is_active for those staff members
+    await pool.query(
+      `UPDATE users u
+       JOIN user_shops us ON us.user_id = u.id
+       SET u.is_active = ?
+       WHERE us.shop_id = ? AND us.role != 'admin'`,
       [newStatus, shopId]
     );
 
@@ -436,11 +445,11 @@ class AuthService {
     const hashedPassword = await hashPassword(password);
     const uuid = generateId();
     const [result] = await pool.query(
-      'INSERT INTO users (uuid, name, email, phone, password, role) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO users (uuid, name, email, phone, password, role, is_active) VALUES (?, ?, ?, ?, ?, ?, 0)',
       [uuid, name.trim(), email.toLowerCase().trim(), phone || null, hashedPassword, 'staff']
     );
-    logger.info(`User account created: ${email} (id: ${result.insertId})`);
-    return { id: result.insertId, uuid, name: name.trim(), email: email.toLowerCase().trim(), phone: phone || null, role: 'staff' };
+    logger.info(`User account created (disabled): ${email} (id: ${result.insertId})`);
+    return { id: result.insertId, uuid, name: name.trim(), email: email.toLowerCase().trim(), phone: phone || null, role: 'staff', is_active: 0 };
   }
 
   /**

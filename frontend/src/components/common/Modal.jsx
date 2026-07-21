@@ -36,7 +36,6 @@ export default function Modal({ open, onClose, title, children, size = 'md' }) {
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-gray-900/25 backdrop-blur-[2px]"
-        onClick={onClose}
         aria-hidden="true"
       />
       {/* Panel */}

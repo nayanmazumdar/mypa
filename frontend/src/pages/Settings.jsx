@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import {
   HiOutlineUser, HiOutlineShieldCheck, HiOutlineBell,
   HiOutlineFingerPrint, HiOutlineLockClosed,
+  HiOutlineCheckBadge, HiOutlineExclamationCircle,
 } from 'react-icons/hi2';
 import api from '../api/axios';
 import { LoadingSpinner } from '../components/common';
@@ -89,6 +90,48 @@ export default function Settings() {
       <div>
         <h1 className="text-xl font-bold text-gray-900">Account Settings</h1>
         <p className="text-sm text-gray-500 mt-1">Manage your profile, security, and preferences</p>
+      </div>
+
+      {/* Logged-in user identity banner */}
+      <div
+        className="flex items-center gap-4 px-5 py-4 rounded-2xl"
+        style={NEO.raised}
+      >
+        {/* Avatar / initials */}
+        <div
+          className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden"
+          style={NEO.inset}
+        >
+          {user?.avatar ? (
+            <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-primary-700 text-base font-bold">
+              {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+            </span>
+          )}
+        </div>
+
+        {/* Name + role */}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-gray-900 truncate">{user?.name || profile.name}</p>
+          <p className="text-[11px] text-gray-500 truncate">{profile.email}</p>
+        </div>
+
+        {/* Active / inactive status */}
+        {profile.is_active ? (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 flex-shrink-0">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Active
+          </span>
+        ) : (
+          <span
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 flex-shrink-0"
+            title="Account not yet verified"
+          >
+            <HiOutlineExclamationCircle className="w-3.5 h-3.5" />
+            Unverified
+          </span>
+        )}
       </div>
 
       {/* Layout: side nav + content */}

@@ -206,8 +206,8 @@ const permit = (permission) => {
       if (featurePerm && featurePerm[flag]) {
         return next();
       }
-      // Has dynamic RBAC but no matching grant → deny
-      return res.status(403).json({ success: false, code: 'FORBIDDEN', message: 'You do not have permission to perform this action', action: 'go_back' });
+      // Feature not in dynamic RBAC grants — fall through to static role check
+      // (dynamic RBAC adds permissions on top of role defaults, doesn't strip them)
     }
 
     // ── 2. Static fallback ────────────────────────────────

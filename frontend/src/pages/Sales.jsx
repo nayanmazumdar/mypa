@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { HiOutlinePlus, HiOutlineEye, HiOutlineXCircle } from 'react-icons/hi2';
+import { HiOutlinePlus, HiOutlineEye, HiOutlineXCircle, HiOutlinePrinter } from 'react-icons/hi2';
 import toast from 'react-hot-toast';
 import { fetchSales, createSale } from '../store/salesSlice';
 import { salesApi } from '../api/sales.api';
@@ -176,16 +176,17 @@ export default function Sales() {
     } finally { setSavingPay(false); }
   };
 
-  const handlePrintInvoice = async (saleId) => {
+  const handlePrintInvoice = async (saleId, saleType) => {
     try {
       // Use already-loaded saleDetail if available, otherwise fetch
       let data = saleDetail;
       if (!data || data.id !== saleId) {
-        if (saleDetail?.type === 'pos') {
+        const type = saleType || saleDetail?.type;
+        if (type === 'pos') {
           const res = await api.get(`/pos/transactions/${saleId}`);
           data = res.data;
         } else {
-          const res = await salesApi.getInvoice(saleId);
+          const res = await salesApi.getById(saleId);
           data = (res.data || res)?.sale || res.data || res;
         }
       }
@@ -203,8 +204,16 @@ export default function Sales() {
       const netAmount = parseFloat(data.net_amount || 0).toFixed(2);
       const paymentMethod = (data.payment_method || 'cash').toUpperCase();
 
-      // Payment info
-      const paidTotal = detailPayHistory.reduce((s, p) => s + parseFloat(p.amount || 0), 0);
+      // Payment info - fetch history if not already loaded
+      let payHistory = detailPayHistory;
+      if ((!saleDetail || saleDetail.id !== saleId) && payHistory.length === 0) {
+        const refType = (saleType || data.type) === 'pos' ? 'pos' : 'sale';
+        try {
+          const histRes = await api.get(`/payments/history/${refType}/${saleId}`);
+          payHistory = histRes.data || [];
+        } catch { payHistory = []; }
+      }
+      const paidTotal = payHistory.reduce((s, p) => s + parseFloat(p.amount || 0), 0);
       const balance = Math.max(parseFloat(netAmount) - paidTotal, 0);
 
       const itemsHtml = items.map(i =>
@@ -372,7 +381,16 @@ ${balance > 0 ? `<tr class="due"><td>Balance Due</td><td class="right">₹${bala
                 return (
                 <tr key={`${sale.type}-${sale.id}`} className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-5 py-4 font-medium text-primary-600 text-sm">
-                    <div>{sale.invoice_number}</div>
+                    <div className="flex items-center gap-1.5">
+                      <span>{sale.invoice_number}</span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handlePrintInvoice(sale.id, sale.type); }}
+                        className="inline-flex items-center justify-center w-5 h-5 rounded hover:bg-primary-50 text-primary-500 hover:text-primary-700 transition-colors"
+                        title="Print Invoice"
+                      >
+                        <HiOutlinePrinter className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                     {sale.biller_name && <div className="text-[10px] text-gray-400 font-normal">by {sale.biller_name}</div>}
                   </td>
                   <td className="px-5 py-4 text-gray-700">{sale.customer_name || <span className="text-gray-400">Walk-in</span>}</td>

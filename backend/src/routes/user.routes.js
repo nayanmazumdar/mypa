@@ -147,11 +147,23 @@ router.patch('/:id/role', authenticate, authorize('admin'), async (req, res, nex
 
     // Ensure the staff member belongs to one of admin's shops and is not an admin
     const [[membership]] = await pool.query(
-      `SELECT id, role, shop_id FROM user_shops WHERE user_id = ? AND shop_id IN (${placeholders}) LIMIT 1`,
+      `SELECT us.id, us.role, us.shop_id, s.is_open, s.name AS shop_name
+       FROM user_shops us
+       JOIN shops s ON s.id = us.shop_id
+       WHERE us.user_id = ? AND us.shop_id IN (${placeholders}) LIMIT 1`,
       [req.params.id, ...ownedShopIds]
     );
     if (!membership) return ApiResponse.notFound(res, 'Staff member not found in your shop');
     if (membership.role === 'admin') return ApiResponse.error(res, 'Cannot change the role of a shop admin', 403);
+
+    // Block role change when shop is closed
+    if (!membership.is_open) {
+      return ApiResponse.error(
+        res,
+        `Cannot change role — "${membership.shop_name}" is currently closed. Open the shop first.`,
+        403
+      );
+    }
 
     const updates = [];
     const params = [];

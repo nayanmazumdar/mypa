@@ -83,9 +83,10 @@ export default function POS() {
   // If cache is empty on mount, trigger a sync from server
   useEffect(() => {
     async function initCache() {
-      const { getCachedProducts } = await import('../utils/offlineDb');
-      const cached = await getCachedProducts();
-      if (cached.length === 0 && navigator.onLine) {
+      const { getCachedProducts, getCachedCustomers } = await import('../utils/offlineDb');
+      const cachedProducts = await getCachedProducts();
+      const cachedCustomers = await getCachedCustomers('');
+      if ((cachedProducts.length === 0 || cachedCustomers.length === 0) && navigator.onLine) {
         const { syncDataFromServer } = await import('../utils/syncService');
         await syncDataFromServer();
         loadProducts(); // reload after sync
@@ -198,8 +199,9 @@ export default function POS() {
       setCustomerSearch(created.name);
       setCustomerResults([]);
       toast.success(`Customer added: ${created.name}`);
-    } catch {
-      toast.error('Failed to add customer');
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Failed to add customer';
+      toast.error(msg);
     }
   };
 
@@ -271,27 +273,30 @@ export default function POS() {
 
   // ─── Cart Management ──────────────────────────────────────────
   const addToCart = useCallback((product) => {
-    const quantity = product.unit === 'kg' && scaleWeight > 0 ? scaleWeight : 1;
+    const isWeighed = product.unit === 'kg' && scaleWeight > 0;
+    const quantity = isWeighed ? scaleWeight : 1;
     const price = product.offer_price ? parseFloat(product.offer_price) : parseFloat(product.selling_price);
     const stock = parseFloat(product.stock) || 0;
+    const productId = Number(product.id);
 
     setCart((prev) => {
-      const idx = prev.findIndex((item) => item.product_id === product.id);
-      if (idx >= 0 && product.unit !== 'kg') {
+      const idx = prev.findIndex((item) => Number(item.product_id) === productId);
+      // If item already exists and this is NOT a fresh scale weigh-in, increment quantity
+      if (idx >= 0 && !isWeighed) {
         const currentQty = prev[idx].quantity;
-        if (stock > 0 && currentQty + 1 > stock) {
-          toast.error(`Only ${stock} in stock`, { id: 'stock-limit-' + product.id, duration: 2000 });
+        if (stock > 0 && currentQty + quantity > stock) {
+          toast.error(`Only ${stock} in stock`, { id: 'stock-limit-' + productId, duration: 2000 });
           return prev;
         }
-        return prev.map((item, i) => i === idx ? { ...item, quantity: item.quantity + 1 } : item);
+        return prev.map((item, i) => i === idx ? { ...item, quantity: item.quantity + quantity } : item);
       }
-      if (stock <= 0 && product.unit !== 'kg') {
-        toast.error('Out of stock', { id: 'oos-' + product.id, duration: 2000 });
+      if (stock <= 0) {
+        toast.error('Out of stock', { id: 'oos-' + productId, duration: 2000 });
         return prev;
       }
-      return [...prev, { product_id: product.id, product_name: product.name, quantity, unit: product.unit || 'piece', unit_price: price, original_price: parseFloat(product.selling_price), has_offer: !!product.offer_price, stock }];
+      return [...prev, { product_id: productId, product_name: product.name, quantity, unit: product.unit || 'piece', unit_price: price, original_price: parseFloat(product.selling_price), has_offer: !!product.offer_price, stock }];
     });
-    if (product.unit === 'kg' && scaleWeight > 0) toast.success(`${product.name}: ${scaleWeight.toFixed(3)}kg`);
+    if (isWeighed) toast.success(`${product.name}: ${scaleWeight.toFixed(3)}kg`);
   }, [scaleWeight]);
 
   const updateCartQuantity = (index, delta) => {
@@ -564,8 +569,35 @@ ${data.biller_name ? `<div class="row meta" style="margin-top:3px"><span>Billed 
   };
 
   // ═══════════════════════════════════════════════════════════════
+  // ─── Shop Closed Guard ─────────────────────────────────────────
+  const activeShop = user?.shops?.find((s) => s.id === user?.shop_id);
+  const isShopOpen = activeShop ? !!activeShop.is_open : true; // default open if unknown
+
   // RENDER
   // ═══════════════════════════════════════════════════════════════
+
+  if (!isShopOpen && user?.role !== 'admin') {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-5rem)] -mx-5 sm:-mx-8 lg:-mx-10 -my-8">
+        <div className="text-center p-10 max-w-md">
+          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-red-50 flex items-center justify-center" style={{ boxShadow: 'inset 3px 3px 6px #c8cfd8, inset -3px -3px 6px #ffffff' }}>
+            <svg className="w-10 h-10 text-red-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-bold text-gray-800 mb-2">Shop is Closed</h2>
+          <p className="text-gray-500 text-sm mb-6">
+            The Point of Sale is disabled while the shop is closed. Please contact your admin to open the shop.
+          </p>
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-50 border border-red-100">
+            <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
+            <span className="text-xs font-medium text-red-600">POS Disabled</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-[calc(100vh-5rem)] gap-6 -mx-5 sm:-mx-8 lg:-mx-10 -my-8 px-5 sm:px-8 lg:px-10 py-5">
       {/* ═══ LEFT: Product Catalog ═══════════════════════════════ */}
@@ -644,7 +676,7 @@ ${data.biller_name ? `<div class="row meta" style="margin-top:3px"><span>Billed 
               ) : products.length === 0 ? (
                 <tr><td colSpan="4" className="py-20 text-center text-gray-400 text-sm">{search ? `No results for "${search}"` : 'No Products listed for the shop!'}</td></tr>
               ) : products.map((product) => {
-                const inCart = cart.find(c => c.product_id === product.id);
+                const inCart = cart.find(c => Number(c.product_id) === Number(product.id));
                 const outOfStock = parseFloat(product.stock) <= 0;
                 return (
                   <tr key={product.id} onClick={() => !outOfStock && addToCart(product)}

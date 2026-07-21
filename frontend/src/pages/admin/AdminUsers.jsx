@@ -37,6 +37,11 @@ export default function AdminUsers() {
   const [createForm,     setCreateForm]     = useState(EMPTY_CREATE);
   const [saving,         setSaving]         = useState(false);
 
+  // Owner inline edit state
+  const [ownerEditing, setOwnerEditing] = useState(false);
+  const [ownerForm, setOwnerForm] = useState({ name: '', phone: '' });
+  const [savingOwner, setSavingOwner] = useState(false);
+
   // Edit shops state
   const [showShopsModal, setShowShopsModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
@@ -77,7 +82,7 @@ export default function AdminUsers() {
     if (expanded === u.id) { setExpanded(null); return; }
 
     setExpanded(u.id);
-    setActiveTab('roles');
+    setActiveTab('edit');
 
     // Init edit form if not already
     if (!editForms[u.id]) {
@@ -162,7 +167,7 @@ export default function AdminUsers() {
         role_ids: createForm.role_ids.length > 0 ? createForm.role_ids : undefined,
       };
       await api.post('/admin/users', payload);
-      toast.success('User created');
+      toast.success('User created — disabled by default. Enable them from the Users list.');
       setShowCreate(false);
       setCreateForm(EMPTY_CREATE);
       load();
@@ -183,26 +188,39 @@ export default function AdminUsers() {
     });
   };
 
+  const handleSaveOwner = async (ownerId) => {
+    if (!ownerForm.name.trim()) { toast.error('Name is required'); return; }
+    setSavingOwner(true);
+    try {
+      await api.patch(`/admin/users/${ownerId}`, {
+        name: ownerForm.name.trim(),
+        phone: ownerForm.phone.trim(),
+      });
+      toast.success('Profile updated');
+      setOwnerEditing(false);
+      load();
+    } catch (err) {
+      toast.error(err.structured?.message || 'Failed to update');
+    } finally {
+      setSavingOwner(false);
+    }
+  };
+
   const openEditShops = async (u) => {
     setEditingUser(u);
-    setShowShopsModal(true);
     setLoadingShops(true);
     try {
-      // Load admin's shops
       const profileRes = await api.get('/auth/profile');
       const shops = profileRes.data?.shops || [];
       setAdminShops(shops);
 
-      // Load user's current shop assignments
       const assignRes = await api.get(`/users/${u.id}/shops`);
       const assigned = assignRes.data || [];
       setSelectedShopIds(assigned.map(a => a.shop_id));
-      // Use the user's existing role if available
       const firstRole = assigned[0]?.role || 'staff';
       setShopRole(firstRole === 'admin' ? 'staff' : firstRole);
     } catch (err) {
       toast.error('Failed to load shop assignments');
-      setShowShopsModal(false);
     } finally { setLoadingShops(false); }
   };
 
@@ -219,9 +237,8 @@ export default function AdminUsers() {
         role: shopRole,
       });
       toast.success('Shop assignments updated');
-      setShowShopsModal(false);
       setEditingUser(null);
-      loadUsers();
+      load();
     } catch (err) {
       toast.error(err.structured?.message || 'Failed to update shop assignments');
     } finally { setSavingShops(false); }
@@ -320,81 +337,182 @@ export default function AdminUsers() {
               <div key={u.id} className="rounded-2xl" style={NEO.raised}>
                 {/* ── Row header ── */}
                 <div
-                  className="flex items-center justify-between px-5 py-4 cursor-pointer select-none"
-                  onClick={() => toggleExpand(u)}
+                  className={`flex items-center justify-between px-5 py-4 select-none ${!u.is_owner ? 'cursor-pointer' : ''}`}
+                  onClick={() => !u.is_owner && toggleExpand(u)}
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${u.is_owner ? 'bg-purple-100' : 'bg-primary-100'}`}>
-                      <span className={`text-sm font-semibold ${u.is_owner ? 'text-purple-700' : 'text-primary-700'}`}>
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${u.is_owner ? 'bg-gradient-to-br from-violet-500 to-purple-600' : 'bg-primary-100'}`}>
+                      <span className={`text-sm font-bold ${u.is_owner ? 'text-white' : 'text-primary-700'}`}>
                         {u.name?.charAt(0)?.toUpperCase()}
                       </span>
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold text-gray-900">{u.name} {u.is_owner && <span className="text-[10px] text-purple-500 font-normal">(You)</span>}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className={`font-semibold ${u.is_owner ? 'text-purple-700' : 'text-gray-900'}`}>{u.name}</p>
+                        {u.is_owner && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-700">
+                            <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                            You
+                          </span>
+                        )}
+                        {!u.is_owner && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-100 text-purple-700">
+                            Employee
+                          </span>
+                        )}
                         {!u.is_active && (
                           <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-medium">
                             Inactive
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-gray-400">{u.email}</p>
+                      <p className={`text-xs ${u.is_owner ? 'text-purple-400' : 'text-gray-400'}`}>{u.email}</p>
                       {u.shop_names && (
                         <p className="text-[10px] text-primary-600 mt-0.5">{u.shop_names}</p>
                       )}
                     </div>
                 {!u.is_owner && (
                   <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-semibold ${
-                    u.status === 'active' ? 'bg-green-100 text-green-700' :
+                    u.status === 'active'     ? 'bg-green-100 text-green-700' :
                     u.status === 'unassigned' ? 'bg-yellow-100 text-yellow-700' :
-                    'bg-red-100 text-red-600'
+                    u.shop_closed             ? 'bg-orange-100 text-orange-600' :
+                                               'bg-red-100 text-red-600'
                   }`}>
                     <span className={`w-1 h-1 rounded-full ${
-                      u.status === 'active' ? 'bg-green-500' :
+                      u.status === 'active'     ? 'bg-green-500' :
                       u.status === 'unassigned' ? 'bg-yellow-500' :
-                      'bg-red-500'
+                      u.shop_closed             ? 'bg-orange-400' :
+                                                 'bg-red-500'
                     }`} />
-                    {u.status === 'active' ? 'Active' : u.status === 'unassigned' ? 'Unassigned' : 'Disabled'}
+                    {u.status === 'active' ? 'Active' : u.status === 'unassigned' ? 'Unassigned' : u.shop_closed ? 'Shop Closed' : 'Disabled'}
                   </span>
                 )}
-                {!u.is_owner && (
-                  <>
-                    <button onClick={() => openEditDetails(u)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors" title="Edit name & phone">
-                      <HiOutlinePencil className="w-5 h-5" />
-                    </button>
-                    <button onClick={() => openEditShops(u)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-primary-600 transition-colors" title="Edit shops">
-                      <HiOutlineBuildingStorefront className="w-5 h-5" />
-                    </button>
-                  </>
-                )}
+                {!u.is_owner && null}
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    {/* Role badge summary */}
-                    {!isExpanded && (
-                      assignedCount > 0 ? (
-                        <span className="hidden sm:inline text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full font-medium">
-                          {assignedCount} role{assignedCount > 1 ? 's' : ''}
-                        </span>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {/* RBAC role names / owner label */}
+                    {u.is_owner ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        All Roles Active
+                      </span>
+                    ) : !isExpanded && (
+                      u.rbac_role_names?.length > 0 ? (
+                        <div className="flex items-center gap-1 flex-wrap justify-end max-w-[200px]">
+                          {u.rbac_role_names.slice(0, 2).map((rn) => (
+                            <span key={rn} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary-50 text-primary-700 border border-primary-100 whitespace-nowrap">
+                              {rn}
+                            </span>
+                          ))}
+                          {u.rbac_role_names.length > 2 && (
+                            <span className="text-[10px] text-gray-400 whitespace-nowrap">+{u.rbac_role_names.length - 2} more</span>
+                          )}
+                        </div>
                       ) : (
-                        <span className="hidden sm:inline text-xs text-gray-400">No roles</span>
+                        <span className="text-[10px] text-gray-400 whitespace-nowrap">No roles assigned</span>
                       )
                     )}
-                    <RoleBadge role={u.role} />
-                    {isExpanded
+                    {u.is_owner && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOwnerForm({ name: u.name || '', phone: u.phone || '' });
+                          setOwnerEditing((prev) => !prev);
+                        }}
+                        className="p-1.5 rounded-lg text-purple-400 hover:text-purple-700 hover:bg-purple-100 transition-colors"
+                        title="Edit name & phone"
+                      >
+                        <HiOutlinePencil className="w-4 h-4" />
+                      </button>
+                    )}
+                    {!u.is_owner && (isExpanded
                       ? <HiOutlineChevronUp className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                      : <HiOutlineChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />}
+                      : <HiOutlineChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    )}
                   </div>
                 </div>
 
-                {/* ── Expanded panel ── */}
-                {isExpanded && (
+                {/* ── Owner inline edit (name & phone only) ── */}
+                {u.is_owner && ownerEditing && (
+                  <div className="border-t px-5 py-4" style={{ borderColor: 'rgba(200,207,216,0.4)' }}>
+                    <p className="text-[11px] font-semibold text-purple-500 uppercase tracking-wider mb-3">Edit your details</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Full Name *</label>
+                        <input
+                          type="text"
+                          value={ownerForm.name}
+                          onChange={(e) => setOwnerForm({ ...ownerForm, name: e.target.value })}
+                          className="input-field text-sm"
+                          placeholder="Your name"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
+                        <input
+                          type="tel"
+                          value={ownerForm.phone}
+                          onChange={(e) => setOwnerForm({ ...ownerForm, phone: e.target.value })}
+                          className="input-field text-sm"
+                          placeholder="Optional"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2 mt-3">
+                      <button
+                        type="button"
+                        onClick={() => setOwnerEditing(false)}
+                        className="btn-secondary text-sm px-4"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSaveOwner(u.id)}
+                        disabled={savingOwner}
+                        className="btn-primary text-sm px-4"
+                      >
+                        {savingOwner ? 'Saving…' : 'Save'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Expanded panel (staff/non-owner only) ── */}
+                {isExpanded && !u.is_owner && (
                   <div className="border-t border-gray-200/60">
                     {/* Tab bar */}
                     <div className="flex border-b border-gray-200/60 px-5">
                       <button
-                        onClick={() => setActiveTab('roles')}
+                        onClick={() => setActiveTab('edit')}
                         className={`py-2.5 px-1 mr-5 text-xs font-semibold border-b-2 transition-colors ${
+                          activeTab === 'edit'
+                            ? 'border-primary-500 text-primary-600'
+                            : 'border-transparent text-gray-400 hover:text-gray-600'
+                        }`}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <HiOutlinePencil className="w-3.5 h-3.5" />
+                          Edit Details
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => { setActiveTab('shops'); openEditShops(u); }}
+                        className={`py-2.5 px-1 mr-5 text-xs font-semibold border-b-2 transition-colors ${
+                          activeTab === 'shops'
+                            ? 'border-primary-500 text-primary-600'
+                            : 'border-transparent text-gray-400 hover:text-gray-600'
+                        }`}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <HiOutlineBuildingStorefront className="w-3.5 h-3.5" />
+                          Shop Assignment
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => setActiveTab('roles')}
+                        className={`py-2.5 px-1 text-xs font-semibold border-b-2 transition-colors ${
                           activeTab === 'roles'
                             ? 'border-primary-500 text-primary-600'
                             : 'border-transparent text-gray-400 hover:text-gray-600'
@@ -408,19 +526,6 @@ export default function AdminUsers() {
                               {assignedCount}
                             </span>
                           )}
-                        </span>
-                      </button>
-                      <button
-                        onClick={() => setActiveTab('edit')}
-                        className={`py-2.5 px-1 text-xs font-semibold border-b-2 transition-colors ${
-                          activeTab === 'edit'
-                            ? 'border-primary-500 text-primary-600'
-                            : 'border-transparent text-gray-400 hover:text-gray-600'
-                        }`}
-                      >
-                        <span className="flex items-center gap-1.5">
-                          <HiOutlinePencil className="w-3.5 h-3.5" />
-                          Edit Details
                         </span>
                       </button>
                     </div>
@@ -490,19 +595,26 @@ export default function AdminUsers() {
                           </div>
                           <div>
                             <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
-                            <select
-                              value={editForm.is_active ?? 1}
-                              onChange={(e) => setEditForms(prev => ({
-                                ...prev, [u.id]: { ...editForm, is_active: Number(e.target.value) }
-                              }))}
-                              className="input-field text-sm"
-                            >
-                              <option value={1}>Active</option>
-                              <option value={0}>Inactive</option>
-                            </select>
+                            {u.shop_closed ? (
+                              <div className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-orange-700 bg-orange-50 border border-orange-100">
+                                <HiOutlineBuildingStorefront className="w-4 h-4 flex-shrink-0" />
+                                Disabled — shop is closed. Open the shop to enable this user.
+                              </div>
+                            ) : (
+                              <select
+                                value={editForm.is_active ?? 1}
+                                onChange={(e) => setEditForms(prev => ({
+                                  ...prev, [u.id]: { ...editForm, is_active: Number(e.target.value) }
+                                }))}
+                                className="input-field text-sm"
+                              >
+                                <option value={1}>Active</option>
+                                <option value={0}>Inactive</option>
+                              </select>
+                            )}
                           </div>
                         </div>
-                        <div className="flex justify-end pt-1">
+                        <div className="flex justify-end pt-3">
                           <button
                             onClick={() => saveEdit(u.id)}
                             disabled={isSavingEdit}
@@ -511,6 +623,73 @@ export default function AdminUsers() {
                             {isSavingEdit ? 'Saving…' : 'Save Changes'}
                           </button>
                         </div>
+                      </div>
+                    )}
+
+                    {/* ── Shop Assignment tab ── */}
+                    {activeTab === 'shops' && (
+                      <div className="px-5 py-4 space-y-3">
+                        {loadingShops ? (
+                          <div className="py-6 flex justify-center">
+                            <div className="w-5 h-5 border-2 border-primary-300 border-t-primary-600 rounded-full animate-spin" />
+                          </div>
+                        ) : adminShops.length === 0 ? (
+                          <p className="text-sm text-gray-400 py-2">No shops found</p>
+                        ) : (
+                          <>
+                            <p className="text-xs text-gray-500 mb-3">Select which shop this user should be assigned to.</p>
+                            <div className="space-y-2 max-h-60 overflow-y-auto">
+                              {/* No Shop Assigned option */}
+                              <label
+                                className="flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors"
+                                style={selectedShopIds.length === 0 ? NEO.inset : {}}
+                              >
+                                <input
+                                  type="radio"
+                                  name={`shop-assignment-${u.id}`}
+                                  checked={selectedShopIds.length === 0}
+                                  onChange={() => setSelectedShopIds([])}
+                                  className="w-4 h-4 border-gray-300 text-primary-600 focus:ring-primary-500"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-gray-500 italic">No Shop Assigned</p>
+                                </div>
+                              </label>
+                              {adminShops.map((shop) => (
+                                <label
+                                  key={shop.id}
+                                  className="flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors"
+                                  style={selectedShopIds.includes(shop.id) ? NEO.inset : {}}
+                                >
+                                  <input
+                                    type="radio"
+                                    name={`shop-assignment-${u.id}`}
+                                    checked={selectedShopIds.includes(shop.id)}
+                                    onChange={() => setSelectedShopIds([shop.id])}
+                                    className="w-4 h-4 border-gray-300 text-primary-600 focus:ring-primary-500"
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-gray-900">{shop.name}</p>
+                                    {shop.address && <p className="text-xs text-gray-400 truncate">{shop.address}</p>}
+                                  </div>
+                                  {!shop.is_open && (
+                                    <span className="text-[10px] px-1.5 py-0.5 bg-red-50 text-red-600 rounded flex-shrink-0">Closed</span>
+                                  )}
+                                </label>
+                              ))}
+                            </div>
+
+                            <div className="flex justify-end pt-2">
+                              <button
+                                onClick={handleSaveShops}
+                                disabled={savingShops}
+                                className="btn-primary text-sm px-5"
+                              >
+                                {savingShops ? 'Saving...' : 'Save Changes'}
+                              </button>
+                            </div>
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
